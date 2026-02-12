@@ -1,0 +1,413 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Upload, X, Camera, FileText, Save } from 'lucide-react';
+import toast from 'react-hot-toast';
+import {
+  PageHeader,
+  Card,
+  Button,
+  Input,
+  Select,
+  Textarea,
+  Loading,
+} from '../../components/common';
+import api from '../../services/api';
+import { formatCurrency } from '../../utils/formatters';
+
+const expenseSchema = z.object({
+  description: z.string().min(3, 'Description must be at least 3 characters'),
+  amount: z.number().min(1, 'Amount must be greater than 0'),
+  category: z.string().min(1, 'Category is required'),
+  vendor: z.string().optional(),
+  date: z.string().min(1, 'Date is required'),
+  notes: z.string().optional(),
+  gstAmount: z.number().optional(),
+});
+
+const ExpenseCreate = () => {
+  const navigate = useNavigate();
+  const { id } = useParams();
+  const isEditing = Boolean(id);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [scanning, setScanning] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = useForm({
+    resolver: zodResolver(expenseSchema),
+    defaultValues: {
+      description: '',
+      amount: 0,
+      category: '',
+      vendor: '',
+      date: new Date().toISOString().split('T')[0],
+      notes: '',
+      gstAmount: 0,
+    },
+  });
+
+  const watchAmount = watch('amount');
+  const watchGstAmount = watch('gstAmount');
+
+  useEffect(() => {
+    if (isEditing) {
+      fetchExpense();
+    }
+  }, [id]);
+
+  const fetchExpense = async () => {
+    setLoading(true);
+    try {
+      const response = await api.get(`/expenses/${id}`);
+      const expense = response.data.data;
+      setValue('description', expense.description);
+      setValue('amount', expense.amount);
+      setValue('category', expense.category);
+      setValue('vendor', expense.vendor || '');
+      setValue('date', expense.date?.split('T')[0] || '');
+      setValue('notes', expense.notes || '');
+      setValue('gstAmount', expense.gstAmount || 0);
+    } catch (error) {
+      toast.error('Failed to fetch expense');
+      navigate('/expenses');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const categoryOptions = [
+    { value: 'Operations', label: 'Operations' },
+    { value: 'IT', label: 'IT & Software' },
+    { value: 'Travel', label: 'Travel' },
+    { value: 'Entertainment', label: 'Entertainment' },
+    { value: 'HR', label: 'HR & Payroll' },
+    { value: 'Marketing', label: 'Marketing' },
+    { value: 'Utilities', label: 'Utilities' },
+    { value: 'Office', label: 'Office Supplies' },
+    { value: 'Professional', label: 'Professional Services' },
+    { value: 'Other', label: 'Other' },
+  ];
+
+  const handleDrag = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  }, []);
+
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFiles(e.dataTransfer.files);
+    }
+  }, []);
+
+  const handleFiles = (fileList) => {
+    const newFiles = Array.from(fileList).filter((file) => {
+      const isValid = file.type.startsWith('image/') || file.type === 'application/pdf';
+      const isSmallEnough = file.size <= 10 * 1024 * 1024; // 10MB
+      return isValid && isSmallEnough;
+    });
+
+    if (files.length + newFiles.length > 5) {
+      toast.error('Maximum 5 files allowed');
+      return;
+    }
+
+    setFiles((prev) => [...prev, ...newFiles]);
+  };
+
+  const removeFile = (index) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleOCRScan = async () => {
+    if (files.length === 0) {
+      toast.error('Please upload a receipt first');
+      return;
+    }
+
+    setScanning(true);
+    try {
+      const formData = new FormData();
+      formData.append('receipt', files[0]);
+
+      const response = await api.post('/expenses/ocr', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const { vendor, amount, date, gstAmount } = response.data.data;
+      
+      if (vendor) setValue('vendor', vendor);
+      if (amount) setValue('amount', amount);
+      if (date) setValue('date', date);
+      if (gstAmount) setValue('gstAmount', gstAmount);
+      
+      toast.success('Receipt scanned successfully!');
+    } catch (error) {
+      toast.error('Failed to scan receipt. Please enter details manually.');
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const onSubmit = async (data) => {
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      Object.keys(data).forEach((key) => {
+        formData.append(key, data[key]);
+      });
+      files.forEach((file) => {
+        formData.append('receipts', file);
+      });
+
+      if (isEditing) {
+        await api.put(`/expenses/${id}`, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        toast.success('Expense updated successfully');
+      } else {
+        await api.post('/expenses', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        toast.success('Expense created successfully');
+      }
+      navigate('/expenses');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to save expense');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <Loading.Page />;
+  }
+
+  return (
+    <div className="space-y-6 animate-fadeIn">
+      <PageHeader
+        title={isEditing ? 'Edit Expense' : 'Add Expense'}
+        description={isEditing ? 'Update expense details' : 'Record a new business expense'}
+        backUrl="/expenses"
+      />
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Form */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Expense Details</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <Input
+                    label="Description"
+                    placeholder="What was this expense for?"
+                    error={errors.description?.message}
+                    required
+                    {...register('description')}
+                  />
+                </div>
+                <Input
+                  label="Amount"
+                  type="number"
+                  placeholder="0.00"
+                  error={errors.amount?.message}
+                  required
+                  {...register('amount', { valueAsNumber: true })}
+                />
+                <Input
+                  label="GST Amount"
+                  type="number"
+                  placeholder="0.00"
+                  helperText="GST included in total amount"
+                  {...register('gstAmount', { valueAsNumber: true })}
+                />
+                <Select
+                  label="Category"
+                  placeholder="Select category"
+                  options={categoryOptions}
+                  error={errors.category?.message}
+                  required
+                  {...register('category')}
+                />
+                <Input
+                  label="Vendor/Merchant"
+                  placeholder="Where was this purchased?"
+                  {...register('vendor')}
+                />
+                <Input
+                  label="Date"
+                  type="date"
+                  error={errors.date?.message}
+                  required
+                  {...register('date')}
+                />
+              </div>
+              <div className="mt-4">
+                <Textarea
+                  label="Notes"
+                  placeholder="Additional notes or details..."
+                  rows={3}
+                  {...register('notes')}
+                />
+              </div>
+            </Card>
+
+            {/* Summary */}
+            <Card className="bg-gray-50">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-sm text-gray-500">Total Amount</p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {formatCurrency(watchAmount || 0)}
+                  </p>
+                </div>
+                {watchGstAmount > 0 && (
+                  <div className="text-right">
+                    <p className="text-sm text-gray-500">GST Included</p>
+                    <p className="text-lg font-semibold text-green-600">
+                      {formatCurrency(watchGstAmount)}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Card>
+          </div>
+
+          {/* Receipt Upload */}
+          <div className="space-y-6">
+            <Card>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Receipt Upload</h2>
+              
+              {/* Drop Zone */}
+              <div
+                className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
+                  dragActive
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-300 hover:border-gray-400'
+                }`}
+                onDragEnter={handleDrag}
+                onDragLeave={handleDrag}
+                onDragOver={handleDrag}
+                onDrop={handleDrop}
+              >
+                <Upload className="w-10 h-10 text-gray-400 mx-auto mb-3" />
+                <p className="text-sm text-gray-600 mb-2">
+                  Drag & drop receipts here, or{' '}
+                  <label className="text-blue-600 cursor-pointer hover:text-blue-700">
+                    browse
+                    <input
+                      type="file"
+                      className="hidden"
+                      accept="image/*,.pdf"
+                      multiple
+                      onChange={(e) => handleFiles(e.target.files)}
+                    />
+                  </label>
+                </p>
+                <p className="text-xs text-gray-400">PNG, JPG, PDF up to 10MB</p>
+              </div>
+
+              {/* Uploaded Files */}
+              {files.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {files.map((file, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                    >
+                      <div className="flex items-center gap-3">
+                        {file.type.startsWith('image/') ? (
+                          <img
+                            src={URL.createObjectURL(file)}
+                            alt={file.name}
+                            className="w-10 h-10 object-cover rounded"
+                          />
+                        ) : (
+                          <FileText className="w-10 h-10 text-gray-400" />
+                        )}
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 truncate max-w-[150px]">
+                            {file.name}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {(file.size / 1024).toFixed(1)} KB
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeFile(index)}
+                        className="p-1 hover:bg-gray-200 rounded"
+                      >
+                        <X className="w-4 h-4 text-gray-500" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* OCR Scan Button */}
+              {files.length > 0 && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full mt-4"
+                  icon={Camera}
+                  loading={scanning}
+                  onClick={handleOCRScan}
+                >
+                  Scan Receipt with OCR
+                </Button>
+              )}
+            </Card>
+
+            {/* Tips */}
+            <Card className="bg-blue-50 border-blue-200">
+              <h3 className="text-sm font-semibold text-blue-900 mb-2">Tips</h3>
+              <ul className="text-xs text-blue-800 space-y-1">
+                <li>• Upload clear photos of receipts for OCR scanning</li>
+                <li>• Include GST amount for tax credit claims</li>
+                <li>• Add vendor GSTN for compliance</li>
+              </ul>
+            </Card>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-end gap-3">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => navigate('/expenses')}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" loading={saving} icon={Save}>
+            {isEditing ? 'Update Expense' : 'Submit Expense'}
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default ExpenseCreate;

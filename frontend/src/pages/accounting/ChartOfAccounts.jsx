@@ -1,0 +1,368 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Plus,
+  Search,
+  ChevronRight,
+  ChevronDown,
+  Folder,
+  FolderOpen,
+  FileText,
+  Edit,
+  Trash2,
+  DollarSign,
+  TrendingUp,
+  TrendingDown,
+  Landmark,
+  Wallet,
+} from 'lucide-react';
+import toast from 'react-hot-toast';
+import {
+  PageHeader,
+  Card,
+  Button,
+  Input,
+  Modal,
+  Select,
+  Loading,
+  EmptyState,
+} from '../../components/common';
+import api from '../../services/api';
+import { formatCurrency } from '../../utils/formatters';
+
+const ChartOfAccounts = () => {
+  const navigate = useNavigate();
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [expandedGroups, setExpandedGroups] = useState(['Assets', 'Liabilities', 'Equity', 'Income', 'Expense']);
+  const [showModal, setShowModal] = useState(false);
+  const [editingAccount, setEditingAccount] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const [formData, setFormData] = useState({
+    code: '',
+    name: '',
+    type: '',
+    parentAccount: '',
+    description: '',
+  });
+
+  useEffect(() => {
+    fetchAccounts();
+  }, []);
+
+  const fetchAccounts = async () => {
+    try {
+      const response = await api.get('/accounts');
+      setAccounts(response.data.data || []);
+    } catch (error) {
+      console.error('Failed to fetch accounts:', error);
+      // Sample data
+      setAccounts([
+        { _id: '1', code: '1000', name: 'Cash', type: 'Assets', balance: 125000, isGroup: false },
+        { _id: '2', code: '1100', name: 'Bank Accounts', type: 'Assets', balance: 850000, isGroup: true },
+        { _id: '21', code: '1101', name: 'HDFC Current Account', type: 'Assets', parentAccount: '2', balance: 550000, isGroup: false },
+        { _id: '22', code: '1102', name: 'ICICI Savings Account', type: 'Assets', parentAccount: '2', balance: 300000, isGroup: false },
+        { _id: '3', code: '1200', name: 'Accounts Receivable', type: 'Assets', balance: 250000, isGroup: false },
+        { _id: '4', code: '1300', name: 'Inventory', type: 'Assets', balance: 180000, isGroup: false },
+        { _id: '5', code: '2000', name: 'Accounts Payable', type: 'Liabilities', balance: 95000, isGroup: false },
+        { _id: '6', code: '2100', name: 'Short Term Loans', type: 'Liabilities', balance: 200000, isGroup: false },
+        { _id: '7', code: '2200', name: 'GST Payable', type: 'Liabilities', balance: 45000, isGroup: false },
+        { _id: '8', code: '3000', name: 'Share Capital', type: 'Equity', balance: 500000, isGroup: false },
+        { _id: '9', code: '3100', name: 'Retained Earnings', type: 'Equity', balance: 350000, isGroup: false },
+        { _id: '10', code: '4000', name: 'Sales Revenue', type: 'Income', balance: 1250000, isGroup: false },
+        { _id: '11', code: '4100', name: 'Service Revenue', type: 'Income', balance: 450000, isGroup: false },
+        { _id: '12', code: '5000', name: 'Cost of Goods Sold', type: 'Expense', balance: 620000, isGroup: false },
+        { _id: '13', code: '5100', name: 'Salaries & Wages', type: 'Expense', balance: 380000, isGroup: false },
+        { _id: '14', code: '5200', name: 'Rent Expense', type: 'Expense', balance: 96000, isGroup: false },
+        { _id: '15', code: '5300', name: 'Utilities', type: 'Expense', balance: 24000, isGroup: false },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const accountTypes = [
+    { value: 'Assets', label: 'Assets', icon: Wallet, color: 'blue' },
+    { value: 'Liabilities', label: 'Liabilities', icon: TrendingDown, color: 'red' },
+    { value: 'Equity', label: 'Equity', icon: Landmark, color: 'purple' },
+    { value: 'Income', label: 'Income', icon: TrendingUp, color: 'green' },
+    { value: 'Expense', label: 'Expense', icon: DollarSign, color: 'orange' },
+  ];
+
+  const getTypeIcon = (type) => {
+    const typeConfig = accountTypes.find((t) => t.value === type);
+    return typeConfig?.icon || FileText;
+  };
+
+  const getTypeColor = (type) => {
+    const colors = {
+      Assets: 'text-blue-600 bg-blue-100',
+      Liabilities: 'text-red-600 bg-red-100',
+      Equity: 'text-purple-600 bg-purple-100',
+      Income: 'text-green-600 bg-green-100',
+      Expense: 'text-orange-600 bg-orange-100',
+    };
+    return colors[type] || 'text-gray-600 bg-gray-100';
+  };
+
+  const toggleGroup = (group) => {
+    setExpandedGroups((prev) =>
+      prev.includes(group) ? prev.filter((g) => g !== group) : [...prev, group]
+    );
+  };
+
+  const groupedAccounts = accountTypes.map((type) => ({
+    ...type,
+    accounts: accounts.filter((a) => a.type === type.value && !a.parentAccount),
+    total: accounts
+      .filter((a) => a.type === type.value)
+      .reduce((sum, a) => sum + (a.balance || 0), 0),
+  }));
+
+  const filteredGroups = groupedAccounts.map((group) => ({
+    ...group,
+    accounts: group.accounts.filter(
+      (a) =>
+        a.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        a.code.includes(searchQuery)
+    ),
+  }));
+
+  const handleOpenModal = (account = null) => {
+    if (account) {
+      setEditingAccount(account);
+      setFormData({
+        code: account.code,
+        name: account.name,
+        type: account.type,
+        parentAccount: account.parentAccount || '',
+        description: account.description || '',
+      });
+    } else {
+      setEditingAccount(null);
+      setFormData({
+        code: '',
+        name: '',
+        type: '',
+        parentAccount: '',
+        description: '',
+      });
+    }
+    setShowModal(true);
+  };
+
+  const handleSaveAccount = async () => {
+    if (!formData.code || !formData.name || !formData.type) {
+      toast.error('Please fill in all required fields');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (editingAccount) {
+        await api.put(`/accounts/${editingAccount._id}`, formData);
+        toast.success('Account updated successfully');
+      } else {
+        await api.post('/accounts', formData);
+        toast.success('Account created successfully');
+      }
+      fetchAccounts();
+      setShowModal(false);
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to save account');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const getChildAccounts = (parentId) => {
+    return accounts.filter((a) => a.parentAccount === parentId);
+  };
+
+  if (loading) {
+    return <Loading.Page />;
+  }
+
+  return (
+    <div className="space-y-6 animate-fadeIn">
+      <PageHeader
+        title="Chart of Accounts"
+        description="Manage your account structure and balances"
+        action={
+          <Button onClick={() => handleOpenModal()} icon={Plus}>
+            Add Account
+          </Button>
+        }
+      />
+
+      {/* Search */}
+      <Card className="p-4">
+        <Input
+          placeholder="Search accounts by name or code..."
+          icon={Search}
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
+      </Card>
+
+      {/* Account Groups */}
+      <div className="space-y-4">
+        {filteredGroups.map((group) => (
+          <Card key={group.value} padding={false}>
+            {/* Group Header */}
+            <button
+              onClick={() => toggleGroup(group.value)}
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                {expandedGroups.includes(group.value) ? (
+                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                ) : (
+                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                )}
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getTypeColor(group.value)}`}>
+                  <group.icon className="w-5 h-5" />
+                </div>
+                <div className="text-left">
+                  <h3 className="font-semibold text-gray-900">{group.label}</h3>
+                  <p className="text-sm text-gray-500">{group.accounts.length} accounts</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold text-gray-900">
+                  {formatCurrency(group.total)}
+                </p>
+              </div>
+            </button>
+
+            {/* Account List */}
+            {expandedGroups.includes(group.value) && group.accounts.length > 0 && (
+              <div className="border-t border-gray-200">
+                {group.accounts.map((account) => (
+                  <div key={account._id}>
+                    <div className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-0">
+                      <div className="flex items-center gap-3 ml-8">
+                        {account.isGroup ? (
+                          <FolderOpen className="w-5 h-5 text-gray-400" />
+                        ) : (
+                          <FileText className="w-5 h-5 text-gray-400" />
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-mono text-gray-500">{account.code}</span>
+                            <span className="font-medium text-gray-900">{account.name}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <span className="font-semibold text-gray-900">
+                          {formatCurrency(account.balance || 0)}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => handleOpenModal(account)}
+                            className="p-1.5 hover:bg-gray-200 rounded-lg"
+                          >
+                            <Edit className="w-4 h-4 text-gray-500" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    {/* Child Accounts */}
+                    {getChildAccounts(account._id).map((child) => (
+                      <div
+                        key={child._id}
+                        className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 border-b border-gray-100 last:border-0 bg-gray-50/50"
+                      >
+                        <div className="flex items-center gap-3 ml-16">
+                          <FileText className="w-4 h-4 text-gray-400" />
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-mono text-gray-500">{child.code}</span>
+                              <span className="text-sm text-gray-700">{child.name}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-sm font-medium text-gray-700">
+                            {formatCurrency(child.balance || 0)}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleOpenModal(child)}
+                              className="p-1 hover:bg-gray-200 rounded"
+                            >
+                              <Edit className="w-3.5 h-3.5 text-gray-400" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {expandedGroups.includes(group.value) && group.accounts.length === 0 && (
+              <div className="p-8 text-center text-gray-500 border-t border-gray-200">
+                No accounts in this category
+              </div>
+            )}
+          </Card>
+        ))}
+      </div>
+
+      {/* Add/Edit Account Modal */}
+      <Modal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        title={editingAccount ? 'Edit Account' : 'Add Account'}
+      >
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Account Code"
+              placeholder="e.g., 1100"
+              value={formData.code}
+              onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+              required
+            />
+            <Select
+              label="Account Type"
+              placeholder="Select type"
+              options={accountTypes.map((t) => ({ value: t.value, label: t.label }))}
+              value={formData.type}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              required
+            />
+          </div>
+          <Input
+            label="Account Name"
+            placeholder="e.g., Bank Accounts"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            required
+          />
+          <Input
+            label="Description"
+            placeholder="Optional description"
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          />
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="secondary" onClick={() => setShowModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveAccount} loading={saving}>
+              {editingAccount ? 'Update' : 'Create'} Account
+            </Button>
+          </div>
+        </div>
+      </Modal>
+    </div>
+  );
+};
+
+export default ChartOfAccounts;
