@@ -6,6 +6,7 @@ import accountsRoutes from './accounts.routes.js';
 import reportsRoutes from './reports.routes.js';
 import expenseRoutes from './expense.routes.js';
 import insightflowRoutes from './insightflow.routes.js';
+import usersRoutes from './users.routes.js';
 
 const router = express.Router();
 
@@ -31,5 +32,7 @@ router.use('/v1/accounts', accountsRoutes);
 router.use('/v1/reports', reportsRoutes);
 router.use('/v1/expenses', expenseRoutes);
 router.use('/v1/insightflow', insightflowRoutes);
+router.use('/v1/users', usersRoutes);
+router.use('/users', usersRoutes); // Also support non-versioned path
 
 export default router;

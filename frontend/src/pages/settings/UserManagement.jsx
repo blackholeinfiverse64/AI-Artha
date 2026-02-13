@@ -42,7 +42,7 @@ const UserManagement = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    role: 'user',
+    role: 'viewer',
     department: '',
     password: '',
     status: 'active',
@@ -84,7 +84,7 @@ const UserManagement = () => {
           _id: '3',
           name: 'Amit Patel',
           email: 'amit@artha.com',
-          role: 'user',
+          role: 'viewer',
           department: 'Sales',
           status: 'active',
           lastLogin: '2026-02-14T16:20:00Z',
@@ -104,7 +104,7 @@ const UserManagement = () => {
           _id: '5',
           name: 'Vikram Singh',
           email: 'vikram@artha.com',
-          role: 'user',
+          role: 'viewer',
           department: 'Operations',
           status: 'inactive',
           lastLogin: '2026-01-20T11:00:00Z',
@@ -114,7 +114,7 @@ const UserManagement = () => {
           _id: '6',
           name: 'Ananya Desai',
           email: 'ananya@artha.com',
-          role: 'approver',
+          role: 'viewer',
           department: 'Management',
           status: 'active',
           lastLogin: '2026-02-14T17:30:00Z',
@@ -127,10 +127,9 @@ const UserManagement = () => {
   };
 
   const roles = [
-    { value: 'admin', label: 'Admin', color: 'red', description: 'Full system access' },
-    { value: 'accountant', label: 'Accountant', color: 'blue', description: 'Financial operations' },
-    { value: 'approver', label: 'Approver', color: 'purple', description: 'Approve expenses & invoices' },
-    { value: 'user', label: 'User', color: 'gray', description: 'Basic access' },
+    { value: 'admin', label: 'Admin', color: 'red', description: 'Full system access - manage users, settings & all data' },
+    { value: 'accountant', label: 'Accountant', color: 'blue', description: 'Create & edit invoices, expenses, journal entries' },
+    { value: 'viewer', label: 'Viewer', color: 'gray', description: 'Read-only access to view reports & data' },
   ];
 
   const departments = [
@@ -180,7 +179,7 @@ const UserManagement = () => {
       setFormData({
         name: '',
         email: '',
-        role: 'user',
+        role: 'viewer',
         department: '',
         password: '',
         status: 'active',
@@ -256,7 +255,7 @@ const UserManagement = () => {
       />
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="p-4">
           <p className="text-sm text-gray-500">Total Users</p>
           <p className="text-2xl font-bold text-gray-900">{users.length}</p>
@@ -277,6 +276,12 @@ const UserManagement = () => {
           <p className="text-sm text-gray-500">Accountants</p>
           <p className="text-2xl font-bold text-blue-600">
             {users.filter((u) => u.role === 'accountant').length}
+          </p>
+        </Card>
+        <Card className="p-4">
+          <p className="text-sm text-gray-500">Viewers</p>
+          <p className="text-2xl font-bold text-gray-600">
+            {users.filter((u) => u.role === 'viewer').length}
           </p>
         </Card>
       </div>
