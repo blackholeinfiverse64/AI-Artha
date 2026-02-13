@@ -4,6 +4,163 @@ import Decimal from 'decimal.js';
 
 class PDFService {
   /**
+   * Generate Invoice PDF
+   */
+  async generateInvoicePDF(invoice, companyInfo = {}) {
+    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+
+    // Company Header
+    doc.fontSize(20).font('Helvetica-Bold').text(companyInfo.name || 'ARTHA Finance', 50, 50);
+    doc.fontSize(10).font('Helvetica');
+    if (companyInfo.address) doc.text(companyInfo.address, 50, 75);
+    if (companyInfo.gstin) doc.text(`GSTIN: ${companyInfo.gstin}`, 50, 90);
+    if (companyInfo.phone) doc.text(`Phone: ${companyInfo.phone}`, 50, 105);
+
+    // Invoice Title
+    doc.fontSize(24).font('Helvetica-Bold').text('INVOICE', 400, 50, { align: 'right' });
+    doc.fontSize(12).font('Helvetica');
+    doc.text(`Invoice #: ${invoice.invoiceNumber}`, 400, 80, { align: 'right' });
+    doc.text(`Date: ${new Date(invoice.invoiceDate).toLocaleDateString()}`, 400, 95, { align: 'right' });
+    doc.text(`Due: ${new Date(invoice.dueDate).toLocaleDateString()}`, 400, 110, { align: 'right' });
+
+    // Status badge
+    const statusColors = {
+      draft: '#6B7280',
+      sent: '#3B82F6',
+      paid: '#10B981',
+      partial: '#F59E0B',
+      overdue: '#EF4444',
+      cancelled: '#6B7280',
+    };
+    doc.fillColor(statusColors[invoice.status] || '#6B7280')
+      .text(`Status: ${(invoice.status || 'draft').toUpperCase()}`, 400, 125, { align: 'right' });
+    doc.fillColor('black');
+
+    // Divider
+    doc.moveTo(50, 150).lineTo(550, 150).stroke();
+
+    // Bill To section
+    doc.fontSize(12).font('Helvetica-Bold').text('Bill To:', 50, 170);
+    doc.fontSize(10).font('Helvetica');
+    doc.text(invoice.customerName || 'N/A', 50, 190);
+    if (invoice.customerEmail) doc.text(invoice.customerEmail, 50, 205);
+    if (invoice.customerAddress) doc.text(invoice.customerAddress, 50, 220);
+    if (invoice.customerGSTIN) doc.text(`GSTIN: ${invoice.customerGSTIN}`, 50, 235);
+
+    // Table header
+    const tableTop = 280;
+    const col1 = 50; // Description
+    const col2 = 280; // HSN/SAC
+    const col3 = 350; // Qty
+    const col4 = 400; // Rate
+    const col5 = 480; // Amount
+
+    doc.fontSize(10).font('Helvetica-Bold');
+    doc.text('Description', col1, tableTop);
+    doc.text('HSN/SAC', col2, tableTop);
+    doc.text('Qty', col3, tableTop);
+    doc.text('Rate', col4, tableTop);
+    doc.text('Amount', col5, tableTop);
+
+    doc.moveTo(50, tableTop + 15).lineTo(550, tableTop + 15).stroke();
+
+    // Line items
+    let y = tableTop + 25;
+    doc.font('Helvetica');
+    const items = invoice.items || invoice.lines || [];
+    
+    items.forEach((item) => {
+      const amount = new Decimal(item.quantity || 1).times(new Decimal(item.unitPrice || item.rate || 0));
+      
+      doc.text(item.description || item.name || 'Item', col1, y, { width: 220 });
+      doc.text(item.hsnCode || item.sacCode || '-', col2, y);
+      doc.text(String(item.quantity || 1), col3, y);
+      doc.text(this.formatCurrency(item.unitPrice || item.rate || 0), col4, y);
+      doc.text(this.formatCurrency(amount.toString()), col5, y);
+      
+      y += 20;
+      
+      // Add new page if needed
+      if (y > 700) {
+        doc.addPage();
+        y = 50;
+      }
+    });
+
+    // Totals section
+    y += 20;
+    doc.moveTo(350, y).lineTo(550, y).stroke();
+    y += 10;
+
+    doc.font('Helvetica');
+    doc.text('Subtotal:', 350, y);
+    doc.text(this.formatCurrency(invoice.subtotal || 0), col5, y);
+    y += 20;
+
+    if (invoice.cgst || invoice.cgstAmount) {
+      doc.text(`CGST (${invoice.cgstRate || 9}%):`, 350, y);
+      doc.text(this.formatCurrency(invoice.cgst || invoice.cgstAmount || 0), col5, y);
+      y += 15;
+    }
+
+    if (invoice.sgst || invoice.sgstAmount) {
+      doc.text(`SGST (${invoice.sgstRate || 9}%):`, 350, y);
+      doc.text(this.formatCurrency(invoice.sgst || invoice.sgstAmount || 0), col5, y);
+      y += 15;
+    }
+
+    if (invoice.igst || invoice.igstAmount) {
+      doc.text(`IGST (${invoice.igstRate || 18}%):`, 350, y);
+      doc.text(this.formatCurrency(invoice.igst || invoice.igstAmount || 0), col5, y);
+      y += 15;
+    }
+
+    if (invoice.taxAmount && !invoice.cgst && !invoice.sgst && !invoice.igst) {
+      doc.text('Tax:', 350, y);
+      doc.text(this.formatCurrency(invoice.taxAmount), col5, y);
+      y += 15;
+    }
+
+    y += 5;
+    doc.moveTo(350, y).lineTo(550, y).stroke();
+    y += 10;
+
+    doc.font('Helvetica-Bold').fontSize(12);
+    doc.text('TOTAL:', 350, y);
+    doc.text(`₹ ${this.formatCurrency(invoice.totalAmount || invoice.total || 0)}`, col5, y);
+
+    // Payment info
+    if (invoice.amountPaid && parseFloat(invoice.amountPaid) > 0) {
+      y += 25;
+      doc.font('Helvetica').fontSize(10);
+      doc.text(`Amount Paid: ₹ ${this.formatCurrency(invoice.amountPaid)}`, 350, y);
+      y += 15;
+      doc.font('Helvetica-Bold');
+      doc.text(`Balance Due: ₹ ${this.formatCurrency(invoice.balanceDue || 0)}`, 350, y);
+    }
+
+    // Notes
+    if (invoice.notes) {
+      doc.font('Helvetica').fontSize(10);
+      doc.text('Notes:', 50, y + 40);
+      doc.text(invoice.notes, 50, y + 55, { width: 300 });
+    }
+
+    // Terms
+    if (invoice.terms) {
+      doc.text('Terms & Conditions:', 50, y + 100);
+      doc.fontSize(9).text(invoice.terms, 50, y + 115, { width: 500 });
+    }
+
+    // Footer
+    doc.fontSize(8).fillColor('gray');
+    doc.text('Generated by ARTHA Finance', 50, doc.page.height - 50, { align: 'center' });
+
+    doc.end();
+    return doc;
+  }
+
+  /**
    * Generate General Ledger PDF
    */
   async generateGeneralLedger(filters = {}) {

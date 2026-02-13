@@ -9,6 +9,7 @@ import {
   recordPayment,
   cancelInvoice,
   getInvoiceStats,
+  downloadInvoicePDF,
 } from '../controllers/invoice.controller.js';
 import { protect, authorize } from '../middleware/auth.js';
 import { validate, auditLogger } from '../middleware/security.js';
@@ -96,5 +97,9 @@ router
     auditLogger('invoice.cancelled', 'Invoice'),
     cancelInvoice
   );
+
+router
+  .route('/:id/pdf')
+  .get(downloadInvoicePDF);
 
 export default router;

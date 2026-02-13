@@ -1,4 +1,5 @@
 import invoiceService from '../services/invoice.service.js';
+import pdfService from '../services/pdf.service.js';
 import logger from '../config/logger.js';
 
 // @desc    Create invoice
@@ -191,6 +192,48 @@ export const getInvoiceStats = async (req, res) => {
     });
   } catch (error) {
     logger.error('Get invoice stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Download invoice as PDF
+// @route   GET /api/v1/invoices/:id/pdf
+// @access  Private
+export const downloadInvoicePDF = async (req, res) => {
+  try {
+    const invoice = await invoiceService.getInvoiceById(req.params.id);
+    
+    if (!invoice) {
+      return res.status(404).json({
+        success: false,
+        message: 'Invoice not found',
+      });
+    }
+    
+    // Get company info (could be from settings service)
+    const companyInfo = {
+      name: process.env.COMPANY_NAME || 'ARTHA Finance',
+      address: process.env.COMPANY_ADDRESS || '',
+      gstin: process.env.COMPANY_GSTIN || '',
+      phone: process.env.COMPANY_PHONE || '',
+    };
+    
+    const pdfDoc = await pdfService.generateInvoicePDF(invoice, companyInfo);
+    
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename=invoice-${invoice.invoiceNumber}.pdf`
+    );
+    
+    pdfDoc.pipe(res);
+    
+    logger.info(`Invoice PDF downloaded: ${invoice.invoiceNumber}`);
+  } catch (error) {
+    logger.error('Download invoice PDF error:', error);
     res.status(500).json({
       success: false,
       message: error.message,

@@ -113,22 +113,3 @@ export const userService = {
   updateProfile: (data) => api.put('/users/me', data),
 };
 
-// Customer Services
-export const customerService = {
-  getAll: (params) => api.get('/customers', { params }),
-  getById: (id) => api.get(`/customers/${id}`),
-  create: (data) => api.post('/customers', data),
-  update: (id, data) => api.put(`/customers/${id}`, data),
-  delete: (id) => api.delete(`/customers/${id}`),
-  search: (query) => api.get('/customers/search', { params: { q: query } }),
-};
-
-// Vendor Services
-export const vendorService = {
-  getAll: (params) => api.get('/vendors', { params }),
-  getById: (id) => api.get(`/vendors/${id}`),
-  create: (data) => api.post('/vendors', data),
-  update: (id, data) => api.put(`/vendors/${id}`, data),
-  delete: (id) => api.delete(`/vendors/${id}`),
-  search: (query) => api.get('/vendors/search', { params: { q: query } }),
-};

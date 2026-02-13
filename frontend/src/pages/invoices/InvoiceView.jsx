@@ -129,6 +129,28 @@ const InvoiceView = () => {
     }
   };
 
+  const handleDownloadPDF = async () => {
+    try {
+      const response = await api.get(`/invoices/${id}/pdf`, {
+        responseType: 'blob',
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `invoice-${invoice.invoiceNumber}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Invoice downloaded');
+    } catch (error) {
+      toast.error('Failed to download invoice');
+    }
+  };
+
   const getStatusBadge = (status) => {
     const config = {
       draft: { variant: 'default', icon: Clock, label: 'Draft' },
@@ -172,7 +194,7 @@ const InvoiceView = () => {
                 Record Payment
               </Button>
             )}
-            <Button variant="secondary" icon={Download}>
+            <Button variant="secondary" icon={Download} onClick={handleDownloadPDF}>
               Download PDF
             </Button>
             <Button
