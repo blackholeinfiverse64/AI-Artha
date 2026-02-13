@@ -33,6 +33,7 @@ import settingsRoutes from './routes/settings.routes.js';
 import performanceRoutes from './routes/performance.routes.js';
 import databaseRoutes from './routes/database.routes.js';
 import healthRoutes from './routes/health.routes.js';
+import usersRoutes from './routes/users.routes.js';
 import legacyRoutes from './routes/index.js';
 
 // Load env vars
@@ -134,6 +135,7 @@ app.use('/api/v1/tds', tdsRoutes);
 app.use('/api/v1/settings', settingsRoutes);
 app.use('/api/v1/performance', performanceRoutes);
 app.use('/api/v1/database', databaseRoutes);
+app.use('/api/v1/users', usersRoutes);
 
 // Legacy routes (Backward compatibility)
 app.use('/api', legacyRoutes);

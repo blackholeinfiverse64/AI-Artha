@@ -25,7 +25,7 @@ export const expenseService = {
   scanReceipt: (file) => {
     const formData = new FormData();
     formData.append('receipt', file);
-    return api.post('/ocr/scan', formData, {
+    return api.post('/expenses/ocr', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
@@ -78,14 +78,14 @@ export const reportService = {
   exportReport: (type, params) => api.get(`/reports/${type}/export`, { params, responseType: 'blob' }),
 };
 
-// Dashboard Services
+// Dashboard Services (uses reports/invoices/expenses endpoints)
 export const dashboardService = {
-  getStats: () => api.get('/dashboard/stats'),
-  getRevenueChart: (params) => api.get('/dashboard/revenue-chart', { params }),
-  getExpenseChart: (params) => api.get('/dashboard/expense-chart', { params }),
-  getRecentInvoices: () => api.get('/dashboard/recent-invoices'),
-  getRecentExpenses: () => api.get('/dashboard/recent-expenses'),
-  getPendingApprovals: () => api.get('/dashboard/pending-approvals'),
+  getKPIs: () => api.get('/reports/kpis'),
+  getStats: () => api.get('/reports/dashboard'),
+  getInvoiceStats: () => api.get('/invoices/stats'),
+  getExpenseStats: () => api.get('/expenses/stats'),
+  getRecentInvoices: () => api.get('/invoices', { params: { limit: 5, sort: '-createdAt' } }),
+  getRecentExpenses: () => api.get('/expenses', { params: { limit: 5, sort: '-createdAt' } }),
 };
 
 // Settings Services
@@ -109,8 +109,8 @@ export const userService = {
   update: (id, data) => api.put(`/users/${id}`, data),
   delete: (id) => api.delete(`/users/${id}`),
   changePassword: (id, data) => api.post(`/users/${id}/change-password`, data),
-  getProfile: () => api.get('/users/profile'),
-  updateProfile: (data) => api.put('/users/profile', data),
+  getProfile: () => api.get('/users/me'),
+  updateProfile: (data) => api.put('/users/me', data),
 };
 
 // Customer Services
