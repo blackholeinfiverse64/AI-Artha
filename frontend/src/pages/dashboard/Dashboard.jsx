@@ -363,24 +363,24 @@ const Dashboard = () => {
               View all
             </Button>
           </Card.Header>
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-border">
             {recentInvoices.map((invoice) => (
               <div
                 key={invoice.id}
-                className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 cursor-pointer"
+                className="px-6 py-4 flex items-center justify-between hover:bg-muted/50 cursor-pointer transition-colors duration-200"
                 onClick={() => navigate(`/invoices/${invoice.id}`)}
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                    <FileText className="w-5 h-5 text-blue-600" />
+                  <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center">
+                    <FileText className="w-5 h-5 text-primary" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{invoice.customer}</p>
-                    <p className="text-xs text-gray-500">{invoice.id}</p>
+                    <p className="text-sm font-medium text-foreground">{invoice.customer}</p>
+                    <p className="text-xs text-muted-foreground">{invoice.id}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-semibold text-gray-900">
+                  <p className="text-sm font-semibold text-foreground">
                     {formatCurrency(invoice.amount)}
                   </p>
                   {getStatusBadge(invoice.status)}
@@ -400,23 +400,23 @@ const Dashboard = () => {
               View all
             </Button>
           </Card.Header>
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-border">
             {recentExpenses.map((expense) => (
               <div
                 key={expense.id}
-                className="px-6 py-4 flex items-center justify-between hover:bg-gray-50 cursor-pointer"
+                className="px-6 py-4 flex items-center justify-between hover:bg-muted/50 cursor-pointer transition-colors duration-200"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                    <Receipt className="w-5 h-5 text-green-600" />
+                  <div className="w-10 h-10 bg-success/10 rounded-lg flex items-center justify-center">
+                    <Receipt className="w-5 h-5 text-success" />
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">{expense.description}</p>
-                    <p className="text-xs text-gray-500">{expense.category}</p>
+                    <p className="text-sm font-medium text-foreground">{expense.description}</p>
+                    <p className="text-xs text-muted-foreground">{expense.category}</p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-semibold text-gray-900">
+                  <p className="text-sm font-semibold text-foreground">
                     {formatCurrency(expense.amount)}
                   </p>
                   {getStatusBadge(expense.status)}

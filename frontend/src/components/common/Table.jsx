@@ -3,8 +3,8 @@ import { ChevronUp, ChevronDown, ChevronsUpDown } from 'lucide-react';
 
 const Table = ({ children, className, ...props }) => {
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className={clsx('min-w-full divide-y divide-gray-200', className)} {...props}>
+    <div className="overflow-x-auto rounded-2xl border border-border/30">
+      <table className={clsx('min-w-full divide-y divide-border', className)} {...props}>
         {children}
       </table>
     </div>
@@ -13,7 +13,7 @@ const Table = ({ children, className, ...props }) => {
 
 const TableHeader = ({ children, className, ...props }) => {
   return (
-    <thead className={clsx('bg-gray-50', className)} {...props}>
+    <thead className={clsx('bg-muted/50', className)} {...props}>
       {children}
     </thead>
   );
@@ -21,7 +21,7 @@ const TableHeader = ({ children, className, ...props }) => {
 
 const TableBody = ({ children, className, ...props }) => {
   return (
-    <tbody className={clsx('bg-white divide-y divide-gray-200', className)} {...props}>
+    <tbody className={clsx('bg-card divide-y divide-border', className)} {...props}>
       {children}
     </tbody>
   );
@@ -31,7 +31,7 @@ const TableRow = ({ children, className, onClick, ...props }) => {
   return (
     <tr 
       className={clsx(
-        'hover:bg-gray-50 transition-colors',
+        'hover:bg-muted/50 transition-all duration-300',
         onClick && 'cursor-pointer',
         className
       )} 
@@ -54,8 +54,8 @@ const TableHead = ({
   return (
     <th
       className={clsx(
-        'px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider',
-        sortable && 'cursor-pointer select-none hover:bg-gray-100',
+        'px-6 py-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider',
+        sortable && 'cursor-pointer select-none hover:bg-muted/50',
         className
       )}
       onClick={sortable ? onSort : undefined}
@@ -64,7 +64,7 @@ const TableHead = ({
       <div className="flex items-center gap-1">
         {children}
         {sortable && (
-          <span className="text-gray-400">
+          <span className="text-muted-foreground">
             {sortDirection === 'asc' ? (
               <ChevronUp className="w-4 h-4" />
             ) : sortDirection === 'desc' ? (
@@ -82,7 +82,7 @@ const TableHead = ({
 const TableCell = ({ children, className, ...props }) => {
   return (
     <td
-      className={clsx('px-6 py-4 whitespace-nowrap text-sm text-gray-900', className)}
+      className={clsx('px-6 py-4 whitespace-nowrap text-sm text-foreground', className)}
       {...props}
     >
       {children}

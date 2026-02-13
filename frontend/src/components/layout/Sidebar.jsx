@@ -122,18 +122,18 @@ const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
       {/* Desktop Sidebar */}
       <aside
         className={clsx(
-          'fixed top-0 left-0 z-50 h-screen bg-white border-r border-gray-200 transition-all duration-300 hidden lg:block',
+          'fixed top-0 left-0 z-50 h-screen bg-sidebar-background border-r border-sidebar-border transition-all duration-300 hidden lg:block',
           isOpen ? 'w-64' : 'w-20'
         )}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center px-4 border-b border-gray-200">
+        <div className="h-18 flex items-center px-4 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0">
-              <Building2 className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-primary/20">
+              <Building2 className="w-6 h-6 text-primary-foreground" />
             </div>
             {isOpen && (
-              <span className="text-xl font-bold text-gray-900 transition-opacity duration-200">
+              <span className="text-xl font-bold text-sidebar-foreground font-display transition-opacity duration-200">
                 ARTHA
               </span>
             )}
@@ -141,7 +141,7 @@ const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
         </div>
 
         {/* Navigation */}
-        <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-4rem)]">
+        <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-4.5rem)]">
           {filteredMenuItems.map((item) => (
             <div key={item.title}>
               {item.children ? (
@@ -149,10 +149,10 @@ const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
                   <button
                     onClick={() => toggleMenu(item.title)}
                     className={clsx(
-                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
                       isParentActive(item.children)
-                        ? 'bg-blue-50 text-blue-700'
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        ? 'bg-sidebar-primary/10 text-sidebar-primary'
+                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                     )}
                   >
                     <item.icon className="w-5 h-5 flex-shrink-0" />
@@ -161,7 +161,7 @@ const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
                         <span className="flex-1 text-left">{item.title}</span>
                         <ChevronDown
                           className={clsx(
-                            'w-4 h-4 transition-transform',
+                            'w-4 h-4 transition-transform duration-200',
                             expandedMenus.includes(item.title) && 'rotate-180'
                           )}
                         />
@@ -176,10 +176,10 @@ const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
                           to={child.path}
                           className={({ isActive }) =>
                             clsx(
-                              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
+                              'flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200',
                               isActive
-                                ? 'bg-blue-600 text-white'
-                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                                ? 'bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-md shadow-primary/20'
+                                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                             )
                           }
                         >
@@ -195,10 +195,10 @@ const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
                   to={item.path}
                   className={({ isActive }) =>
                     clsx(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
                       isActive
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        ? 'bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-md shadow-primary/20'
+                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                     )
                   }
                 >
@@ -214,25 +214,25 @@ const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
       {/* Mobile Sidebar */}
       <aside
         className={clsx(
-          'fixed top-0 left-0 z-50 h-screen w-64 bg-white border-r border-gray-200 transition-transform duration-300 lg:hidden',
+          'fixed top-0 left-0 z-50 h-screen w-64 bg-sidebar-background border-r border-sidebar-border transition-transform duration-300 lg:hidden',
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         {/* Logo */}
-        <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
+        <div className="h-18 flex items-center justify-between px-4 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center">
-              <Building2 className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
+              <Building2 className="w-6 h-6 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold text-gray-900">ARTHA</span>
+            <span className="text-xl font-bold text-sidebar-foreground font-display">ARTHA</span>
           </div>
-          <button onClick={onMobileClose} className="p-2 hover:bg-gray-100 rounded-lg">
-            <X className="w-5 h-5 text-gray-500" />
+          <button onClick={onMobileClose} className="p-2 hover:bg-sidebar-accent rounded-xl transition-colors duration-200">
+            <X className="w-5 h-5 text-sidebar-foreground/70" />
           </button>
         </div>
 
         {/* Navigation */}
-        <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-4rem)]">
+        <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-4.5rem)]">
           {filteredMenuItems.map((item) => (
             <div key={item.title}>
               {item.children ? (
@@ -240,17 +240,17 @@ const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
                   <button
                     onClick={() => toggleMenu(item.title)}
                     className={clsx(
-                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
                       isParentActive(item.children)
-                        ? 'bg-blue-50 text-blue-700'
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        ? 'bg-sidebar-primary/10 text-sidebar-primary'
+                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                     )}
                   >
                     <item.icon className="w-5 h-5 flex-shrink-0" />
                     <span className="flex-1 text-left">{item.title}</span>
                     <ChevronDown
                       className={clsx(
-                        'w-4 h-4 transition-transform',
+                        'w-4 h-4 transition-transform duration-200',
                         expandedMenus.includes(item.title) && 'rotate-180'
                       )}
                     />
@@ -264,10 +264,10 @@ const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
                           onClick={onMobileClose}
                           className={({ isActive }) =>
                             clsx(
-                              'flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors',
+                              'flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all duration-200',
                               isActive
-                                ? 'bg-blue-600 text-white'
-                                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                                ? 'bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-md shadow-primary/20'
+                                : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                             )
                           }
                         >
@@ -284,10 +284,10 @@ const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
                   onClick={onMobileClose}
                   className={({ isActive }) =>
                     clsx(
-                      'flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                      'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200',
                       isActive
-                        ? 'bg-blue-600 text-white'
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        ? 'bg-gradient-to-r from-primary to-primary/90 text-primary-foreground shadow-md shadow-primary/20'
+                        : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground'
                     )
                   }
                 >

@@ -9,3 +9,4 @@ export { default as Badge } from './Badge';
 export { default as Loading } from './Loading';
 export { default as EmptyState } from './EmptyState';
 export { default as PageHeader } from './PageHeader';
+export { default as ThemeToggle, ThemeToggleButton, ThemeDropdown, ThemeSegmented } from './ThemeToggle';

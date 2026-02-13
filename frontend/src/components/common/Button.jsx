@@ -13,13 +13,13 @@ const Button = ({
   ...props
 }) => {
   const variants = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',
-    secondary: 'bg-gray-100 text-gray-900 hover:bg-gray-200 focus:ring-gray-500',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
-    success: 'bg-green-600 text-white hover:bg-green-700 focus:ring-green-500',
-    warning: 'bg-yellow-500 text-white hover:bg-yellow-600 focus:ring-yellow-500',
-    outline: 'border-2 border-gray-300 text-gray-700 hover:bg-gray-50 focus:ring-gray-500',
-    ghost: 'text-gray-700 hover:bg-gray-100 focus:ring-gray-500',
+    primary: 'bg-primary text-primary-foreground hover:bg-primary/90 focus:ring-primary',
+    secondary: 'bg-muted text-foreground hover:bg-muted/80 focus:ring-border',
+    danger: 'bg-destructive text-destructive-foreground hover:bg-destructive/90 focus:ring-destructive',
+    success: 'bg-success text-success-foreground hover:bg-success/90 focus:ring-success',
+    warning: 'bg-warning text-warning-foreground hover:bg-warning/90 focus:ring-warning',
+    outline: 'border-2 border-border text-foreground hover:bg-muted focus:ring-border',
+    ghost: 'text-foreground hover:bg-muted focus:ring-border',
   };
 
   const sizes = {

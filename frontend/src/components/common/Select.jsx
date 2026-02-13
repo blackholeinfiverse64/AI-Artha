@@ -15,41 +15,42 @@ const Select = forwardRef(({
   return (
     <div className={containerClassName}>
       {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label className="block text-sm font-medium text-foreground mb-1">
           {label}
-          {props.required && <span className="text-red-500 ml-1">*</span>}
+          {props.required && <span className="text-destructive ml-1">*</span>}
         </label>
       )}
       <div className="relative">
         <select
           ref={ref}
           className={clsx(
-            'block w-full rounded-lg border px-3 py-2 text-gray-900 appearance-none',
-            'focus:outline-none focus:ring-2 focus:ring-offset-0 sm:text-sm pr-10',
+            'block w-full rounded-xl border-2 px-4 py-3 text-foreground bg-card appearance-none',
+            'focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 sm:text-sm pr-10',
+            'transition-all duration-300',
             error
-              ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-              : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500',
-            props.disabled && 'bg-gray-50 text-gray-500 cursor-not-allowed',
+              ? 'border-destructive focus:border-destructive focus:ring-destructive'
+              : 'border-border focus:border-primary',
+            props.disabled && 'bg-muted text-muted-foreground cursor-not-allowed',
             className
           )}
           {...props}
         >
-          <option value="">{placeholder}</option>
+          <option value="" className="bg-card text-muted-foreground">{placeholder}</option>
           {options.map((option) => (
-            <option key={option.value} value={option.value}>
+            <option key={option.value} value={option.value} className="bg-card text-foreground">
               {option.label}
             </option>
           ))}
         </select>
         <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
-          <ChevronDown className="h-4 w-4 text-gray-400" />
+          <ChevronDown className="h-4 w-4 text-muted-foreground" />
         </div>
       </div>
       {error && (
-        <p className="mt-1 text-sm text-red-600">{error}</p>
+        <p className="mt-1 text-sm text-destructive">{error}</p>
       )}
       {helperText && !error && (
-        <p className="mt-1 text-sm text-gray-500">{helperText}</p>
+        <p className="mt-1 text-sm text-muted-foreground">{helperText}</p>
       )}
     </div>
   );

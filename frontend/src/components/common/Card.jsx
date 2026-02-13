@@ -1,10 +1,17 @@
 import clsx from 'clsx';
 
-const Card = ({ children, className, padding = true, ...props }) => {
+const Card = ({ children, className, padding = true, variant = 'default', ...props }) => {
+  const variants = {
+    default: 'bg-card border-border/30',
+    glass: 'bg-card/80 backdrop-blur-xl border-border/50',
+    elevated: 'bg-card border-border/30 shadow-lg',
+  };
+
   return (
     <div
       className={clsx(
-        'bg-white rounded-xl shadow-sm border border-gray-200',
+        'rounded-2xl border transition-all duration-300',
+        variants[variant] || variants.default,
         padding && 'p-6',
         className
       )}
@@ -18,7 +25,7 @@ const Card = ({ children, className, padding = true, ...props }) => {
 const CardHeader = ({ children, className, ...props }) => {
   return (
     <div
-      className={clsx('px-6 py-4 border-b border-gray-200', className)}
+      className={clsx('px-6 py-4 border-b border-border/30', className)}
       {...props}
     >
       {children}
@@ -29,7 +36,7 @@ const CardHeader = ({ children, className, ...props }) => {
 const CardTitle = ({ children, className, ...props }) => {
   return (
     <h3
-      className={clsx('text-lg font-semibold text-gray-900', className)}
+      className={clsx('text-lg font-semibold text-foreground font-display', className)}
       {...props}
     >
       {children}
@@ -40,7 +47,7 @@ const CardTitle = ({ children, className, ...props }) => {
 const CardDescription = ({ children, className, ...props }) => {
   return (
     <p
-      className={clsx('text-sm text-gray-500 mt-1', className)}
+      className={clsx('text-sm text-muted-foreground mt-1', className)}
       {...props}
     >
       {children}
@@ -59,7 +66,7 @@ const CardContent = ({ children, className, ...props }) => {
 const CardFooter = ({ children, className, ...props }) => {
   return (
     <div
-      className={clsx('px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-xl', className)}
+      className={clsx('px-6 py-4 border-t border-border/30 bg-muted/50 rounded-b-2xl', className)}
       {...props}
     >
       {children}

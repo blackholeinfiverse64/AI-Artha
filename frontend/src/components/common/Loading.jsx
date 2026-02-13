@@ -12,7 +12,7 @@ const Loading = ({ size = 'md', className }) => {
     <div className={clsx('flex items-center justify-center', className)}>
       <div
         className={clsx(
-          'animate-spin rounded-full border-b-2 border-blue-600',
+          'animate-spin rounded-full border-b-2 border-primary',
           sizes[size]
         )}
       />
@@ -30,10 +30,10 @@ const LoadingPage = () => {
 
 const LoadingOverlay = ({ message = 'Loading...' }) => {
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl p-6 flex flex-col items-center gap-4">
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+      <div className="bg-card rounded-2xl p-8 flex flex-col items-center gap-4 border border-border/30 shadow-xl">
         <Loading size="lg" />
-        <p className="text-gray-600">{message}</p>
+        <p className="text-muted-foreground">{message}</p>
       </div>
     </div>
   );
@@ -42,7 +42,7 @@ const LoadingOverlay = ({ message = 'Loading...' }) => {
 const Skeleton = ({ className, ...props }) => {
   return (
     <div
-      className={clsx('animate-pulse rounded bg-gray-200', className)}
+      className={clsx('animate-pulse rounded bg-muted', className)}
       {...props}
     />
   );

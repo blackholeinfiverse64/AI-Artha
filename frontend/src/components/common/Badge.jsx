@@ -2,13 +2,13 @@ import clsx from 'clsx';
 
 const Badge = ({ children, variant = 'default', size = 'md', className, ...props }) => {
   const variants = {
-    default: 'bg-gray-100 text-gray-800',
-    primary: 'bg-blue-100 text-blue-800',
-    success: 'bg-green-100 text-green-800',
-    warning: 'bg-yellow-100 text-yellow-800',
-    danger: 'bg-red-100 text-red-800',
-    info: 'bg-cyan-100 text-cyan-800',
-    purple: 'bg-purple-100 text-purple-800',
+    default: 'bg-muted text-muted-foreground',
+    primary: 'bg-primary/10 text-primary border border-primary/20',
+    success: 'bg-success/10 text-success border border-success/20',
+    warning: 'bg-warning/10 text-warning border border-warning/20',
+    danger: 'bg-destructive/10 text-destructive border border-destructive/20',
+    info: 'bg-info/10 text-info border border-info/20',
+    purple: 'bg-secondary/10 text-secondary border border-secondary/20',
   };
 
   const sizes = {

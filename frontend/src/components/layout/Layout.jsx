@@ -2,17 +2,24 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Navbar from './Navbar';
+import { useTheme } from '../../hooks/useTheme.jsx';
 
 const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const { isUniverseMode } = useTheme();
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
+      {/* Universe mode star background */}
+      {isUniverseMode && (
+        <div className="stars-bg" aria-hidden="true" />
+      )}
+      
       {/* Mobile sidebar overlay */}
       {mobileSidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-40 lg:hidden"
+          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setMobileSidebarOpen(false)}
         />
       )}
@@ -31,7 +38,7 @@ const Layout = () => {
           onMobileMenuClick={() => setMobileSidebarOpen(true)}
         />
         
-        <main className="p-6">
+        <main className="p-4 lg:p-6">
           <div className="max-w-7xl mx-auto">
             <Outlet />
           </div>
