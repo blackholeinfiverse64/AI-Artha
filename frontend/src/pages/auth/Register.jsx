@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Eye, EyeOff, Mail, Lock, User, Building, Building2 } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, Building, Building2, Shield, Calculator, Eye as EyeIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '../../store/authStore';
 import Button from '../../components/common/Button';
@@ -12,16 +12,19 @@ import Input from '../../components/common/Input';
 const registerSchema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email address'),
-  password: z.string().min(8, 'Password must be at least 8 characters')
-    .regex(/[A-Z]/, 'Password must contain an uppercase letter')
-    .regex(/[a-z]/, 'Password must contain a lowercase letter')
-    .regex(/[0-9]/, 'Password must contain a number'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
-  company: z.string().min(2, 'Company name must be at least 2 characters'),
+  role: z.enum(['admin', 'accountant', 'viewer']),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ['confirmPassword'],
 });
+
+const roles = [
+  { value: 'admin', label: 'Admin', icon: Shield, color: 'red', description: 'Full system access' },
+  { value: 'accountant', label: 'Accountant', icon: Calculator, color: 'blue', description: 'Financial operations' },
+  { value: 'viewer', label: 'Viewer', icon: EyeIcon, color: 'gray', description: 'Read-only access' },
+];
 
 const Register = () => {
   const navigate = useNavigate();
@@ -32,6 +35,7 @@ const Register = () => {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(registerSchema),
@@ -40,9 +44,11 @@ const Register = () => {
       email: '',
       password: '',
       confirmPassword: '',
-      company: '',
+      role: 'viewer',
     },
   });
+
+  const selectedRole = watch('role');
 
   const onSubmit = async (data) => {
     setLoading(true);
@@ -50,7 +56,7 @@ const Register = () => {
       name: data.name,
       email: data.email,
       password: data.password,
-      company: data.company,
+      role: data.role,
     });
     setLoading(false);
 
@@ -88,15 +94,6 @@ const Register = () => {
         />
 
         <Input
-          label="Company Name"
-          type="text"
-          placeholder="Enter your company name"
-          icon={Building}
-          error={errors.company?.message}
-          {...register('company')}
-        />
-
-        <Input
           label="Email"
           type="email"
           placeholder="Enter your email"
@@ -104,6 +101,58 @@ const Register = () => {
           error={errors.email?.message}
           {...register('email')}
         />
+
+        {/* Role Selection */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Select Your Role
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            {roles.map((role) => {
+              const IconComponent = role.icon;
+              const isSelected = selectedRole === role.value;
+              return (
+                <label
+                  key={role.value}
+                  className={`relative flex flex-col items-center p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                    isSelected
+                      ? role.color === 'red'
+                        ? 'border-red-500 bg-red-50'
+                        : role.color === 'blue'
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-500 bg-gray-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    value={role.value}
+                    {...register('role')}
+                    className="sr-only"
+                  />
+                  <IconComponent
+                    className={`w-6 h-6 mb-1 ${
+                      isSelected
+                        ? role.color === 'red'
+                          ? 'text-red-600'
+                          : role.color === 'blue'
+                          ? 'text-blue-600'
+                          : 'text-gray-600'
+                        : 'text-gray-400'
+                    }`}
+                  />
+                  <span className={`text-sm font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
+                    {role.label}
+                  </span>
+                  <span className="text-xs text-gray-500 text-center mt-0.5">{role.description}</span>
+                </label>
+              );
+            })}
+          </div>
+          {errors.role && (
+            <p className="mt-1 text-sm text-red-600">{errors.role.message}</p>
+          )}
+        </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">

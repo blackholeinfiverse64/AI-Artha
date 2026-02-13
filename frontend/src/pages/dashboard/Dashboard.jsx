@@ -14,6 +14,8 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
+  Shield,
+  Calculator,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -30,13 +32,44 @@ import {
   Bar,
 } from 'recharts';
 import { Card, Button, Badge, Loading } from '../../components/common';
+import { useAuthStore } from '../../store/authStore';
 import api from '../../services/api';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
+// Role configuration for dashboard
+const roleConfig = {
+  admin: {
+    label: 'Administrator',
+    color: 'red',
+    icon: Shield,
+    description: 'You have full access to all features and settings.',
+    bgGradient: 'from-red-500 to-red-600',
+  },
+  accountant: {
+    label: 'Accountant',
+    color: 'blue',
+    icon: Calculator,
+    description: 'You can manage invoices, expenses, and financial records.',
+    bgGradient: 'from-blue-500 to-blue-600',
+  },
+  viewer: {
+    label: 'Viewer',
+    color: 'gray',
+    icon: Eye,
+    description: 'You have read-only access to view reports and data.',
+    bgGradient: 'from-gray-500 to-gray-600',
+  },
+};
+
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState(null);
+
+  const userRole = user?.role || 'viewer';
+  const currentRoleConfig = roleConfig[userRole] || roleConfig.viewer;
+  const RoleIcon = currentRoleConfig.icon;
 
   useEffect(() => {
     fetchDashboardData();
@@ -147,21 +180,53 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* Header */}
+      {/* Role-based Welcome Banner */}
+      <div className={`bg-gradient-to-r ${currentRoleConfig.bgGradient} rounded-xl p-6 text-white shadow-lg`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+              <RoleIcon className="w-7 h-7 text-white" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">Welcome, {user?.name || 'User'}!</h1>
+              <p className="text-white/80 mt-1">
+                Logged in as <span className="font-semibold">{currentRoleConfig.label}</span>
+              </p>
+              <p className="text-white/70 text-sm mt-0.5">{currentRoleConfig.description}</p>
+            </div>
+          </div>
+          <div className="hidden md:flex items-center gap-2 bg-white/10 px-4 py-2 rounded-lg">
+            <span className="text-white/80 text-sm">Role:</span>
+            <span className="font-semibold">{currentRoleConfig.label}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Actions based on role */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 mt-1">Welcome back! Here's your financial overview.</p>
+          <h2 className="text-xl font-bold text-gray-900">Financial Overview</h2>
+          <p className="text-gray-500 mt-1">Your business at a glance</p>
         </div>
         <div className="flex gap-3">
-          <Button variant="secondary" onClick={() => navigate('/invoices/new')}>
-            <Plus className="w-4 h-4 mr-2" />
-            New Invoice
-          </Button>
-          <Button onClick={() => navigate('/expenses/new')}>
-            <Plus className="w-4 h-4 mr-2" />
-            Add Expense
-          </Button>
+          {(userRole === 'admin' || userRole === 'accountant') && (
+            <>
+              <Button variant="secondary" onClick={() => navigate('/invoices/new')}>
+                <Plus className="w-4 h-4 mr-2" />
+                New Invoice
+              </Button>
+              <Button onClick={() => navigate('/expenses/new')}>
+                <Plus className="w-4 h-4 mr-2" />
+                New Expense
+              </Button>
+            </>
+          )}
+          {userRole === 'viewer' && (
+            <Button variant="secondary" onClick={() => navigate('/reports/profit-loss')}>
+              <Eye className="w-4 h-4 mr-2" />
+              View Reports
+            </Button>
+          )}
         </div>
       </div>
 

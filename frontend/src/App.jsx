@@ -64,6 +64,50 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
+// Role-based Protected Route Component
+const RoleProtectedRoute = ({ children, allowedRoles }) => {
+  const { user, isAuthenticated, isLoading } = useAuthStore();
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+  
+  if (!allowedRoles.includes(user?.role)) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center p-8 bg-white rounded-xl shadow-lg max-w-md">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+            </svg>
+          </div>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-500 mb-4">
+            You don't have permission to access this page. 
+            Required role: <span className="font-semibold">{allowedRoles.join(' or ')}</span>
+          </p>
+          <button 
+            onClick={() => window.history.back()} 
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+  
+  return children;
+};
+
 // Public Route Component (redirect if already logged in)
 const PublicRoute = ({ children }) => {
   const { isAuthenticated } = useAuthStore();
@@ -97,24 +141,24 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-        {/* Invoices */}
+        {/* Invoices - Admin & Accountant can create/edit */}
         <Route path="/invoices" element={<InvoiceList />} />
-        <Route path="/invoices/new" element={<InvoiceCreate />} />
+        <Route path="/invoices/new" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><InvoiceCreate /></RoleProtectedRoute>} />
         <Route path="/invoices/:id" element={<InvoiceView />} />
-        <Route path="/invoices/:id/edit" element={<InvoiceCreate />} />
+        <Route path="/invoices/:id/edit" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><InvoiceCreate /></RoleProtectedRoute>} />
 
-        {/* Expenses */}
+        {/* Expenses - Admin & Accountant can create/edit */}
         <Route path="/expenses" element={<ExpenseList />} />
-        <Route path="/expenses/new" element={<ExpenseCreate />} />
-        <Route path="/expenses/:id/edit" element={<ExpenseCreate />} />
-        <Route path="/expenses/approval" element={<ExpenseApproval />} />
+        <Route path="/expenses/new" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><ExpenseCreate /></RoleProtectedRoute>} />
+        <Route path="/expenses/:id/edit" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><ExpenseCreate /></RoleProtectedRoute>} />
+        <Route path="/expenses/approval" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><ExpenseApproval /></RoleProtectedRoute>} />
 
-        {/* Accounting */}
-        <Route path="/accounts" element={<ChartOfAccounts />} />
-        <Route path="/journal-entries" element={<JournalEntries />} />
-        <Route path="/journal-entries/new" element={<JournalEntryCreate />} />
-        <Route path="/journal-entries/:id/edit" element={<JournalEntryCreate />} />
-        <Route path="/ledger-integrity" element={<LedgerIntegrity />} />
+        {/* Accounting - Admin & Accountant only */}
+        <Route path="/accounts" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><ChartOfAccounts /></RoleProtectedRoute>} />
+        <Route path="/journal-entries" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><JournalEntries /></RoleProtectedRoute>} />
+        <Route path="/journal-entries/new" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><JournalEntryCreate /></RoleProtectedRoute>} />
+        <Route path="/journal-entries/:id/edit" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><JournalEntryCreate /></RoleProtectedRoute>} />
+        <Route path="/ledger-integrity" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><LedgerIntegrity /></RoleProtectedRoute>} />
 
         {/* Reports */}
         <Route path="/reports/profit-loss" element={<ProfitLoss />} />
@@ -127,9 +171,9 @@ function App() {
         <Route path="/gst" element={<GSTDashboard />} />
         <Route path="/tds" element={<TDSManagement />} />
 
-        {/* Settings */}
-        <Route path="/settings/company" element={<CompanySettings />} />
-        <Route path="/settings/users" element={<UserManagement />} />
+        {/* Settings - User Management is Admin only */}
+        <Route path="/settings/company" element={<RoleProtectedRoute allowedRoles={['admin']}><CompanySettings /></RoleProtectedRoute>} />
+        <Route path="/settings/users" element={<RoleProtectedRoute allowedRoles={['admin']}><UserManagement /></RoleProtectedRoute>} />
       </Route>
 
       {/* 404 */}

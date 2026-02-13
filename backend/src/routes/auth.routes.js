@@ -10,11 +10,10 @@ const router = express.Router();
 const registerValidation = [
   body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
   body('password')
-    .isLength({ min: 8 })
-    .withMessage('Password must be at least 8 characters')
-    .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
-    .withMessage('Password must contain uppercase, lowercase, number and special character'),
+    .isLength({ min: 6 })
+    .withMessage('Password must be at least 6 characters'),
   body('name').trim().notEmpty().withMessage('Name is required'),
+  body('role').optional().isIn(['admin', 'accountant', 'viewer']).withMessage('Invalid role'),
 ];
 
 const loginValidation = [

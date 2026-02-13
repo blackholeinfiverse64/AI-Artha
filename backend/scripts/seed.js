@@ -38,17 +38,17 @@ const seedDatabase = async () => {
     // Create accountant user
     const accountant = await User.create({
       email: 'accountant@artha.local',
-      password: 'Accountant@123',
+      password: 'Accountant@123456',
       name: 'Accountant User',
       role: 'accountant',
     });
     logger.info(`Accountant user created: ${accountant.email}`);
 
-    // Create viewer user (maintain backward compatibility)
+    // Create viewer user
     const viewer = await User.create({
-      email: 'user@example.com',
-      password: 'testuser123',
-      name: 'Test User',
+      email: 'viewer@artha.local',
+      password: 'Viewer@123456',
+      name: 'Viewer User',
       role: 'viewer',
     });
     logger.info(`Viewer user created: ${viewer.email}`);

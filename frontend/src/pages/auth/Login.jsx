@@ -135,9 +135,20 @@ const Login = () => {
 
       {/* Demo credentials */}
       <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-        <p className="text-xs text-gray-500 text-center mb-2">Demo Credentials</p>
-        <div className="text-xs text-gray-600 text-center space-y-1">
-          <p><strong>Admin:</strong> admin@artha.local / Admin@123456</p>
+        <p className="text-xs text-gray-500 text-center mb-3 font-medium">Demo Credentials</p>
+        <div className="text-xs text-gray-600 space-y-2">
+          <div className="flex items-center justify-between p-2 bg-red-50 rounded">
+            <span className="font-semibold text-red-700">Admin</span>
+            <span>admin@artha.local / Admin@123456</span>
+          </div>
+          <div className="flex items-center justify-between p-2 bg-blue-50 rounded">
+            <span className="font-semibold text-blue-700">Accountant</span>
+            <span>accountant@artha.local / Accountant@123456</span>
+          </div>
+          <div className="flex items-center justify-between p-2 bg-gray-100 rounded">
+            <span className="font-semibold text-gray-700">Viewer</span>
+            <span>viewer@artha.local / Viewer@123456</span>
+          </div>
         </div>
       </div>
     </div>

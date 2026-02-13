@@ -8,10 +8,20 @@ import {
   User,
   Settings,
   LogOut,
-  HelpCircle
+  HelpCircle,
+  Shield,
+  Calculator,
+  Eye
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import clsx from 'clsx';
+
+// Role configuration
+const roleConfig = {
+  admin: { label: 'Admin', color: 'bg-red-100 text-red-700', icon: Shield },
+  accountant: { label: 'Accountant', color: 'bg-blue-100 text-blue-700', icon: Calculator },
+  viewer: { label: 'Viewer', color: 'bg-gray-100 text-gray-700', icon: Eye },
+};
 
 const Navbar = ({ onToggleSidebar, onMobileMenuClick }) => {
   const navigate = useNavigate();
@@ -125,7 +135,16 @@ const Navbar = ({ onToggleSidebar, onMobileMenuClick }) => {
               </div>
               <div className="hidden md:block text-left">
                 <p className="text-sm font-medium text-gray-900">{user?.name || 'User'}</p>
-                <p className="text-xs text-gray-500">{user?.role || 'Member'}</p>
+                <span className={clsx(
+                  'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+                  roleConfig[user?.role]?.color || 'bg-gray-100 text-gray-700'
+                )}>
+                  {(() => {
+                    const RoleIcon = roleConfig[user?.role]?.icon;
+                    return RoleIcon ? <RoleIcon className="w-3 h-3" /> : null;
+                  })()}
+                  {roleConfig[user?.role]?.label || user?.role || 'Member'}
+                </span>
               </div>
               <ChevronDown className="w-4 h-4 text-gray-400 hidden md:block" />
             </button>
@@ -139,7 +158,17 @@ const Navbar = ({ onToggleSidebar, onMobileMenuClick }) => {
                 <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-gray-200 z-20 animate-fadeIn">
                   <div className="px-4 py-3 border-b border-gray-200">
                     <p className="text-sm font-medium text-gray-900">{user?.name}</p>
-                    <p className="text-xs text-gray-500">{user?.email}</p>
+                    <p className="text-xs text-gray-500 mb-1">{user?.email}</p>
+                    <span className={clsx(
+                      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+                      roleConfig[user?.role]?.color || 'bg-gray-100 text-gray-700'
+                    )}>
+                      {(() => {
+                        const RoleIcon = roleConfig[user?.role]?.icon;
+                        return RoleIcon ? <RoleIcon className="w-3 h-3" /> : null;
+                      })()}
+                      {roleConfig[user?.role]?.label || user?.role}
+                    </span>
                   </div>
                   <div className="py-2">
                     <button

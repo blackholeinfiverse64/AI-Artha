@@ -20,7 +20,10 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
+import { useAuthStore } from '../../store/authStore';
 
+// Menu items with role restrictions
+// roles: array of allowed roles, or undefined/empty for all roles
 const menuItems = [
   {
     title: 'Dashboard',
@@ -38,12 +41,13 @@ const menuItems = [
     path: '/expenses',
     children: [
       { title: 'All Expenses', path: '/expenses' },
-      { title: 'Approval Queue', path: '/expenses/approval' },
+      { title: 'Approval Queue', path: '/expenses/approval', roles: ['admin', 'accountant'] },
     ],
   },
   {
     title: 'Accounting',
     icon: Landmark,
+    roles: ['admin', 'accountant'],
     children: [
       { title: 'Chart of Accounts', path: '/accounts' },
       { title: 'Journal Entries', path: '/journal-entries' },
@@ -74,6 +78,7 @@ const menuItems = [
   {
     title: 'Settings',
     icon: Settings,
+    roles: ['admin'],
     children: [
       { title: 'Company', path: '/settings/company' },
       { title: 'Users', path: '/settings/users' },
@@ -83,6 +88,7 @@ const menuItems = [
 
 const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
   const location = useLocation();
+  const { user } = useAuthStore();
   const [expandedMenus, setExpandedMenus] = useState(['Accounting', 'Reports']);
 
   const toggleMenu = (title) => {
@@ -93,6 +99,23 @@ const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
 
   const isActive = (path) => location.pathname === path;
   const isParentActive = (children) => children?.some((child) => location.pathname === child.path);
+  
+  // Check if user has access to a menu item
+  const hasAccess = (item) => {
+    if (!item.roles || item.roles.length === 0) return true;
+    return item.roles.includes(user?.role);
+  };
+  
+  // Filter menu items based on user role
+  const filteredMenuItems = menuItems.filter(hasAccess).map(item => {
+    if (item.children) {
+      return {
+        ...item,
+        children: item.children.filter(hasAccess)
+      };
+    }
+    return item;
+  });
 
   return (
     <>
@@ -119,7 +142,7 @@ const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
 
         {/* Navigation */}
         <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-4rem)]">
-          {menuItems.map((item) => (
+          {filteredMenuItems.map((item) => (
             <div key={item.title}>
               {item.children ? (
                 <>
@@ -210,7 +233,7 @@ const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
 
         {/* Navigation */}
         <nav className="p-4 space-y-1 overflow-y-auto h-[calc(100vh-4rem)]">
-          {menuItems.map((item) => (
+          {filteredMenuItems.map((item) => (
             <div key={item.title}>
               {item.children ? (
                 <>
