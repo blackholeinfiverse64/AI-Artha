@@ -297,10 +297,7 @@ const seedDatabase = async () => {
     logger.info('Ledger summary:', summary);
 
     logger.info('✅ Database seeded successfully!');
-    logger.info('\nLogin credentials:');
-    logger.info('Admin: admin@artha.local / Admin@123456');
-    logger.info('Accountant: accountant@artha.local / Accountant@123');
-    logger.info('Viewer: user@example.com / testuser123');
+    logger.info('\nSeed data created. Check your .env file for admin credentials.');
     logger.info('\nIndia Compliance Data:');
     logger.info('Company GSTIN: 27AABCU9603R1ZX');
     logger.info('Company PAN: AABCU9603R');

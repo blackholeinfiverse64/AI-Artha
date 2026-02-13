@@ -58,69 +58,7 @@ const UserManagement = () => {
       setUsers(response.data.data || []);
     } catch (error) {
       console.error('Failed to fetch users:', error);
-      // Sample data
-      setUsers([
-        {
-          _id: '1',
-          name: 'Rajesh Kumar',
-          email: 'rajesh@artha.com',
-          role: 'admin',
-          department: 'Management',
-          status: 'active',
-          lastLogin: '2026-02-15T10:30:00Z',
-          createdAt: '2024-01-15T09:00:00Z',
-        },
-        {
-          _id: '2',
-          name: 'Priya Sharma',
-          email: 'priya@artha.com',
-          role: 'accountant',
-          department: 'Finance',
-          status: 'active',
-          lastLogin: '2026-02-15T08:45:00Z',
-          createdAt: '2024-03-20T11:00:00Z',
-        },
-        {
-          _id: '3',
-          name: 'Amit Patel',
-          email: 'amit@artha.com',
-          role: 'viewer',
-          department: 'Sales',
-          status: 'active',
-          lastLogin: '2026-02-14T16:20:00Z',
-          createdAt: '2024-06-10T14:30:00Z',
-        },
-        {
-          _id: '4',
-          name: 'Sneha Reddy',
-          email: 'sneha@artha.com',
-          role: 'accountant',
-          department: 'Finance',
-          status: 'active',
-          lastLogin: '2026-02-15T09:15:00Z',
-          createdAt: '2024-08-05T10:00:00Z',
-        },
-        {
-          _id: '5',
-          name: 'Vikram Singh',
-          email: 'vikram@artha.com',
-          role: 'viewer',
-          department: 'Operations',
-          status: 'inactive',
-          lastLogin: '2026-01-20T11:00:00Z',
-          createdAt: '2024-09-15T13:45:00Z',
-        },
-        {
-          _id: '6',
-          name: 'Ananya Desai',
-          email: 'ananya@artha.com',
-          role: 'viewer',
-          department: 'Management',
-          status: 'active',
-          lastLogin: '2026-02-14T17:30:00Z',
-          createdAt: '2025-01-08T09:30:00Z',
-        },
-      ]);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
