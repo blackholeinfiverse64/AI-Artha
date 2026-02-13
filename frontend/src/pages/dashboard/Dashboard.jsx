@@ -180,33 +180,11 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6 animate-fadeIn">
-      {/* Role-based Welcome Banner */}
-      <div className={`bg-gradient-to-r ${currentRoleConfig.bgGradient} rounded-xl p-6 text-white shadow-lg`}>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
-              <RoleIcon className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h1 className="text-2xl font-bold">Welcome, {user?.name || 'User'}!</h1>
-              <p className="text-white/80 mt-1">
-                Logged in as <span className="font-semibold">{currentRoleConfig.label}</span>
-              </p>
-              <p className="text-white/70 text-sm mt-0.5">{currentRoleConfig.description}</p>
-            </div>
-          </div>
-          <div className="hidden md:flex items-center gap-2 bg-white/10 px-4 py-2 rounded-lg">
-            <span className="text-white/80 text-sm">Role:</span>
-            <span className="font-semibold">{currentRoleConfig.label}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Quick Actions based on role */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Financial Overview</h2>
-          <p className="text-gray-500 mt-1">Your business at a glance</p>
+          <h1 className="text-2xl font-bold text-gray-900">Welcome, {user?.name || 'User'}!</h1>
+          <p className="text-gray-500 mt-1">Here's your financial overview</p>
         </div>
         <div className="flex gap-3">
           {(userRole === 'admin' || userRole === 'accountant') && (
