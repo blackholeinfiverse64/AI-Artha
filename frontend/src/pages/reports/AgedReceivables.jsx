@@ -212,12 +212,12 @@ const AgedReceivables = () => {
       <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
         <Card className="p-4 md:col-span-1">
           <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-gray-600" />
+            <div className="w-10 h-10 bg-muted rounded-lg flex items-center justify-center">
+              <DollarSign className="w-5 h-5 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-xs text-gray-500">Total</p>
-              <p className="text-lg font-bold text-gray-900">
+              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-lg font-bold text-foreground">
                 {formatCurrency(data?.summary?.total || 0)}
               </p>
             </div>
@@ -232,8 +232,8 @@ const AgedReceivables = () => {
                 style={{ backgroundColor: bucket.color }}
               />
               <div>
-                <p className="text-xs text-gray-500">{bucket.label}</p>
-                <p className="text-lg font-bold text-gray-900">
+                <p className="text-xs text-muted-foreground">{bucket.label}</p>
+                <p className="text-lg font-bold text-foreground">
                   {formatCurrency(data?.summary?.[bucket.key] || 0)}
                 </p>
               </div>
@@ -244,7 +244,7 @@ const AgedReceivables = () => {
 
       {/* Chart */}
       <Card>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Aging Distribution</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">Aging Distribution</h2>
         <div className="h-64">
           <ResponsiveContainer>
             <BarChart data={chartData} layout="vertical">
@@ -281,14 +281,14 @@ const AgedReceivables = () => {
       {/* Customer Filter */}
       <Card className="p-4">
         <div className="flex items-center gap-4">
-          <Filter className="w-5 h-5 text-gray-400" />
+          <Filter className="w-5 h-5 text-muted-foreground" />
           <Select
             options={filterOptions}
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             className="w-48"
           />
-          <span className="text-sm text-gray-500">
+          <span className="text-sm text-muted-foreground">
             Showing {filteredCustomers.length} customers
           </span>
         </div>
@@ -307,20 +307,20 @@ const AgedReceivables = () => {
         <div className="space-y-4">
           {filteredCustomers.map((customer) => (
             <Card key={customer._id} padding={false}>
-              <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+              <div className="p-4 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                    <User className="w-5 h-5 text-gray-500" />
+                  <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
+                    <User className="w-5 h-5 text-muted-foreground" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-gray-900">{customer.name}</h3>
-                    <p className="text-sm text-gray-500">{customer.email}</p>
+                    <h3 className="font-semibold text-foreground">{customer.name}</h3>
+                    <p className="text-sm text-muted-foreground">{customer.email}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   <div className="text-right">
-                    <p className="text-sm text-gray-500">Total Outstanding</p>
-                    <p className="text-xl font-bold text-gray-900">
+                    <p className="text-sm text-muted-foreground">Total Outstanding</p>
+                    <p className="text-xl font-bold text-foreground">
                       {formatCurrency(customer.total)}
                     </p>
                   </div>
@@ -331,10 +331,10 @@ const AgedReceivables = () => {
               </div>
 
               {/* Aging Breakdown */}
-              <div className="p-4 bg-gray-50 grid grid-cols-5 gap-2 text-center">
+              <div className="p-4 bg-muted grid grid-cols-5 gap-2 text-center">
                 {agingBuckets.map((bucket) => (
                   <div key={bucket.key}>
-                    <p className="text-xs text-gray-500">{bucket.label}</p>
+                    <p className="text-xs text-muted-foreground">{bucket.label}</p>
                     <p
                       className="font-semibold"
                       style={{ color: customer[bucket.key] > 0 ? bucket.color : '#9CA3AF' }}
@@ -348,17 +348,17 @@ const AgedReceivables = () => {
               {/* Invoice List */}
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-y border-gray-200">
+                  <thead className="bg-muted border-y border-border">
                     <tr>
-                      <th className="text-left py-2 px-4 font-medium text-gray-600">Invoice #</th>
-                      <th className="text-left py-2 px-4 font-medium text-gray-600">Due Date</th>
-                      <th className="text-right py-2 px-4 font-medium text-gray-600">Amount</th>
-                      <th className="text-center py-2 px-4 font-medium text-gray-600">Status</th>
+                      <th className="text-left py-2 px-4 font-medium text-muted-foreground">Invoice #</th>
+                      <th className="text-left py-2 px-4 font-medium text-muted-foreground">Due Date</th>
+                      <th className="text-right py-2 px-4 font-medium text-muted-foreground">Amount</th>
+                      <th className="text-center py-2 px-4 font-medium text-muted-foreground">Status</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-100">
+                  <tbody className="divide-y divide-border">
                     {customer.invoices?.map((invoice, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
+                      <tr key={idx} className="hover:bg-muted/50">
                         <td className="py-2.5 px-4">
                           <button
                             onClick={() => navigate(`/invoices/${invoice.number}`)}
@@ -367,7 +367,7 @@ const AgedReceivables = () => {
                             {invoice.number}
                           </button>
                         </td>
-                        <td className="py-2.5 px-4 text-gray-500">
+                        <td className="py-2.5 px-4 text-muted-foreground">
                           {formatDate(invoice.dueDate)}
                         </td>
                         <td className="py-2.5 px-4 text-right font-mono">

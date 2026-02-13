@@ -215,7 +215,7 @@ const JournalEntryCreate = () => {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Entry Header */}
         <Card>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Entry Details</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Entry Details</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Input
               label="Date"
@@ -245,7 +245,7 @@ const JournalEntryCreate = () => {
         {/* Line Items */}
         <Card>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Line Items</h2>
+            <h2 className="text-lg font-semibold text-foreground">Line Items</h2>
             <Button
               type="button"
               variant="secondary"
@@ -264,17 +264,17 @@ const JournalEntryCreate = () => {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left text-xs font-semibold text-gray-600 uppercase py-3 pr-4">
+                <tr className="border-b border-border">
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase py-3 pr-4">
                     Account
                   </th>
-                  <th className="text-left text-xs font-semibold text-gray-600 uppercase py-3 px-2 w-40">
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase py-3 px-2 w-40">
                     Description
                   </th>
-                  <th className="text-right text-xs font-semibold text-gray-600 uppercase py-3 px-2 w-36">
+                  <th className="text-right text-xs font-semibold text-muted-foreground uppercase py-3 px-2 w-36">
                     Debit
                   </th>
-                  <th className="text-right text-xs font-semibold text-gray-600 uppercase py-3 px-2 w-36">
+                  <th className="text-right text-xs font-semibold text-muted-foreground uppercase py-3 px-2 w-36">
                     Credit
                   </th>
                   <th className="w-12"></th>
@@ -282,7 +282,7 @@ const JournalEntryCreate = () => {
               </thead>
               <tbody>
                 {fields.map((field, index) => (
-                  <tr key={field.id} className="border-b border-gray-100">
+                  <tr key={field.id} className="border-b border-border/50">
                     <td className="py-3 pr-4">
                       <Select
                         placeholder="Select account"
@@ -332,14 +332,14 @@ const JournalEntryCreate = () => {
                 ))}
               </tbody>
               <tfoot>
-                <tr className="border-t-2 border-gray-200">
-                  <td colSpan={2} className="py-3 pr-4 text-right font-semibold text-gray-900">
+                <tr className="border-t-2 border-border">
+                  <td colSpan={2} className="py-3 pr-4 text-right font-semibold text-foreground">
                     Totals
                   </td>
-                  <td className="py-3 px-2 text-right font-mono font-semibold text-gray-900">
+                  <td className="py-3 px-2 text-right font-mono font-semibold text-foreground">
                     {formatCurrency(totals.totalDebit)}
                   </td>
-                  <td className="py-3 px-2 text-right font-mono font-semibold text-gray-900">
+                  <td className="py-3 px-2 text-right font-mono font-semibold text-foreground">
                     {formatCurrency(totals.totalCredit)}
                   </td>
                   <td></td>

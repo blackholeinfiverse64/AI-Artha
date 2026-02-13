@@ -119,7 +119,7 @@ const BalanceSheet = () => {
               type="date"
               value={asOfDate}
               onChange={(e) => setAsOfDate(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             <Button variant="secondary" icon={Download}>
               Export PDF
@@ -136,8 +136,8 @@ const BalanceSheet = () => {
               <Wallet className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Total Assets</p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-sm text-muted-foreground">Total Assets</p>
+              <p className="text-xl font-bold text-foreground">
                 {formatCurrency(data?.assets?.total || 0)}
               </p>
             </div>
@@ -150,8 +150,8 @@ const BalanceSheet = () => {
               <CreditCard className="w-6 h-6 text-red-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Total Liabilities</p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-sm text-muted-foreground">Total Liabilities</p>
+              <p className="text-xl font-bold text-foreground">
                 {formatCurrency(data?.liabilities?.total || 0)}
               </p>
             </div>
@@ -164,8 +164,8 @@ const BalanceSheet = () => {
               <Scale className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Net Equity</p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-sm text-muted-foreground">Net Equity</p>
+              <p className="text-xl font-bold text-foreground">
                 {formatCurrency(data?.equity?.total || 0)}
               </p>
             </div>
@@ -176,7 +176,7 @@ const BalanceSheet = () => {
       {/* Chart and Balance Check */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Composition</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Composition</h2>
           <div className="h-64">
             <ResponsiveContainer>
               <PieChart>
@@ -201,19 +201,19 @@ const BalanceSheet = () => {
         </Card>
 
         <Card className={`p-6 ${data?.isBalanced ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Balance Check</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Balance Check</h2>
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <span className="text-gray-600">Total Assets</span>
-              <span className="font-bold text-gray-900">{formatCurrency(data?.assets?.total || 0)}</span>
+              <span className="text-muted-foreground">Total Assets</span>
+              <span className="font-bold text-foreground">{formatCurrency(data?.assets?.total || 0)}</span>
             </div>
             <div className="flex justify-between items-center">
-              <span className="text-gray-600">Liabilities + Equity</span>
-              <span className="font-bold text-gray-900">
+              <span className="text-muted-foreground">Liabilities + Equity</span>
+              <span className="font-bold text-foreground">
                 {formatCurrency((data?.liabilities?.total || 0) + (data?.equity?.total || 0))}
               </span>
             </div>
-            <hr className="border-gray-300" />
+            <hr className="border-border" />
             <div className={`flex justify-between items-center ${
               data?.isBalanced ? 'text-green-700' : 'text-red-700'
             }`}>
@@ -223,7 +223,7 @@ const BalanceSheet = () => {
               </span>
             </div>
           </div>
-          <p className="text-sm text-gray-500 mt-4">
+          <p className="text-sm text-muted-foreground mt-4">
             As of {formatDate(data?.asOfDate)}
           </p>
         </Card>
@@ -231,8 +231,8 @@ const BalanceSheet = () => {
 
       {/* Detailed Statement */}
       <Card>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Detailed Statement</h2>
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Detailed Statement</h2>
+        <div className="border border-border rounded-lg overflow-hidden">
           {/* Assets Section */}
           <div>
             <button
@@ -254,37 +254,37 @@ const BalanceSheet = () => {
             {expandedSections.includes('assets') && (
               <div className="border-t border-blue-200">
                 {/* Current Assets */}
-                <div className="px-8 py-3 bg-gray-50 flex justify-between">
-                  <span className="font-medium text-gray-700">Current Assets</span>
-                  <span className="font-medium text-gray-900">
+                <div className="px-8 py-3 bg-muted flex justify-between">
+                  <span className="font-medium text-foreground">Current Assets</span>
+                  <span className="font-medium text-foreground">
                     {formatCurrency(data?.assets?.current?.total || 0)}
                   </span>
                 </div>
                 {data?.assets?.current?.items?.map((item, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between px-12 py-2.5 border-b border-gray-100"
+                    className="flex items-center justify-between px-12 py-2.5 border-b border-border/50"
                   >
-                    <span className="text-gray-600">{item.name}</span>
-                    <span className={`font-medium ${item.amount < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                    <span className="text-muted-foreground">{item.name}</span>
+                    <span className={`font-medium ${item.amount < 0 ? 'text-red-600' : 'text-foreground'}`}>
                       {formatCurrency(item.amount)}
                     </span>
                   </div>
                 ))}
                 {/* Non-Current Assets */}
-                <div className="px-8 py-3 bg-gray-50 flex justify-between border-t border-gray-200">
-                  <span className="font-medium text-gray-700">Non-Current Assets</span>
-                  <span className="font-medium text-gray-900">
+                <div className="px-8 py-3 bg-muted flex justify-between border-t border-border">
+                  <span className="font-medium text-foreground">Non-Current Assets</span>
+                  <span className="font-medium text-foreground">
                     {formatCurrency(data?.assets?.nonCurrent?.total || 0)}
                   </span>
                 </div>
                 {data?.assets?.nonCurrent?.items?.map((item, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between px-12 py-2.5 border-b border-gray-100"
+                    className="flex items-center justify-between px-12 py-2.5 border-b border-border/50"
                   >
-                    <span className="text-gray-600">{item.name}</span>
-                    <span className={`font-medium ${item.amount < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                    <span className="text-muted-foreground">{item.name}</span>
+                    <span className={`font-medium ${item.amount < 0 ? 'text-red-600' : 'text-foreground'}`}>
                       {formatCurrency(item.amount)}
                     </span>
                   </div>
@@ -294,7 +294,7 @@ const BalanceSheet = () => {
           </div>
 
           {/* Liabilities Section */}
-          <div className="border-t border-gray-200">
+          <div className="border-t border-border">
             <button
               onClick={() => toggleSection('liabilities')}
               className="w-full flex items-center justify-between p-4 bg-red-50 hover:bg-red-100 transition-colors"
@@ -314,35 +314,35 @@ const BalanceSheet = () => {
             {expandedSections.includes('liabilities') && (
               <div className="border-t border-red-200">
                 {/* Current Liabilities */}
-                <div className="px-8 py-3 bg-gray-50 flex justify-between">
-                  <span className="font-medium text-gray-700">Current Liabilities</span>
-                  <span className="font-medium text-gray-900">
+                <div className="px-8 py-3 bg-muted flex justify-between">
+                  <span className="font-medium text-foreground">Current Liabilities</span>
+                  <span className="font-medium text-foreground">
                     {formatCurrency(data?.liabilities?.current?.total || 0)}
                   </span>
                 </div>
                 {data?.liabilities?.current?.items?.map((item, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between px-12 py-2.5 border-b border-gray-100"
+                    className="flex items-center justify-between px-12 py-2.5 border-b border-border/50"
                   >
-                    <span className="text-gray-600">{item.name}</span>
-                    <span className="font-medium text-gray-900">{formatCurrency(item.amount)}</span>
+                    <span className="text-muted-foreground">{item.name}</span>
+                    <span className="font-medium text-foreground">{formatCurrency(item.amount)}</span>
                   </div>
                 ))}
                 {/* Non-Current Liabilities */}
-                <div className="px-8 py-3 bg-gray-50 flex justify-between border-t border-gray-200">
-                  <span className="font-medium text-gray-700">Non-Current Liabilities</span>
-                  <span className="font-medium text-gray-900">
+                <div className="px-8 py-3 bg-muted flex justify-between border-t border-border">
+                  <span className="font-medium text-foreground">Non-Current Liabilities</span>
+                  <span className="font-medium text-foreground">
                     {formatCurrency(data?.liabilities?.nonCurrent?.total || 0)}
                   </span>
                 </div>
                 {data?.liabilities?.nonCurrent?.items?.map((item, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between px-12 py-2.5 border-b border-gray-100"
+                    className="flex items-center justify-between px-12 py-2.5 border-b border-border/50"
                   >
-                    <span className="text-gray-600">{item.name}</span>
-                    <span className="font-medium text-gray-900">{formatCurrency(item.amount)}</span>
+                    <span className="text-muted-foreground">{item.name}</span>
+                    <span className="font-medium text-foreground">{formatCurrency(item.amount)}</span>
                   </div>
                 ))}
               </div>
@@ -350,7 +350,7 @@ const BalanceSheet = () => {
           </div>
 
           {/* Equity Section */}
-          <div className="border-t border-gray-200">
+          <div className="border-t border-border">
             <button
               onClick={() => toggleSection('equity')}
               className="w-full flex items-center justify-between p-4 bg-purple-50 hover:bg-purple-100 transition-colors"
@@ -372,10 +372,10 @@ const BalanceSheet = () => {
                 {data?.equity?.items?.map((item, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between px-8 py-3 border-b border-gray-100"
+                    className="flex items-center justify-between px-8 py-3 border-b border-border/50"
                   >
-                    <span className="text-gray-600">{item.name}</span>
-                    <span className="font-medium text-gray-900">{formatCurrency(item.amount)}</span>
+                    <span className="text-muted-foreground">{item.name}</span>
+                    <span className="font-medium text-foreground">{formatCurrency(item.amount)}</span>
                   </div>
                 ))}
               </div>

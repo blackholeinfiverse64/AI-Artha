@@ -44,8 +44,8 @@ const ForgotPassword = () => {
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
           <CheckCircle className="w-8 h-8 text-green-600" />
         </div>
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Check your email</h1>
-        <p className="text-gray-500 mb-8">
+        <h1 className="text-2xl font-bold text-foreground mb-2">Check your email</h1>
+        <p className="text-muted-foreground mb-8">
           We've sent a password reset link to your email address. 
           Please check your inbox and follow the instructions.
         </p>
@@ -65,12 +65,12 @@ const ForgotPassword = () => {
         <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
           <Building2 className="w-7 h-7 text-white" />
         </div>
-        <span className="text-2xl font-bold text-gray-900">ARTHA</span>
+        <span className="text-2xl font-bold text-foreground">ARTHA</span>
       </div>
 
       <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Forgot password?</h1>
-        <p className="text-gray-500 mt-2">
+        <h1 className="text-2xl font-bold text-foreground">Forgot password?</h1>
+        <p className="text-muted-foreground mt-2">
           No worries, we'll send you reset instructions.
         </p>
       </div>
@@ -93,7 +93,7 @@ const ForgotPassword = () => {
       <div className="mt-8 text-center">
         <Link
           to="/login"
-          className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to login

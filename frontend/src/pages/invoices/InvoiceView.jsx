@@ -217,12 +217,12 @@ const InvoiceView = () => {
               <Building2 className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">ARTHA</h2>
-              <p className="text-gray-500">Financial Solutions</p>
+              <h2 className="text-2xl font-bold text-foreground">ARTHA</h2>
+              <p className="text-muted-foreground">Financial Solutions</p>
             </div>
           </div>
           <div className="text-right">
-            <h1 className="text-3xl font-bold text-gray-900">INVOICE</h1>
+            <h1 className="text-3xl font-bold text-foreground">INVOICE</h1>
             <p className="text-lg font-medium text-blue-600 mt-1">{invoice.invoiceNumber}</p>
             <div className="mt-2">{getStatusBadge(invoice.status)}</div>
           </div>
@@ -231,16 +231,16 @@ const InvoiceView = () => {
         {/* Customer & Invoice Info */}
         <div className="grid grid-cols-2 gap-8 mb-8">
           <div>
-            <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Bill To</h3>
-            <p className="text-lg font-semibold text-gray-900">{invoice.customer?.name}</p>
+            <h3 className="text-sm font-semibold text-muted-foreground uppercase mb-2">Bill To</h3>
+            <p className="text-lg font-semibold text-foreground">{invoice.customer?.name}</p>
             {invoice.customer?.email && (
-              <p className="text-gray-600">{invoice.customer?.email}</p>
+              <p className="text-muted-foreground">{invoice.customer?.email}</p>
             )}
             {invoice.customer?.address && (
-              <p className="text-gray-600 whitespace-pre-line">{invoice.customer?.address}</p>
+              <p className="text-muted-foreground whitespace-pre-line">{invoice.customer?.address}</p>
             )}
             {invoice.customer?.gstn && (
-              <p className="text-gray-600 mt-2">
+              <p className="text-muted-foreground mt-2">
                 <span className="font-medium">GSTN:</span> {invoice.customer?.gstn}
               </p>
             )}
@@ -248,15 +248,15 @@ const InvoiceView = () => {
           <div className="text-right">
             <div className="space-y-2">
               <div>
-                <span className="text-sm text-gray-500">Invoice Date:</span>
+                <span className="text-sm text-muted-foreground">Invoice Date:</span>
                 <span className="ml-2 font-medium">{formatDate(invoice.invoiceDate)}</span>
               </div>
               <div>
-                <span className="text-sm text-gray-500">Due Date:</span>
+                <span className="text-sm text-muted-foreground">Due Date:</span>
                 <span className="ml-2 font-medium">{formatDate(invoice.dueDate)}</span>
               </div>
               <div className="pt-4">
-                <span className="text-sm text-gray-500">Amount Due:</span>
+                <span className="text-sm text-muted-foreground">Amount Due:</span>
                 <p className="text-2xl font-bold text-blue-600">
                   {formatCurrency(invoice.amountDue || invoice.totalAmount)}
                 </p>
@@ -268,34 +268,34 @@ const InvoiceView = () => {
         {/* Line Items Table */}
         <div className="border rounded-lg overflow-hidden mb-8">
           <table className="w-full">
-            <thead className="bg-gray-50">
+            <thead className="bg-muted">
               <tr>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-600 uppercase">
+                <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase">
                   Description
                 </th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-600 uppercase w-20">
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase w-20">
                   Qty
                 </th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-600 uppercase w-28">
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase w-28">
                   Rate
                 </th>
-                <th className="text-center px-4 py-3 text-xs font-semibold text-gray-600 uppercase w-20">
+                <th className="text-center px-4 py-3 text-xs font-semibold text-muted-foreground uppercase w-20">
                   GST
                 </th>
-                <th className="text-right px-4 py-3 text-xs font-semibold text-gray-600 uppercase w-32">
+                <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase w-32">
                   Amount
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
+            <tbody className="divide-y divide-border">
               {invoice.lineItems?.map((item, index) => (
                 <tr key={index}>
-                  <td className="px-4 py-4 text-gray-900">{item.description}</td>
-                  <td className="px-4 py-4 text-center text-gray-600">{item.quantity}</td>
-                  <td className="px-4 py-4 text-right text-gray-600">
+                  <td className="px-4 py-4 text-foreground">{item.description}</td>
+                  <td className="px-4 py-4 text-center text-muted-foreground">{item.quantity}</td>
+                  <td className="px-4 py-4 text-right text-muted-foreground">
                     {formatCurrency(item.rate)}
                   </td>
-                  <td className="px-4 py-4 text-center text-gray-600">{item.gstRate}%</td>
+                  <td className="px-4 py-4 text-center text-muted-foreground">{item.gstRate}%</td>
                   <td className="px-4 py-4 text-right font-medium">
                     {formatCurrency(item.amount || item.quantity * item.rate * (1 + item.gstRate / 100))}
                   </td>
@@ -309,15 +309,15 @@ const InvoiceView = () => {
         <div className="flex justify-end">
           <div className="w-72">
             <div className="space-y-2">
-              <div className="flex justify-between text-gray-600">
+              <div className="flex justify-between text-muted-foreground">
                 <span>Subtotal</span>
                 <span>{formatCurrency(invoice.subtotal)}</span>
               </div>
-              <div className="flex justify-between text-gray-600">
+              <div className="flex justify-between text-muted-foreground">
                 <span>CGST</span>
                 <span>{formatCurrency(invoice.taxAmount / 2)}</span>
               </div>
-              <div className="flex justify-between text-gray-600">
+              <div className="flex justify-between text-muted-foreground">
                 <span>SGST</span>
                 <span>{formatCurrency(invoice.taxAmount / 2)}</span>
               </div>
@@ -327,7 +327,7 @@ const InvoiceView = () => {
                   <span>- {formatCurrency(invoice.amountPaid)}</span>
                 </div>
               )}
-              <div className="flex justify-between text-xl font-bold border-t border-gray-200 pt-2">
+              <div className="flex justify-between text-xl font-bold border-t border-border pt-2">
                 <span>Total Due</span>
                 <span className="text-blue-600">
                   {formatCurrency(invoice.amountDue || invoice.totalAmount)}
@@ -339,19 +339,19 @@ const InvoiceView = () => {
 
         {/* Notes & Terms */}
         {(invoice.notes || invoice.terms) && (
-          <div className="mt-8 pt-8 border-t border-gray-200 grid grid-cols-2 gap-8">
+          <div className="mt-8 pt-8 border-t border-border grid grid-cols-2 gap-8">
             {invoice.notes && (
               <div>
-                <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Notes</h3>
-                <p className="text-gray-600">{invoice.notes}</p>
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase mb-2">Notes</h3>
+                <p className="text-muted-foreground">{invoice.notes}</p>
               </div>
             )}
             {invoice.terms && (
               <div>
-                <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">
+                <h3 className="text-sm font-semibold text-muted-foreground uppercase mb-2">
                   Terms & Conditions
                 </h3>
-                <p className="text-gray-600">{invoice.terms}</p>
+                <p className="text-muted-foreground">{invoice.terms}</p>
               </div>
             )}
           </div>
@@ -367,8 +367,8 @@ const InvoiceView = () => {
       >
         <div className="space-y-4">
           <div>
-            <p className="text-sm text-gray-500 mb-4">
-              Amount Due: <span className="font-semibold text-gray-900">
+            <p className="text-sm text-muted-foreground mb-4">
+              Amount Due: <span className="font-semibold text-foreground">
                 {formatCurrency(invoice.amountDue || invoice.totalAmount)}
               </span>
             </p>

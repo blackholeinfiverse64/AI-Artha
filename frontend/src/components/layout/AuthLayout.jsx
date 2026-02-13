@@ -50,7 +50,7 @@ const AuthLayout = () => {
       </div>
 
       {/* Right side - Auth form */}
-      <div className="flex-1 flex items-center justify-center p-8 bg-gray-50">
+      <div className="flex-1 flex items-center justify-center p-8 bg-muted">
         <div className="w-full max-w-md">
           <Outlet />
         </div>

@@ -229,11 +229,11 @@ const JournalEntries = () => {
                   <Table.Cell>
                     <span className="font-medium text-blue-600">{entry.entryNumber}</span>
                   </Table.Cell>
-                  <Table.Cell className="text-gray-500">{formatDate(entry.date)}</Table.Cell>
+                  <Table.Cell className="text-muted-foreground">{formatDate(entry.date)}</Table.Cell>
                   <Table.Cell>
                     <div>
-                      <p className="font-medium text-gray-900">{entry.description}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">
+                      <p className="font-medium text-foreground">{entry.description}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
                         {entry.lines?.length || 0} line items
                       </p>
                     </div>
@@ -245,7 +245,7 @@ const JournalEntries = () => {
                     {formatCurrency(entry.creditTotal)}
                   </Table.Cell>
                   <Table.Cell>{getStatusBadge(entry.status)}</Table.Cell>
-                  <Table.Cell className="text-gray-500">
+                  <Table.Cell className="text-muted-foreground">
                     {entry.createdBy?.name || 'System'}
                   </Table.Cell>
                 </Table.Row>
@@ -258,17 +258,17 @@ const JournalEntries = () => {
       {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-4 text-center">
-          <p className="text-sm text-gray-500">Total Entries</p>
-          <p className="text-2xl font-bold text-gray-900">{entries.length}</p>
+          <p className="text-sm text-muted-foreground">Total Entries</p>
+          <p className="text-2xl font-bold text-foreground">{entries.length}</p>
         </Card>
         <Card className="p-4 text-center">
-          <p className="text-sm text-gray-500">Posted</p>
+          <p className="text-sm text-muted-foreground">Posted</p>
           <p className="text-2xl font-bold text-green-600">
             {entries.filter((e) => e.status === 'posted').length}
           </p>
         </Card>
         <Card className="p-4 text-center">
-          <p className="text-sm text-gray-500">Pending</p>
+          <p className="text-sm text-muted-foreground">Pending</p>
           <p className="text-2xl font-bold text-yellow-600">
             {entries.filter((e) => e.status === 'draft').length}
           </p>

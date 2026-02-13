@@ -113,10 +113,10 @@ const LedgerIntegrity = () => {
               )}
             </div>
             <div>
-              <h2 className="text-xl font-bold text-gray-900">
+              <h2 className="text-xl font-bold text-foreground">
                 {isHealthy ? 'Ledger Verified' : 'Integrity Issue Detected'}
               </h2>
-              <p className="text-gray-500">
+              <p className="text-muted-foreground">
                 {isHealthy
                   ? 'All entries are cryptographically verified'
                   : 'Hash chain verification failed'}
@@ -131,8 +131,8 @@ const LedgerIntegrity = () => {
               <Hash className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Total Entries</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm text-muted-foreground">Total Entries</p>
+              <p className="text-2xl font-bold text-foreground">
                 {verificationResult?.totalEntries || entries.length}
               </p>
             </div>
@@ -145,8 +145,8 @@ const LedgerIntegrity = () => {
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Verified</p>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-sm text-muted-foreground">Verified</p>
+              <p className="text-2xl font-bold text-foreground">
                 {verificationResult?.verifiedEntries || entries.length}
               </p>
             </div>
@@ -156,15 +156,15 @@ const LedgerIntegrity = () => {
 
       {/* How it Works */}
       <Card>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">How Hash-Chain Verification Works</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">How Hash-Chain Verification Works</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="flex gap-4">
             <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
               <span className="font-bold text-blue-600">1</span>
             </div>
             <div>
-              <h3 className="font-medium text-gray-900">Entry Creation</h3>
-              <p className="text-sm text-gray-500 mt-1">
+              <h3 className="font-medium text-foreground">Entry Creation</h3>
+              <p className="text-sm text-muted-foreground mt-1">
                 Each journal entry is hashed using HMAC-SHA256 with a secret key, creating a unique fingerprint.
               </p>
             </div>
@@ -174,8 +174,8 @@ const LedgerIntegrity = () => {
               <span className="font-bold text-blue-600">2</span>
             </div>
             <div>
-              <h3 className="font-medium text-gray-900">Chain Linking</h3>
-              <p className="text-sm text-gray-500 mt-1">
+              <h3 className="font-medium text-foreground">Chain Linking</h3>
+              <p className="text-sm text-muted-foreground mt-1">
                 Each entry includes the hash of the previous entry, creating an unbreakable chain.
               </p>
             </div>
@@ -185,8 +185,8 @@ const LedgerIntegrity = () => {
               <span className="font-bold text-blue-600">3</span>
             </div>
             <div>
-              <h3 className="font-medium text-gray-900">Tamper Detection</h3>
-              <p className="text-sm text-gray-500 mt-1">
+              <h3 className="font-medium text-foreground">Tamper Detection</h3>
+              <p className="text-sm text-muted-foreground mt-1">
                 Any modification to an entry breaks the chain, immediately revealing tampering attempts.
               </p>
             </div>
@@ -196,13 +196,13 @@ const LedgerIntegrity = () => {
 
       {/* Entry Chain Visualization */}
       <Card>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Hash Chain Visualization</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">Hash Chain Visualization</h2>
         <div className="space-y-4">
           {entries.map((entry, index) => (
             <div key={entry._id} className="relative">
               {/* Connection Line */}
               {index > 0 && (
-                <div className="absolute left-6 -top-4 w-0.5 h-4 bg-gray-300" />
+                <div className="absolute left-6 -top-4 w-0.5 h-4 bg-border" />
               )}
               
               <div className={`flex items-center gap-4 p-4 rounded-lg border-2 ${
@@ -224,25 +224,25 @@ const LedgerIntegrity = () => {
                 {/* Entry Info */}
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-gray-900">{entry.entryNumber}</span>
+                    <span className="font-semibold text-foreground">{entry.entryNumber}</span>
                     <Badge variant={entry.isValid !== false ? 'success' : 'danger'}>
                       {entry.isValid !== false ? 'Valid' : 'Invalid'}
                     </Badge>
                   </div>
-                  <p className="text-sm text-gray-600 mt-0.5">{entry.description}</p>
-                  <p className="text-xs text-gray-400 mt-1">{formatDate(entry.date)}</p>
+                  <p className="text-sm text-muted-foreground mt-0.5">{entry.description}</p>
+                  <p className="text-xs text-muted-foreground mt-1">{formatDate(entry.date)}</p>
                 </div>
 
                 {/* Hash Info */}
                 <div className="text-right hidden md:block">
-                  <div className="flex items-center gap-2 text-xs text-gray-500">
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <span>Hash:</span>
-                    <code className="font-mono bg-gray-100 px-2 py-0.5 rounded">
+                    <code className="font-mono bg-muted px-2 py-0.5 rounded">
                       {entry.hash}
                     </code>
                   </div>
                   {entry.prevHash && (
-                    <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
                       <Link className="w-3 h-3" />
                       <span>Links to:</span>
                       <code className="font-mono">
@@ -258,10 +258,10 @@ const LedgerIntegrity = () => {
       </Card>
 
       {/* Last Verification */}
-      <Card className="bg-gray-50">
+      <Card className="bg-muted">
         <div className="flex items-center gap-3">
-          <Clock className="w-5 h-5 text-gray-400" />
-          <span className="text-sm text-gray-600">
+          <Clock className="w-5 h-5 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">
             Last verified: {verificationResult?.lastVerified 
               ? formatDate(verificationResult.lastVerified, 'datetime')
               : 'Never'}

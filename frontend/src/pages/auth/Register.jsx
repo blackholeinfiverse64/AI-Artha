@@ -75,12 +75,12 @@ const Register = () => {
         <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
           <Building2 className="w-7 h-7 text-white" />
         </div>
-        <span className="text-2xl font-bold text-gray-900">ARTHA</span>
+        <span className="text-2xl font-bold text-foreground">ARTHA</span>
       </div>
 
       <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Create an account</h1>
-        <p className="text-gray-500 mt-2">Get started with your free account</p>
+        <h1 className="text-2xl font-bold text-foreground">Create an account</h1>
+        <p className="text-muted-foreground mt-2">Get started with your free account</p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -104,7 +104,7 @@ const Register = () => {
 
         {/* Role Selection */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label className="block text-sm font-medium text-foreground mb-2">
             Select Your Role
           </label>
           <div className="grid grid-cols-3 gap-3">
@@ -120,8 +120,8 @@ const Register = () => {
                         ? 'border-red-500 bg-red-50'
                         : role.color === 'blue'
                         ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-500 bg-gray-50'
-                      : 'border-gray-200 hover:border-gray-300'
+                        : 'border-gray-500 bg-muted'
+                      : 'border-border hover:border-border'
                   }`}
                 >
                   <input
@@ -137,14 +137,14 @@ const Register = () => {
                           ? 'text-red-600'
                           : role.color === 'blue'
                           ? 'text-blue-600'
-                          : 'text-gray-600'
-                        : 'text-gray-400'
+                          : 'text-muted-foreground'
+                        : 'text-muted-foreground'
                     }`}
                   />
-                  <span className={`text-sm font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
+                  <span className={`text-sm font-medium ${isSelected ? 'text-foreground' : 'text-muted-foreground'}`}>
                     {role.label}
                   </span>
-                  <span className="text-xs text-gray-500 text-center mt-0.5">{role.description}</span>
+                  <span className="text-xs text-muted-foreground text-center mt-0.5">{role.description}</span>
                 </label>
               );
             })}
@@ -155,20 +155,20 @@ const Register = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1">
             Password
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Lock className="h-5 w-5 text-gray-400" />
+              <Lock className="h-5 w-5 text-muted-foreground" />
             </div>
             <input
               type={showPassword ? 'text' : 'password'}
               placeholder="Create a password"
-              className={`block w-full rounded-lg border px-3 py-2 pl-10 pr-10 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 sm:text-sm ${
+              className={`block w-full rounded-lg border px-3 py-2 pl-10 pr-10 text-foreground placeholder-gray-500 focus:outline-none focus:ring-2 sm:text-sm ${
                 errors.password
                   ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                  : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                  : 'border-border focus:border-blue-500 focus:ring-blue-500'
               }`}
               {...register('password')}
             />
@@ -178,9 +178,9 @@ const Register = () => {
               className="absolute inset-y-0 right-0 pr-3 flex items-center"
             >
               {showPassword ? (
-                <EyeOff className="h-5 w-5 text-gray-400" />
+                <EyeOff className="h-5 w-5 text-muted-foreground" />
               ) : (
-                <Eye className="h-5 w-5 text-gray-400" />
+                <Eye className="h-5 w-5 text-muted-foreground" />
               )}
             </button>
           </div>
@@ -205,7 +205,7 @@ const Register = () => {
         </div>
       </form>
 
-      <p className="mt-8 text-center text-sm text-gray-500">
+      <p className="mt-8 text-center text-sm text-muted-foreground">
         Already have an account?{' '}
         <Link to="/login" className="text-blue-600 hover:text-blue-700 font-medium">
           Sign in

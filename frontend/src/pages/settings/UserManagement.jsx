@@ -195,30 +195,30 @@ const UserManagement = () => {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card className="p-4">
-          <p className="text-sm text-gray-500">Total Users</p>
-          <p className="text-2xl font-bold text-gray-900">{users.length}</p>
+          <p className="text-sm text-muted-foreground">Total Users</p>
+          <p className="text-2xl font-bold text-foreground">{users.length}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-gray-500">Active</p>
+          <p className="text-sm text-muted-foreground">Active</p>
           <p className="text-2xl font-bold text-green-600">
             {users.filter((u) => u.status === 'active').length}
           </p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-gray-500">Admins</p>
+          <p className="text-sm text-muted-foreground">Admins</p>
           <p className="text-2xl font-bold text-red-600">
             {users.filter((u) => u.role === 'admin').length}
           </p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-gray-500">Accountants</p>
+          <p className="text-sm text-muted-foreground">Accountants</p>
           <p className="text-2xl font-bold text-blue-600">
             {users.filter((u) => u.role === 'accountant').length}
           </p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-gray-500">Viewers</p>
-          <p className="text-2xl font-bold text-gray-600">
+          <p className="text-sm text-muted-foreground">Viewers</p>
+          <p className="text-2xl font-bold text-muted-foreground">
             {users.filter((u) => u.role === 'viewer').length}
           </p>
         </Card>
@@ -275,37 +275,37 @@ const UserManagement = () => {
                 <Table.Row key={user._id}>
                   <Table.Cell>
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                        <span className="text-sm font-semibold text-gray-600">
+                      <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
+                        <span className="text-sm font-semibold text-muted-foreground">
                           {user.name?.charAt(0).toUpperCase()}
                         </span>
                       </div>
                       <div>
-                        <p className="font-medium text-gray-900">{user.name}</p>
-                        <p className="text-sm text-gray-500">{user.email}</p>
+                        <p className="font-medium text-foreground">{user.name}</p>
+                        <p className="text-sm text-muted-foreground">{user.email}</p>
                       </div>
                     </div>
                   </Table.Cell>
                   <Table.Cell>{getRoleBadge(user.role)}</Table.Cell>
-                  <Table.Cell className="text-gray-500">{user.department || '-'}</Table.Cell>
+                  <Table.Cell className="text-muted-foreground">{user.department || '-'}</Table.Cell>
                   <Table.Cell>{getStatusBadge(user.status)}</Table.Cell>
-                  <Table.Cell className="text-gray-500">
+                  <Table.Cell className="text-muted-foreground">
                     {user.lastLogin ? formatDate(user.lastLogin, 'datetime') : 'Never'}
                   </Table.Cell>
                   <Table.Cell>
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => handleOpenModal(user)}
-                        className="p-2 hover:bg-gray-100 rounded-lg"
+                        className="p-2 hover:bg-muted rounded-lg"
                       >
-                        <Edit className="w-4 h-4 text-gray-500" />
+                        <Edit className="w-4 h-4 text-muted-foreground" />
                       </button>
                       <button
                         onClick={() => {
                           setDeletingUser(user);
                           setShowDeleteModal(true);
                         }}
-                        className="p-2 hover:bg-gray-100 rounded-lg"
+                        className="p-2 hover:bg-muted rounded-lg"
                       >
                         <Trash2 className="w-4 h-4 text-red-500" />
                       </button>
@@ -320,15 +320,15 @@ const UserManagement = () => {
 
       {/* Role Permissions Info */}
       <Card>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Role Permissions</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">Role Permissions</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           {roles.map((role) => (
-            <div key={role.value} className="p-4 bg-gray-50 rounded-lg">
+            <div key={role.value} className="p-4 bg-muted rounded-lg">
               <div className="flex items-center gap-2 mb-2">
-                <Shield className="w-5 h-5 text-gray-400" />
+                <Shield className="w-5 h-5 text-muted-foreground" />
                 <Badge variant={role.color}>{role.label}</Badge>
               </div>
-              <p className="text-sm text-gray-600">{role.description}</p>
+              <p className="text-sm text-muted-foreground">{role.description}</p>
             </div>
           ))}
         </div>

@@ -168,7 +168,7 @@ const InvoiceList = () => {
                   </Table.Cell>
                   <Table.Cell>{getStatusBadge(invoice.status)}</Table.Cell>
                   <Table.Cell>{formatDate(invoice.dueDate)}</Table.Cell>
-                  <Table.Cell className="text-gray-500">
+                  <Table.Cell className="text-muted-foreground">
                     {formatDate(invoice.createdAt)}
                   </Table.Cell>
                   <Table.Cell>
@@ -178,18 +178,18 @@ const InvoiceList = () => {
                           e.stopPropagation();
                           navigate(`/invoices/${invoice._id}`);
                         }}
-                        className="p-1.5 hover:bg-gray-100 rounded-lg"
+                        className="p-1.5 hover:bg-muted rounded-lg"
                       >
-                        <Eye className="w-4 h-4 text-gray-500" />
+                        <Eye className="w-4 h-4 text-muted-foreground" />
                       </button>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           navigate(`/invoices/${invoice._id}/edit`);
                         }}
-                        className="p-1.5 hover:bg-gray-100 rounded-lg"
+                        className="p-1.5 hover:bg-muted rounded-lg"
                       >
-                        <Edit className="w-4 h-4 text-gray-500" />
+                        <Edit className="w-4 h-4 text-muted-foreground" />
                       </button>
                     </div>
                   </Table.Cell>
@@ -203,11 +203,11 @@ const InvoiceList = () => {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="p-4 text-center">
-          <p className="text-sm text-gray-500">Total Invoices</p>
-          <p className="text-2xl font-bold text-gray-900">{invoices.length}</p>
+          <p className="text-sm text-muted-foreground">Total Invoices</p>
+          <p className="text-2xl font-bold text-foreground">{invoices.length}</p>
         </Card>
         <Card className="p-4 text-center">
-          <p className="text-sm text-gray-500">Paid</p>
+          <p className="text-sm text-muted-foreground">Paid</p>
           <p className="text-2xl font-bold text-green-600">
             {formatCurrency(
               invoices
@@ -217,7 +217,7 @@ const InvoiceList = () => {
           </p>
         </Card>
         <Card className="p-4 text-center">
-          <p className="text-sm text-gray-500">Pending</p>
+          <p className="text-sm text-muted-foreground">Pending</p>
           <p className="text-2xl font-bold text-yellow-600">
             {formatCurrency(
               invoices
@@ -227,7 +227,7 @@ const InvoiceList = () => {
           </p>
         </Card>
         <Card className="p-4 text-center">
-          <p className="text-sm text-gray-500">Overdue</p>
+          <p className="text-sm text-muted-foreground">Overdue</p>
           <p className="text-2xl font-bold text-red-600">
             {formatCurrency(
               invoices

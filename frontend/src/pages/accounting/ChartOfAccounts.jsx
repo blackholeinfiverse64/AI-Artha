@@ -104,7 +104,7 @@ const ChartOfAccounts = () => {
       Income: 'text-green-600 bg-green-100',
       Expense: 'text-orange-600 bg-orange-100',
     };
-    return colors[type] || 'text-gray-600 bg-gray-100';
+    return colors[type] || 'text-muted-foreground bg-muted';
   };
 
   const toggleGroup = (group) => {
@@ -214,24 +214,24 @@ const ChartOfAccounts = () => {
             {/* Group Header */}
             <button
               onClick={() => toggleGroup(group.value)}
-              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+              className="w-full flex items-center justify-between p-4 hover:bg-muted transition-colors"
             >
               <div className="flex items-center gap-3">
                 {expandedGroups.includes(group.value) ? (
-                  <ChevronDown className="w-5 h-5 text-gray-400" />
+                  <ChevronDown className="w-5 h-5 text-muted-foreground" />
                 ) : (
-                  <ChevronRight className="w-5 h-5 text-gray-400" />
+                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
                 )}
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getTypeColor(group.value)}`}>
                   <group.icon className="w-5 h-5" />
                 </div>
                 <div className="text-left">
-                  <h3 className="font-semibold text-gray-900">{group.label}</h3>
-                  <p className="text-sm text-gray-500">{group.accounts.length} accounts</p>
+                  <h3 className="font-semibold text-foreground">{group.label}</h3>
+                  <p className="text-sm text-muted-foreground">{group.accounts.length} accounts</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-lg font-bold text-gray-900">
+                <p className="text-lg font-bold text-foreground">
                   {formatCurrency(group.total)}
                 </p>
               </div>
@@ -239,33 +239,33 @@ const ChartOfAccounts = () => {
 
             {/* Account List */}
             {expandedGroups.includes(group.value) && group.accounts.length > 0 && (
-              <div className="border-t border-gray-200">
+              <div className="border-t border-border">
                 {group.accounts.map((account) => (
                   <div key={account._id}>
-                    <div className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 border-b border-gray-100 last:border-0">
+                    <div className="flex items-center justify-between px-4 py-3 hover:bg-muted border-b border-border/50 last:border-0">
                       <div className="flex items-center gap-3 ml-8">
                         {account.isGroup ? (
-                          <FolderOpen className="w-5 h-5 text-gray-400" />
+                          <FolderOpen className="w-5 h-5 text-muted-foreground" />
                         ) : (
-                          <FileText className="w-5 h-5 text-gray-400" />
+                          <FileText className="w-5 h-5 text-muted-foreground" />
                         )}
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-mono text-gray-500">{account.code}</span>
-                            <span className="font-medium text-gray-900">{account.name}</span>
+                            <span className="text-sm font-mono text-muted-foreground">{account.code}</span>
+                            <span className="font-medium text-foreground">{account.name}</span>
                           </div>
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
-                        <span className="font-semibold text-gray-900">
+                        <span className="font-semibold text-foreground">
                           {formatCurrency(account.balance || 0)}
                         </span>
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => handleOpenModal(account)}
-                            className="p-1.5 hover:bg-gray-200 rounded-lg"
+                            className="p-1.5 hover:bg-muted rounded-lg"
                           >
-                            <Edit className="w-4 h-4 text-gray-500" />
+                            <Edit className="w-4 h-4 text-muted-foreground" />
                           </button>
                         </div>
                       </div>
@@ -274,27 +274,27 @@ const ChartOfAccounts = () => {
                     {getChildAccounts(account._id).map((child) => (
                       <div
                         key={child._id}
-                        className="flex items-center justify-between px-4 py-2.5 hover:bg-gray-50 border-b border-gray-100 last:border-0 bg-gray-50/50"
+                        className="flex items-center justify-between px-4 py-2.5 hover:bg-muted border-b border-border/50 last:border-0 bg-muted/50"
                       >
                         <div className="flex items-center gap-3 ml-16">
-                          <FileText className="w-4 h-4 text-gray-400" />
+                          <FileText className="w-4 h-4 text-muted-foreground" />
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-mono text-gray-500">{child.code}</span>
-                              <span className="text-sm text-gray-700">{child.name}</span>
+                              <span className="text-xs font-mono text-muted-foreground">{child.code}</span>
+                              <span className="text-sm text-foreground">{child.name}</span>
                             </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
-                          <span className="text-sm font-medium text-gray-700">
+                          <span className="text-sm font-medium text-foreground">
                             {formatCurrency(child.balance || 0)}
                           </span>
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => handleOpenModal(child)}
-                              className="p-1 hover:bg-gray-200 rounded"
+                              className="p-1 hover:bg-muted rounded"
                             >
-                              <Edit className="w-3.5 h-3.5 text-gray-400" />
+                              <Edit className="w-3.5 h-3.5 text-muted-foreground" />
                             </button>
                           </div>
                         </div>
@@ -306,7 +306,7 @@ const ChartOfAccounts = () => {
             )}
 
             {expandedGroups.includes(group.value) && group.accounts.length === 0 && (
-              <div className="p-8 text-center text-gray-500 border-t border-gray-200">
+              <div className="p-8 text-center text-muted-foreground border-t border-border">
                 No accounts in this category
               </div>
             )}

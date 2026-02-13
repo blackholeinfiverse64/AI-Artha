@@ -180,8 +180,8 @@ const GSTDashboard = () => {
               <ArrowUpRight className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500">Output GST</p>
-              <p className="text-lg font-bold text-gray-900">
+              <p className="text-xs text-muted-foreground">Output GST</p>
+              <p className="text-lg font-bold text-foreground">
                 {formatCurrency(data?.summary?.outputGST || 0)}
               </p>
             </div>
@@ -194,8 +194,8 @@ const GSTDashboard = () => {
               <ArrowDownRight className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500">Input GST</p>
-              <p className="text-lg font-bold text-gray-900">
+              <p className="text-xs text-muted-foreground">Input GST</p>
+              <p className="text-lg font-bold text-foreground">
                 {formatCurrency(data?.summary?.inputGST || 0)}
               </p>
             </div>
@@ -208,8 +208,8 @@ const GSTDashboard = () => {
               <DollarSign className="w-5 h-5 text-blue-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500">Net Payable</p>
-              <p className="text-lg font-bold text-gray-900">
+              <p className="text-xs text-muted-foreground">Net Payable</p>
+              <p className="text-lg font-bold text-foreground">
                 {formatCurrency(data?.summary?.netPayable || 0)}
               </p>
             </div>
@@ -222,8 +222,8 @@ const GSTDashboard = () => {
               <RefreshCw className="w-5 h-5 text-purple-600" />
             </div>
             <div>
-              <p className="text-xs text-gray-500">Previous Credit</p>
-              <p className="text-lg font-bold text-gray-900">
+              <p className="text-xs text-muted-foreground">Previous Credit</p>
+              <p className="text-lg font-bold text-foreground">
                 {formatCurrency(data?.summary?.previousCredit || 0)}
               </p>
             </div>
@@ -239,7 +239,7 @@ const GSTDashboard = () => {
 
       {/* Current Month Returns */}
       <Card className="p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        <h2 className="text-lg font-semibold text-foreground mb-4">
           {data?.currentMonth?.period} - Returns Due
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -249,16 +249,16 @@ const GSTDashboard = () => {
               : 'border-yellow-200 bg-yellow-50'
           }`}>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-gray-900">GSTR-1</h3>
+              <h3 className="font-semibold text-foreground">GSTR-1</h3>
               {getStatusBadge(data?.currentMonth?.gstr1Status)}
             </div>
-            <p className="text-sm text-gray-600 mb-3">
+            <p className="text-sm text-muted-foreground mb-3">
               Outward supplies return
             </p>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-600">
+                <Calendar className="w-4 h-4 text-muted-foreground" />
+                <span className="text-muted-foreground">
                   Due: {formatDate(data?.currentMonth?.gstr1DueDate)}
                 </span>
               </div>
@@ -276,19 +276,19 @@ const GSTDashboard = () => {
           <div className={`p-4 rounded-lg border-2 ${
             data?.currentMonth?.gstr3bStatus === 'filed' 
               ? 'border-green-200 bg-green-50' 
-              : 'border-gray-200 bg-gray-50'
+              : 'border-border bg-muted'
           }`}>
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-gray-900">GSTR-3B</h3>
+              <h3 className="font-semibold text-foreground">GSTR-3B</h3>
               {getStatusBadge(data?.currentMonth?.gstr3bStatus)}
             </div>
-            <p className="text-sm text-gray-600 mb-3">
+            <p className="text-sm text-muted-foreground mb-3">
               Summary return with tax payment
             </p>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2 text-sm">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-600">
+                <Calendar className="w-4 h-4 text-muted-foreground" />
+                <span className="text-muted-foreground">
                   Due: {formatDate(data?.currentMonth?.gstr3bDueDate)}
                 </span>
               </div>
@@ -307,7 +307,7 @@ const GSTDashboard = () => {
 
       {/* Monthly Trend */}
       <Card>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">GST Trend</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">GST Trend</h2>
         <div className="h-72">
           <ResponsiveContainer>
             <BarChart data={data?.monthlyData || []}>
@@ -337,54 +337,54 @@ const GSTDashboard = () => {
       {/* Invoice Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card className="p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">B2B Invoices</h3>
+          <h3 className="font-semibold text-foreground mb-4">B2B Invoices</h3>
           <div className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Count</span>
+              <span className="text-sm text-muted-foreground">Count</span>
               <span className="font-medium">{data?.invoicesSummary?.b2b?.count || 0}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Taxable Value</span>
+              <span className="text-sm text-muted-foreground">Taxable Value</span>
               <span className="font-medium">{formatCurrency(data?.invoicesSummary?.b2b?.taxable || 0)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Tax Amount</span>
+              <span className="text-sm text-muted-foreground">Tax Amount</span>
               <span className="font-medium">{formatCurrency(data?.invoicesSummary?.b2b?.tax || 0)}</span>
             </div>
           </div>
         </Card>
 
         <Card className="p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">B2C Invoices</h3>
+          <h3 className="font-semibold text-foreground mb-4">B2C Invoices</h3>
           <div className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Count</span>
+              <span className="text-sm text-muted-foreground">Count</span>
               <span className="font-medium">{data?.invoicesSummary?.b2c?.count || 0}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Taxable Value</span>
+              <span className="text-sm text-muted-foreground">Taxable Value</span>
               <span className="font-medium">{formatCurrency(data?.invoicesSummary?.b2c?.taxable || 0)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Tax Amount</span>
+              <span className="text-sm text-muted-foreground">Tax Amount</span>
               <span className="font-medium">{formatCurrency(data?.invoicesSummary?.b2c?.tax || 0)}</span>
             </div>
           </div>
         </Card>
 
         <Card className="p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Export Invoices</h3>
+          <h3 className="font-semibold text-foreground mb-4">Export Invoices</h3>
           <div className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Count</span>
+              <span className="text-sm text-muted-foreground">Count</span>
               <span className="font-medium">{data?.invoicesSummary?.exports?.count || 0}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Taxable Value</span>
+              <span className="text-sm text-muted-foreground">Taxable Value</span>
               <span className="font-medium">{formatCurrency(data?.invoicesSummary?.exports?.taxable || 0)}</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-sm text-gray-500">Tax Amount</span>
+              <span className="text-sm text-muted-foreground">Tax Amount</span>
               <span className="font-medium text-green-600">Zero Rated</span>
             </div>
           </div>
@@ -393,8 +393,8 @@ const GSTDashboard = () => {
 
       {/* Filing History */}
       <Card padding={false}>
-        <div className="p-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Filing History</h2>
+        <div className="p-4 border-b border-border">
+          <h2 className="text-lg font-semibold text-foreground">Filing History</h2>
         </div>
         <Table>
           <Table.Header>
@@ -417,8 +417,8 @@ const GSTDashboard = () => {
                     {item.type}
                   </Badge>
                 </Table.Cell>
-                <Table.Cell className="text-gray-500">{formatDate(item.dueDate)}</Table.Cell>
-                <Table.Cell className="text-gray-500">
+                <Table.Cell className="text-muted-foreground">{formatDate(item.dueDate)}</Table.Cell>
+                <Table.Cell className="text-muted-foreground">
                   {item.filedDate ? formatDate(item.filedDate) : '-'}
                 </Table.Cell>
                 <Table.Cell className="text-right font-mono">
@@ -458,15 +458,15 @@ const GSTDashboard = () => {
           
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Return Type:</span>
+              <span className="text-muted-foreground">Return Type:</span>
               <span className="font-medium">{selectedReturn?.type}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Period:</span>
+              <span className="text-muted-foreground">Period:</span>
               <span className="font-medium">{selectedReturn?.period}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Due Date:</span>
+              <span className="text-muted-foreground">Due Date:</span>
               <span className="font-medium">{formatDate(selectedReturn?.dueDate)}</span>
             </div>
           </div>

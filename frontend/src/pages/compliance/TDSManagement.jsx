@@ -269,8 +269,8 @@ const TDSManagement = () => {
               <DollarSign className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Total Deducted</p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-sm text-muted-foreground">Total Deducted</p>
+              <p className="text-xl font-bold text-foreground">
                 {formatCurrency(data?.summary?.totalDeducted || 0)}
               </p>
             </div>
@@ -283,8 +283,8 @@ const TDSManagement = () => {
               <CheckCircle className="w-6 h-6 text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Total Paid</p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-sm text-muted-foreground">Total Paid</p>
+              <p className="text-xl font-bold text-foreground">
                 {formatCurrency(data?.summary?.totalPaid || 0)}
               </p>
             </div>
@@ -297,7 +297,7 @@ const TDSManagement = () => {
               <Clock className="w-6 h-6 text-yellow-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Pending Payment</p>
+              <p className="text-sm text-muted-foreground">Pending Payment</p>
               <p className="text-xl font-bold text-yellow-600">
                 {formatCurrency(data?.summary?.pendingPayment || 0)}
               </p>
@@ -315,7 +315,7 @@ const TDSManagement = () => {
       {/* Section Breakdown and Filing Status */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">TDS by Section</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-4">TDS by Section</h2>
           <div className="h-64">
             <ResponsiveContainer>
               <PieChart>
@@ -340,12 +340,12 @@ const TDSManagement = () => {
         </Card>
 
         <Card className="p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Section-wise Details</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Section-wise Details</h2>
           <div className="space-y-3">
             {data?.bySection?.map((item, idx) => (
               <div
                 key={item.section}
-                className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                className="flex items-center justify-between p-3 bg-muted rounded-lg"
               >
                 <div className="flex items-center gap-3">
                   <div
@@ -353,12 +353,12 @@ const TDSManagement = () => {
                     style={{ backgroundColor: COLORS[idx % COLORS.length] }}
                   />
                   <div>
-                    <span className="font-medium text-gray-900">{item.section}</span>
-                    <span className="text-gray-500 text-sm ml-2">({item.name})</span>
+                    <span className="font-medium text-foreground">{item.section}</span>
+                    <span className="text-muted-foreground text-sm ml-2">({item.name})</span>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-semibold text-gray-900">
+                  <p className="font-semibold text-foreground">
                     {formatCurrency(item.deducted)}
                   </p>
                   {item.pending > 0 && (
@@ -375,7 +375,7 @@ const TDSManagement = () => {
 
       {/* Filing Status */}
       <Card className="p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quarterly Filing Status</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Quarterly Filing Status</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className={`p-4 rounded-lg border-2 ${
             data?.filingStatus?.form24Q?.status === 'filed' 
@@ -383,11 +383,11 @@ const TDSManagement = () => {
               : 'border-yellow-200 bg-yellow-50'
           }`}>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-gray-900">Form 24Q</h3>
+              <h3 className="font-semibold text-foreground">Form 24Q</h3>
               {getStatusBadge(data?.filingStatus?.form24Q?.status)}
             </div>
-            <p className="text-sm text-gray-600">Salary TDS Return</p>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-sm text-muted-foreground">Salary TDS Return</p>
+            <p className="text-xs text-muted-foreground mt-2">
               Due: {formatDate(data?.filingStatus?.form24Q?.dueDate)}
             </p>
           </div>
@@ -398,11 +398,11 @@ const TDSManagement = () => {
               : 'border-yellow-200 bg-yellow-50'
           }`}>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-gray-900">Form 26Q</h3>
+              <h3 className="font-semibold text-foreground">Form 26Q</h3>
               {getStatusBadge(data?.filingStatus?.form26Q?.status)}
             </div>
-            <p className="text-sm text-gray-600">Non-Salary TDS Return</p>
-            <p className="text-xs text-gray-500 mt-2">
+            <p className="text-sm text-muted-foreground">Non-Salary TDS Return</p>
+            <p className="text-xs text-muted-foreground mt-2">
               Due: {formatDate(data?.filingStatus?.form26Q?.dueDate)}
             </p>
           </div>
@@ -411,22 +411,22 @@ const TDSManagement = () => {
             data?.filingStatus?.form27Q?.status === 'filed' 
               ? 'border-green-200 bg-green-50' 
               : data?.filingStatus?.form27Q?.status === 'not_applicable'
-              ? 'border-gray-200 bg-gray-50'
+              ? 'border-muted bg-muted'
               : 'border-yellow-200 bg-yellow-50'
           }`}>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-gray-900">Form 27Q</h3>
+              <h3 className="font-semibold text-foreground">Form 27Q</h3>
               <Badge variant="default">N/A</Badge>
             </div>
-            <p className="text-sm text-gray-600">Foreign Payments</p>
-            <p className="text-xs text-gray-500 mt-2">No foreign payments</p>
+            <p className="text-sm text-muted-foreground">Foreign Payments</p>
+            <p className="text-xs text-muted-foreground mt-2">No foreign payments</p>
           </div>
         </div>
       </Card>
 
       {/* TDS Entries */}
       <Card padding={false}>
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-4 border-b border-border">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
               <Input
@@ -473,7 +473,7 @@ const TDSManagement = () => {
               {filteredEntries.map((entry) => (
                 <Table.Row key={entry._id}>
                   <Table.Cell className="font-medium">{entry.deductee}</Table.Cell>
-                  <Table.Cell className="font-mono text-sm text-gray-500">{entry.pan}</Table.Cell>
+                  <Table.Cell className="font-mono text-sm text-muted-foreground">{entry.pan}</Table.Cell>
                   <Table.Cell>
                     <Badge variant="info">{entry.section}</Badge>
                   </Table.Cell>
@@ -485,12 +485,12 @@ const TDSManagement = () => {
                       <span className="font-mono font-medium">
                         {formatCurrency(entry.tdsAmount)}
                       </span>
-                      <span className="text-xs text-gray-500 ml-1">
+                      <span className="text-xs text-muted-foreground ml-1">
                         ({entry.tdsRate}%)
                       </span>
                     </div>
                   </Table.Cell>
-                  <Table.Cell className="text-gray-500">
+                  <Table.Cell className="text-muted-foreground">
                     {formatDate(entry.deductionDate)}
                   </Table.Cell>
                   <Table.Cell>{getStatusBadge(entry.status)}</Table.Cell>
@@ -527,21 +527,21 @@ const TDSManagement = () => {
 
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Deductee PAN:</span>
+              <span className="text-muted-foreground">Deductee PAN:</span>
               <span className="font-mono font-medium">{selectedEntry?.pan}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Section:</span>
+              <span className="text-muted-foreground">Section:</span>
               <span className="font-medium">{selectedEntry?.section}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">TDS Amount:</span>
-              <span className="font-bold text-gray-900">
+              <span className="text-muted-foreground">TDS Amount:</span>
+              <span className="font-bold text-foreground">
                 {formatCurrency(selectedEntry?.tdsAmount || 0)}
               </span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Due Date:</span>
+              <span className="text-muted-foreground">Due Date:</span>
               <span className="font-medium">{formatDate(selectedEntry?.dueDate)}</span>
             </div>
           </div>

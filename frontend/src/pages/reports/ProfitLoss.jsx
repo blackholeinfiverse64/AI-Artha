@@ -139,8 +139,8 @@ const ProfitLoss = () => {
               <TrendingUp className="w-6 h-6 text-green-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Total Income</p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-sm text-muted-foreground">Total Income</p>
+              <p className="text-xl font-bold text-foreground">
                 {formatCurrency(data?.income?.total || 0)}
               </p>
             </div>
@@ -153,8 +153,8 @@ const ProfitLoss = () => {
               <TrendingDown className="w-6 h-6 text-red-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Total Expenses</p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-sm text-muted-foreground">Total Expenses</p>
+              <p className="text-xl font-bold text-foreground">
                 {formatCurrency(data?.expenses?.total || 0)}
               </p>
             </div>
@@ -169,7 +169,7 @@ const ProfitLoss = () => {
               <DollarSign className={`w-6 h-6 ${isProfit ? 'text-blue-600' : 'text-orange-600'}`} />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Net {isProfit ? 'Profit' : 'Loss'}</p>
+              <p className="text-sm text-muted-foreground">Net {isProfit ? 'Profit' : 'Loss'}</p>
               <p className={`text-xl font-bold ${isProfit ? 'text-green-600' : 'text-red-600'}`}>
                 {formatCurrency(Math.abs(data?.netProfit || 0))}
               </p>
@@ -183,7 +183,7 @@ const ProfitLoss = () => {
               <FileText className="w-6 h-6 text-purple-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Profit Margin</p>
+              <p className="text-sm text-muted-foreground">Profit Margin</p>
               <p className={`text-xl font-bold ${data?.profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {data?.profitMargin?.toFixed(2) || 0}%
               </p>
@@ -194,7 +194,7 @@ const ProfitLoss = () => {
 
       {/* Chart */}
       <Card>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Monthly Trend</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">Monthly Trend</h2>
         <div className="h-80">
           <ResponsiveContainer>
             <AreaChart data={data?.monthlyData || []}>
@@ -236,8 +236,8 @@ const ProfitLoss = () => {
 
       {/* Detailed Statement */}
       <Card>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Detailed Statement</h2>
-        <div className="border border-gray-200 rounded-lg overflow-hidden">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Detailed Statement</h2>
+        <div className="border border-border rounded-lg overflow-hidden">
           {/* Income Section */}
           <div>
             <button
@@ -261,10 +261,10 @@ const ProfitLoss = () => {
                 {data?.income?.items?.map((item, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between px-4 py-3 border-b border-gray-100 last:border-0 ml-8"
+                    className="flex items-center justify-between px-4 py-3 border-b border-border/50 last:border-0 ml-8"
                   >
-                    <span className="text-gray-700">{item.name}</span>
-                    <span className="font-medium text-gray-900">{formatCurrency(item.amount)}</span>
+                    <span className="text-foreground">{item.name}</span>
+                    <span className="font-medium text-foreground">{formatCurrency(item.amount)}</span>
                   </div>
                 ))}
               </div>
@@ -275,7 +275,7 @@ const ProfitLoss = () => {
           <div>
             <button
               onClick={() => toggleSection('expenses')}
-              className="w-full flex items-center justify-between p-4 bg-red-50 hover:bg-red-100 transition-colors border-t border-gray-200"
+              className="w-full flex items-center justify-between p-4 bg-red-50 hover:bg-red-100 transition-colors border-t border-border"
             >
               <div className="flex items-center gap-2">
                 {expandedSections.includes('expenses') ? (
@@ -294,10 +294,10 @@ const ProfitLoss = () => {
                 {data?.expenses?.items?.map((item, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between px-4 py-3 border-b border-gray-100 last:border-0 ml-8"
+                    className="flex items-center justify-between px-4 py-3 border-b border-border/50 last:border-0 ml-8"
                   >
-                    <span className="text-gray-700">{item.name}</span>
-                    <span className="font-medium text-gray-900">{formatCurrency(item.amount)}</span>
+                    <span className="text-foreground">{item.name}</span>
+                    <span className="font-medium text-foreground">{formatCurrency(item.amount)}</span>
                   </div>
                 ))}
               </div>
@@ -307,7 +307,7 @@ const ProfitLoss = () => {
           {/* Net Result */}
           <div className={`flex items-center justify-between p-4 ${
             isProfit ? 'bg-blue-50' : 'bg-orange-50'
-          } border-t-2 border-gray-300`}>
+          } border-t-2 border-border`}>
             <span className={`font-bold ${isProfit ? 'text-blue-800' : 'text-orange-800'}`}>
               Net {isProfit ? 'Profit' : 'Loss'}
             </span>

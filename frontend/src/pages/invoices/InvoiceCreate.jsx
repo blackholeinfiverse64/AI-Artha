@@ -182,7 +182,7 @@ const InvoiceCreate = () => {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Customer Details */}
         <Card>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Customer Details</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Customer Details</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Customer Name"
@@ -216,7 +216,7 @@ const InvoiceCreate = () => {
 
         {/* Invoice Details */}
         <Card>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Invoice Details</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Invoice Details</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Invoice Date"
@@ -238,7 +238,7 @@ const InvoiceCreate = () => {
         {/* Line Items */}
         <Card>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Line Items</h2>
+            <h2 className="text-lg font-semibold text-foreground">Line Items</h2>
             <Button
               type="button"
               variant="secondary"
@@ -257,20 +257,20 @@ const InvoiceCreate = () => {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left text-xs font-semibold text-gray-600 uppercase py-3 pr-4">
+                <tr className="border-b border-border">
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase py-3 pr-4">
                     Description
                   </th>
-                  <th className="text-left text-xs font-semibold text-gray-600 uppercase py-3 px-2 w-24">
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase py-3 px-2 w-24">
                     Qty
                   </th>
-                  <th className="text-left text-xs font-semibold text-gray-600 uppercase py-3 px-2 w-32">
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase py-3 px-2 w-32">
                     Rate
                   </th>
-                  <th className="text-left text-xs font-semibold text-gray-600 uppercase py-3 px-2 w-24">
+                  <th className="text-left text-xs font-semibold text-muted-foreground uppercase py-3 px-2 w-24">
                     GST
                   </th>
-                  <th className="text-right text-xs font-semibold text-gray-600 uppercase py-3 px-2 w-32">
+                  <th className="text-right text-xs font-semibold text-muted-foreground uppercase py-3 px-2 w-32">
                     Amount
                   </th>
                   <th className="w-12"></th>
@@ -285,7 +285,7 @@ const InvoiceCreate = () => {
                   const gstAmount = (amount * gstRate) / 100;
 
                   return (
-                    <tr key={field.id} className="border-b border-gray-100">
+                    <tr key={field.id} className="border-b border-border">
                       <td className="py-3 pr-4">
                         <Input
                           placeholder="Item description"
@@ -310,7 +310,7 @@ const InvoiceCreate = () => {
                       </td>
                       <td className="py-3 px-2">
                         <select
-                          className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+                          className="block w-full rounded-lg border border-border px-3 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
                           {...register(`lineItems.${index}.gstRate`, { valueAsNumber: true })}
                         >
                           {gstOptions.map((opt) => (
@@ -345,18 +345,18 @@ const InvoiceCreate = () => {
           <div className="mt-6 flex justify-end">
             <div className="w-72 space-y-2">
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">Subtotal</span>
+                <span className="text-muted-foreground">Subtotal</span>
                 <span className="font-medium">{formatCurrency(totals.subtotal)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">CGST</span>
+                <span className="text-muted-foreground">CGST</span>
                 <span className="font-medium">{formatCurrency(totals.cgst)}</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-500">SGST</span>
+                <span className="text-muted-foreground">SGST</span>
                 <span className="font-medium">{formatCurrency(totals.sgst)}</span>
               </div>
-              <div className="flex justify-between text-lg font-semibold border-t border-gray-200 pt-2">
+              <div className="flex justify-between text-lg font-semibold border-t border-border pt-2">
                 <span>Total</span>
                 <span className="text-blue-600">{formatCurrency(totals.total)}</span>
               </div>
@@ -366,7 +366,7 @@ const InvoiceCreate = () => {
 
         {/* Notes & Terms */}
         <Card>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Additional Information</h2>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Additional Information</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Textarea
               label="Notes"

@@ -183,8 +183,8 @@ const Dashboard = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Welcome, {user?.name || 'User'}!</h1>
-          <p className="text-gray-500 mt-1">Here's your financial overview</p>
+          <h1 className="text-2xl font-bold text-foreground">Welcome, {user?.name || 'User'}!</h1>
+          <p className="text-muted-foreground mt-1">Here's your financial overview</p>
         </div>
         <div className="flex gap-3">
           {(userRole === 'admin' || userRole === 'accountant') && (
@@ -214,8 +214,8 @@ const Dashboard = () => {
           <Card key={index} className="p-6">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-500">{kpi.title}</p>
-                <p className="text-2xl font-bold text-gray-900 mt-1">
+                <p className="text-sm font-medium text-muted-foreground">{kpi.title}</p>
+                <p className="text-2xl font-bold text-foreground mt-1">
                   {kpi.isCurrency === false
                     ? kpi.value
                     : formatCurrency(kpi.value)}
@@ -238,7 +238,7 @@ const Dashboard = () => {
               >
                 {kpi.change}%
               </span>
-              <span className="text-sm text-gray-500 ml-1">vs last month</span>
+              <span className="text-sm text-muted-foreground ml-1">vs last month</span>
             </div>
           </Card>
         ))}
@@ -341,9 +341,9 @@ const Dashboard = () => {
                       className="w-3 h-3 rounded-full"
                       style={{ backgroundColor: item.color }}
                     />
-                    <span className="text-sm text-gray-600">{item.name}</span>
+                    <span className="text-sm text-muted-foreground">{item.name}</span>
                   </div>
-                  <span className="text-sm font-medium text-gray-900">{item.value}%</span>
+                  <span className="text-sm font-medium text-foreground">{item.value}%</span>
                 </div>
               ))}
             </div>

@@ -52,12 +52,12 @@ const Login = () => {
         <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
           <Building2 className="w-7 h-7 text-white" />
         </div>
-        <span className="text-2xl font-bold text-gray-900">ARTHA</span>
+        <span className="text-2xl font-bold text-foreground">ARTHA</span>
       </div>
 
       <div className="text-center mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Welcome back</h1>
-        <p className="text-gray-500 mt-2">Sign in to your account to continue</p>
+        <h1 className="text-2xl font-bold text-foreground">Welcome back</h1>
+        <p className="text-muted-foreground mt-2">Sign in to your account to continue</p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
@@ -71,20 +71,20 @@ const Login = () => {
         />
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="block text-sm font-medium text-foreground mb-1">
             Password
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Lock className="h-5 w-5 text-gray-400" />
+              <Lock className="h-5 w-5 text-muted-foreground" />
             </div>
             <input
               type={showPassword ? 'text' : 'password'}
               placeholder="Enter your password"
-              className={`block w-full rounded-lg border px-3 py-2 pl-10 pr-10 text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 sm:text-sm ${
+              className={`block w-full rounded-lg border px-3 py-2 pl-10 pr-10 text-foreground placeholder-gray-500 focus:outline-none focus:ring-2 sm:text-sm ${
                 errors.password
                   ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
-                  : 'border-gray-300 focus:border-blue-500 focus:ring-blue-500'
+                  : 'border-border focus:border-blue-500 focus:ring-blue-500'
               }`}
               {...register('password')}
             />
@@ -94,9 +94,9 @@ const Login = () => {
               className="absolute inset-y-0 right-0 pr-3 flex items-center"
             >
               {showPassword ? (
-                <EyeOff className="h-5 w-5 text-gray-400" />
+                <EyeOff className="h-5 w-5 text-muted-foreground" />
               ) : (
-                <Eye className="h-5 w-5 text-gray-400" />
+                <Eye className="h-5 w-5 text-muted-foreground" />
               )}
             </button>
           </div>
@@ -109,9 +109,9 @@ const Login = () => {
           <label className="flex items-center">
             <input
               type="checkbox"
-              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              className="rounded border-border text-blue-600 focus:ring-blue-500"
             />
-            <span className="ml-2 text-sm text-gray-600">Remember me</span>
+            <span className="ml-2 text-sm text-muted-foreground">Remember me</span>
           </label>
           <Link
             to="/forgot-password"
@@ -126,7 +126,7 @@ const Login = () => {
         </Button>
       </form>
 
-      <p className="mt-8 text-center text-sm text-gray-500">
+      <p className="mt-8 text-center text-sm text-muted-foreground">
         Don't have an account?{' '}
         <Link to="/register" className="text-blue-600 hover:text-blue-700 font-medium">
           Sign up

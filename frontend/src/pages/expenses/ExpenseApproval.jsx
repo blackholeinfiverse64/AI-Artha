@@ -135,7 +135,7 @@ const ExpenseApproval = () => {
       HR: 'bg-pink-100 text-pink-800 border-pink-200',
       Marketing: 'bg-orange-100 text-orange-800 border-orange-200',
     };
-    return colors[category] || 'bg-gray-100 text-gray-800 border-gray-200';
+    return colors[category] || 'bg-muted text-foreground border-border';
   };
 
   if (loading) {
@@ -157,8 +157,8 @@ const ExpenseApproval = () => {
             <Clock className="w-6 h-6 text-yellow-600" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Pending Approval</p>
-            <p className="text-2xl font-bold text-gray-900">{expenses.length}</p>
+            <p className="text-sm text-muted-foreground">Pending Approval</p>
+            <p className="text-2xl font-bold text-foreground">{expenses.length}</p>
           </div>
         </Card>
         <Card className="p-4 flex items-center gap-4">
@@ -166,8 +166,8 @@ const ExpenseApproval = () => {
             <DollarSign className="w-6 h-6 text-blue-600" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">Total Amount</p>
-            <p className="text-2xl font-bold text-gray-900">
+            <p className="text-sm text-muted-foreground">Total Amount</p>
+            <p className="text-2xl font-bold text-foreground">
               {formatCurrency(expenses.reduce((sum, e) => sum + e.amount, 0))}
             </p>
           </div>
@@ -177,8 +177,8 @@ const ExpenseApproval = () => {
             <Receipt className="w-6 h-6 text-green-600" />
           </div>
           <div>
-            <p className="text-sm text-gray-500">GST Claimable</p>
-            <p className="text-2xl font-bold text-gray-900">
+            <p className="text-sm text-muted-foreground">GST Claimable</p>
+            <p className="text-2xl font-bold text-foreground">
               {formatCurrency(expenses.reduce((sum, e) => sum + (e.gstAmount || 0), 0))}
             </p>
           </div>
@@ -209,7 +209,7 @@ const ExpenseApproval = () => {
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="text-lg font-semibold text-gray-900">
+                        <h3 className="text-lg font-semibold text-foreground">
                           {expense.description}
                         </h3>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getCategoryColor(expense.category)}`}>
@@ -217,7 +217,7 @@ const ExpenseApproval = () => {
                         </span>
                       </div>
                       
-                      <div className="mt-2 flex items-center gap-4 text-sm text-gray-500 flex-wrap">
+                      <div className="mt-2 flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
                         <span className="flex items-center gap-1">
                           <User className="w-4 h-4" />
                           {expense.submittedBy?.name}
@@ -232,14 +232,14 @@ const ExpenseApproval = () => {
                       </div>
 
                       {expense.notes && (
-                        <p className="mt-2 text-sm text-gray-600 bg-gray-50 p-2 rounded">
+                        <p className="mt-2 text-sm text-muted-foreground bg-muted p-2 rounded">
                           {expense.notes}
                         </p>
                       )}
 
                       {expense.receipts?.length > 0 && (
                         <div className="mt-2 flex items-center gap-2">
-                          <span className="text-xs text-gray-500">Attachments:</span>
+                          <span className="text-xs text-muted-foreground">Attachments:</span>
                           {expense.receipts.map((receipt, idx) => (
                             <Badge key={idx} variant="default" size="sm">
                               {receipt.name}
@@ -254,11 +254,11 @@ const ExpenseApproval = () => {
                 {/* Amount & Actions */}
                 <div className="flex flex-col items-end gap-4">
                   <div className="text-right">
-                    <p className="text-2xl font-bold text-gray-900">
+                    <p className="text-2xl font-bold text-foreground">
                       {formatCurrency(expense.amount)}
                     </p>
                     {expense.gstAmount > 0 && (
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-muted-foreground">
                         GST: {formatCurrency(expense.gstAmount)}
                       </p>
                     )}

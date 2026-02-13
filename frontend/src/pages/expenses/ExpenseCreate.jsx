@@ -214,7 +214,7 @@ const ExpenseCreate = () => {
           {/* Main Form */}
           <div className="lg:col-span-2 space-y-6">
             <Card>
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Expense Details</h2>
+              <h2 className="text-lg font-semibold text-foreground mb-4">Expense Details</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
                   <Input
@@ -272,17 +272,17 @@ const ExpenseCreate = () => {
             </Card>
 
             {/* Summary */}
-            <Card className="bg-gray-50">
+            <Card className="bg-muted">
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="text-sm text-gray-500">Total Amount</p>
-                  <p className="text-3xl font-bold text-gray-900">
+                  <p className="text-sm text-muted-foreground">Total Amount</p>
+                  <p className="text-3xl font-bold text-foreground">
                     {formatCurrency(watchAmount || 0)}
                   </p>
                 </div>
                 {watchGstAmount > 0 && (
                   <div className="text-right">
-                    <p className="text-sm text-gray-500">GST Included</p>
+                    <p className="text-sm text-muted-foreground">GST Included</p>
                     <p className="text-lg font-semibold text-green-600">
                       {formatCurrency(watchGstAmount)}
                     </p>
@@ -295,22 +295,22 @@ const ExpenseCreate = () => {
           {/* Receipt Upload */}
           <div className="space-y-6">
             <Card>
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Receipt Upload</h2>
+              <h2 className="text-lg font-semibold text-foreground mb-4">Receipt Upload</h2>
               
               {/* Drop Zone */}
               <div
                 className={`border-2 border-dashed rounded-xl p-6 text-center transition-colors ${
                   dragActive
                     ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-300 hover:border-gray-400'
+                    : 'border-border hover:border-muted-foreground'
                 }`}
                 onDragEnter={handleDrag}
                 onDragLeave={handleDrag}
                 onDragOver={handleDrag}
                 onDrop={handleDrop}
               >
-                <Upload className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-                <p className="text-sm text-gray-600 mb-2">
+                <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm text-muted-foreground mb-2">
                   Drag & drop receipts here, or{' '}
                   <label className="text-blue-600 cursor-pointer hover:text-blue-700">
                     browse
@@ -323,7 +323,7 @@ const ExpenseCreate = () => {
                     />
                   </label>
                 </p>
-                <p className="text-xs text-gray-400">PNG, JPG, PDF up to 10MB</p>
+                <p className="text-xs text-muted-foreground">PNG, JPG, PDF up to 10MB</p>
               </div>
 
               {/* Uploaded Files */}
@@ -332,7 +332,7 @@ const ExpenseCreate = () => {
                   {files.map((file, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                      className="flex items-center justify-between p-3 bg-muted rounded-lg"
                     >
                       <div className="flex items-center gap-3">
                         {file.type.startsWith('image/') ? (
@@ -342,13 +342,13 @@ const ExpenseCreate = () => {
                             className="w-10 h-10 object-cover rounded"
                           />
                         ) : (
-                          <FileText className="w-10 h-10 text-gray-400" />
+                          <FileText className="w-10 h-10 text-muted-foreground" />
                         )}
                         <div>
-                          <p className="text-sm font-medium text-gray-900 truncate max-w-[150px]">
+                          <p className="text-sm font-medium text-foreground truncate max-w-[150px]">
                             {file.name}
                           </p>
-                          <p className="text-xs text-gray-500">
+                          <p className="text-xs text-muted-foreground">
                             {(file.size / 1024).toFixed(1)} KB
                           </p>
                         </div>
@@ -356,9 +356,9 @@ const ExpenseCreate = () => {
                       <button
                         type="button"
                         onClick={() => removeFile(index)}
-                        className="p-1 hover:bg-gray-200 rounded"
+                        className="p-1 hover:bg-muted rounded"
                       >
-                        <X className="w-4 h-4 text-gray-500" />
+                        <X className="w-4 h-4 text-muted-foreground" />
                       </button>
                     </div>
                   ))}

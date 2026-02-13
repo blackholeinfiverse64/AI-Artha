@@ -82,7 +82,7 @@ const ExpenseList = () => {
       HR: 'bg-pink-100 text-pink-800',
       Marketing: 'bg-orange-100 text-orange-800',
     };
-    return colors[category] || 'bg-gray-100 text-gray-800';
+    return colors[category] || 'bg-muted text-foreground';
   };
 
   const filteredExpenses = expenses.filter((expense) => {
@@ -196,22 +196,22 @@ const ExpenseList = () => {
                       {expense.category}
                     </span>
                   </Table.Cell>
-                  <Table.Cell className="text-gray-500">{expense.vendor || '-'}</Table.Cell>
+                  <Table.Cell className="text-muted-foreground">{expense.vendor || '-'}</Table.Cell>
                   <Table.Cell className="font-semibold">
                     {formatCurrency(expense.amount)}
                   </Table.Cell>
                   <Table.Cell>{getStatusBadge(expense.status)}</Table.Cell>
-                  <Table.Cell className="text-gray-500">{formatDate(expense.date)}</Table.Cell>
-                  <Table.Cell className="text-gray-500">
+                  <Table.Cell className="text-muted-foreground">{formatDate(expense.date)}</Table.Cell>
+                  <Table.Cell className="text-muted-foreground">
                     {expense.submittedBy?.name || '-'}
                   </Table.Cell>
                   <Table.Cell>
                     <div className="flex items-center gap-1">
                       <button
                         onClick={() => navigate(`/expenses/${expense._id}/edit`)}
-                        className="p-1.5 hover:bg-gray-100 rounded-lg"
+                        className="p-1.5 hover:bg-muted rounded-lg"
                       >
-                        <Edit className="w-4 h-4 text-gray-500" />
+                        <Edit className="w-4 h-4 text-muted-foreground" />
                       </button>
                     </div>
                   </Table.Cell>
@@ -225,19 +225,19 @@ const ExpenseList = () => {
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card className="p-4 text-center">
-          <p className="text-sm text-gray-500">Total Expenses</p>
-          <p className="text-2xl font-bold text-gray-900">
+          <p className="text-sm text-muted-foreground">Total Expenses</p>
+          <p className="text-2xl font-bold text-foreground">
             {formatCurrency(expenses.reduce((sum, e) => sum + e.amount, 0))}
           </p>
         </Card>
         <Card className="p-4 text-center">
-          <p className="text-sm text-gray-500">Pending Approval</p>
+          <p className="text-sm text-muted-foreground">Pending Approval</p>
           <p className="text-2xl font-bold text-yellow-600">
             {expenses.filter((e) => e.status === 'pending').length}
           </p>
         </Card>
         <Card className="p-4 text-center">
-          <p className="text-sm text-gray-500">Approved</p>
+          <p className="text-sm text-muted-foreground">Approved</p>
           <p className="text-2xl font-bold text-green-600">
             {formatCurrency(
               expenses.filter((e) => e.status === 'approved').reduce((sum, e) => sum + e.amount, 0)
@@ -245,7 +245,7 @@ const ExpenseList = () => {
           </p>
         </Card>
         <Card className="p-4 text-center">
-          <p className="text-sm text-gray-500">This Month</p>
+          <p className="text-sm text-muted-foreground">This Month</p>
           <p className="text-2xl font-bold text-blue-600">
             {formatCurrency(
               expenses

@@ -247,7 +247,7 @@ const CompanySettings = () => {
                   className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-left transition-colors ${
                     activeTab === tab.id
                       ? 'bg-blue-50 text-blue-700 font-medium'
-                      : 'text-gray-600 hover:bg-gray-100'
+                      : 'text-muted-foreground hover:bg-muted'
                   }`}
                 >
                   <tab.icon className="w-5 h-5" />
@@ -263,7 +263,7 @@ const CompanySettings = () => {
               {/* General Tab */}
               {activeTab === 'general' && (
                 <div className="space-y-6">
-                  <h2 className="text-lg font-semibold text-gray-900">General Information</h2>
+                  <h2 className="text-lg font-semibold text-foreground">General Information</h2>
 
                   {/* Logo Upload */}
                   <div className="flex items-center gap-6">
@@ -272,11 +272,11 @@ const CompanySettings = () => {
                         <img
                           src={logoPreview}
                           alt="Company Logo"
-                          className="w-24 h-24 rounded-xl object-cover border-2 border-gray-200"
+                          className="w-24 h-24 rounded-xl object-cover border-2 border-border"
                         />
                       ) : (
-                        <div className="w-24 h-24 rounded-xl bg-gray-100 flex items-center justify-center border-2 border-dashed border-gray-300">
-                          <Building2 className="w-10 h-10 text-gray-400" />
+                        <div className="w-24 h-24 rounded-xl bg-muted flex items-center justify-center border-2 border-dashed border-border">
+                          <Building2 className="w-10 h-10 text-muted-foreground" />
                         </div>
                       )}
                       <label className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700 transition-colors">
@@ -290,8 +290,8 @@ const CompanySettings = () => {
                       </label>
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">Company Logo</p>
-                      <p className="text-sm text-gray-500">
+                      <p className="font-medium text-foreground">Company Logo</p>
+                      <p className="text-sm text-muted-foreground">
                         PNG, JPG up to 2MB. Recommended size: 200x200px
                       </p>
                     </div>
@@ -342,7 +342,7 @@ const CompanySettings = () => {
               {/* Address Tab */}
               {activeTab === 'address' && (
                 <div className="space-y-6">
-                  <h2 className="text-lg font-semibold text-gray-900">Business Address</h2>
+                  <h2 className="text-lg font-semibold text-foreground">Business Address</h2>
 
                   <Input
                     label="Address Line 1"
@@ -390,7 +390,7 @@ const CompanySettings = () => {
               {/* Tax Tab */}
               {activeTab === 'tax' && (
                 <div className="space-y-6">
-                  <h2 className="text-lg font-semibold text-gray-900">Tax & Compliance</h2>
+                  <h2 className="text-lg font-semibold text-foreground">Tax & Compliance</h2>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input
@@ -449,8 +449,8 @@ const CompanySettings = () => {
               {/* Bank Tab */}
               {activeTab === 'bank' && (
                 <div className="space-y-6">
-                  <h2 className="text-lg font-semibold text-gray-900">Bank Details</h2>
-                  <p className="text-sm text-gray-500">
+                  <h2 className="text-lg font-semibold text-foreground">Bank Details</h2>
+                  <p className="text-sm text-muted-foreground">
                     These details will appear on your invoices for payment
                   </p>
 
@@ -491,7 +491,7 @@ const CompanySettings = () => {
               {/* Invoice Tab */}
               {activeTab === 'invoice' && (
                 <div className="space-y-6">
-                  <h2 className="text-lg font-semibold text-gray-900">Invoice Settings</h2>
+                  <h2 className="text-lg font-semibold text-foreground">Invoice Settings</h2>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input
@@ -523,7 +523,7 @@ const CompanySettings = () => {
               )}
 
               {/* Save Button */}
-              <div className="flex justify-end pt-6 mt-6 border-t border-gray-200">
+              <div className="flex justify-end pt-6 mt-6 border-t border-border">
                 <Button type="submit" loading={saving} icon={Save}>
                   Save Changes
                 </Button>

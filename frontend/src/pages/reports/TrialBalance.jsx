@@ -121,7 +121,7 @@ const TrialBalance = () => {
               type="date"
               value={asOfDate}
               onChange={(e) => setAsOfDate(e.target.value)}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             <Button variant="secondary" icon={Download}>
               Export PDF
@@ -161,14 +161,14 @@ const TrialBalance = () => {
           <div className="text-right">
             <div className="grid grid-cols-2 gap-8">
               <div>
-                <p className="text-sm text-gray-500">Total Debits</p>
-                <p className="text-xl font-bold text-gray-900">
+                <p className="text-sm text-muted-foreground">Total Debits</p>
+                <p className="text-xl font-bold text-foreground">
                   {formatCurrency(data?.totalDebits || 0)}
                 </p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Total Credits</p>
-                <p className="text-xl font-bold text-gray-900">
+                <p className="text-sm text-muted-foreground">Total Credits</p>
+                <p className="text-xl font-bold text-foreground">
                   {formatCurrency(data?.totalCredits || 0)}
                 </p>
               </div>
@@ -181,10 +181,10 @@ const TrialBalance = () => {
       <Card padding={false}>
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-gray-50 border-b border-gray-200">
+            <thead className="bg-muted border-b border-border">
               <tr>
                 <th
-                  className="text-left py-4 px-6 text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100"
+                  className="text-left py-4 px-6 text-xs font-semibold text-muted-foreground uppercase cursor-pointer hover:bg-muted"
                   onClick={() => handleSort('code')}
                 >
                   <div className="flex items-center gap-1">
@@ -193,7 +193,7 @@ const TrialBalance = () => {
                   </div>
                 </th>
                 <th
-                  className="text-left py-4 px-6 text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100"
+                  className="text-left py-4 px-6 text-xs font-semibold text-muted-foreground uppercase cursor-pointer hover:bg-muted"
                   onClick={() => handleSort('name')}
                 >
                   <div className="flex items-center gap-1">
@@ -202,7 +202,7 @@ const TrialBalance = () => {
                   </div>
                 </th>
                 <th
-                  className="text-left py-4 px-6 text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100"
+                  className="text-left py-4 px-6 text-xs font-semibold text-muted-foreground uppercase cursor-pointer hover:bg-muted"
                   onClick={() => handleSort('type')}
                 >
                   <div className="flex items-center gap-1">
@@ -211,7 +211,7 @@ const TrialBalance = () => {
                   </div>
                 </th>
                 <th
-                  className="text-right py-4 px-6 text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100"
+                  className="text-right py-4 px-6 text-xs font-semibold text-muted-foreground uppercase cursor-pointer hover:bg-muted"
                   onClick={() => handleSort('debit')}
                 >
                   <div className="flex items-center justify-end gap-1">
@@ -220,7 +220,7 @@ const TrialBalance = () => {
                   </div>
                 </th>
                 <th
-                  className="text-right py-4 px-6 text-xs font-semibold text-gray-600 uppercase cursor-pointer hover:bg-gray-100"
+                  className="text-right py-4 px-6 text-xs font-semibold text-muted-foreground uppercase cursor-pointer hover:bg-muted"
                   onClick={() => handleSort('credit')}
                 >
                   <div className="flex items-center justify-end gap-1">
@@ -230,13 +230,13 @@ const TrialBalance = () => {
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-100">
+            <tbody className="divide-y divide-border">
               {sortedAccounts.map((account, idx) => (
-                <tr key={idx} className="hover:bg-gray-50">
-                  <td className="py-3 px-6 font-mono text-sm text-gray-500">
+                <tr key={idx} className="hover:bg-muted/50">
+                  <td className="py-3 px-6 font-mono text-sm text-muted-foreground">
                     {account.code}
                   </td>
-                  <td className="py-3 px-6 font-medium text-gray-900">
+                  <td className="py-3 px-6 font-medium text-foreground">
                     {account.name}
                   </td>
                   <td className="py-3 px-6">
@@ -258,15 +258,15 @@ const TrialBalance = () => {
                 </tr>
               ))}
             </tbody>
-            <tfoot className="bg-gray-100 border-t-2 border-gray-300">
+            <tfoot className="bg-muted border-t-2 border-border">
               <tr>
-                <td colSpan={3} className="py-4 px-6 font-bold text-gray-900">
+                <td colSpan={3} className="py-4 px-6 font-bold text-foreground">
                   TOTAL
                 </td>
-                <td className="py-4 px-6 text-right font-mono font-bold text-gray-900">
+                <td className="py-4 px-6 text-right font-mono font-bold text-foreground">
                   {formatCurrency(data?.totalDebits || 0)}
                 </td>
-                <td className="py-4 px-6 text-right font-mono font-bold text-gray-900">
+                <td className="py-4 px-6 text-right font-mono font-bold text-foreground">
                   {formatCurrency(data?.totalCredits || 0)}
                 </td>
               </tr>
@@ -285,10 +285,10 @@ const TrialBalance = () => {
           return (
             <Card key={type} className="p-4 text-center">
               <Badge variant={getTypeColor(type)} className="mb-2">{type}</Badge>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-muted-foreground mt-2">
                 Dr: {formatCurrency(totalDebit)}
               </p>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 Cr: {formatCurrency(totalCredit)}
               </p>
             </Card>

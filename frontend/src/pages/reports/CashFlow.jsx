@@ -137,12 +137,12 @@ const CashFlow = () => {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="p-6">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gray-100 rounded-xl flex items-center justify-center">
-              <DollarSign className="w-6 h-6 text-gray-600" />
+            <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center">
+              <DollarSign className="w-6 h-6 text-muted-foreground" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Opening Balance</p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-sm text-muted-foreground">Opening Balance</p>
+              <p className="text-xl font-bold text-foreground">
                 {formatCurrency(data?.openingBalance || 0)}
               </p>
             </div>
@@ -161,7 +161,7 @@ const CashFlow = () => {
               )}
             </div>
             <div>
-              <p className="text-sm text-gray-500">Net Change</p>
+              <p className="text-sm text-muted-foreground">Net Change</p>
               <p className={`text-xl font-bold ${
                 (data?.netChange || 0) >= 0 ? 'text-green-600' : 'text-red-600'
               }`}>
@@ -177,8 +177,8 @@ const CashFlow = () => {
               <DollarSign className="w-6 h-6 text-blue-600" />
             </div>
             <div>
-              <p className="text-sm text-gray-500">Closing Balance</p>
-              <p className="text-xl font-bold text-gray-900">
+              <p className="text-sm text-muted-foreground">Closing Balance</p>
+              <p className="text-xl font-bold text-foreground">
                 {formatCurrency(data?.closingBalance || 0)}
               </p>
             </div>
@@ -194,7 +194,7 @@ const CashFlow = () => {
 
       {/* Monthly Chart */}
       <Card>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Monthly Cash Flow</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">Monthly Cash Flow</h2>
         <div className="h-80">
           <ResponsiveContainer>
             <BarChart data={data?.monthlyData || []}>
@@ -225,12 +225,12 @@ const CashFlow = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {categories.map((category) => (
           <Card key={category.key} className="p-6">
-            <div className={`flex items-center gap-3 mb-4 pb-4 border-b border-gray-200`}>
+            <div className={`flex items-center gap-3 mb-4 pb-4 border-b border-border`}>
               <div className={`w-10 h-10 bg-${category.color}-100 rounded-lg flex items-center justify-center`}>
                 <category.icon className={`w-5 h-5 text-${category.color}-600`} />
               </div>
               <div className="flex-1">
-                <h3 className="font-semibold text-gray-900">{category.label}</h3>
+                <h3 className="font-semibold text-foreground">{category.label}</h3>
               </div>
               <span className={`text-lg font-bold ${
                 (category.data?.total || 0) >= 0 ? 'text-green-600' : 'text-red-600'
@@ -241,7 +241,7 @@ const CashFlow = () => {
             <div className="space-y-3">
               {category.data?.items?.map((item, idx) => (
                 <div key={idx} className="flex items-center justify-between">
-                  <span className="text-sm text-gray-600">{item.name}</span>
+                  <span className="text-sm text-muted-foreground">{item.name}</span>
                   <div className="flex items-center gap-2">
                     <Badge
                       variant={item.type === 'inflow' ? 'success' : 'danger'}
@@ -263,22 +263,22 @@ const CashFlow = () => {
       </div>
 
       {/* Summary */}
-      <Card className="bg-gray-50">
+      <Card className="bg-muted">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-semibold text-gray-900">Net Cash Position</h3>
-            <p className="text-sm text-gray-500 mt-1">
+            <h3 className="font-semibold text-foreground">Net Cash Position</h3>
+            <p className="text-sm text-muted-foreground mt-1">
               Cash changed by {formatCurrency(Math.abs(data?.netChange || 0))} 
               {(data?.netChange || 0) >= 0 ? ' (increase)' : ' (decrease)'}
             </p>
           </div>
           <div className="text-right">
             <div className="flex items-center gap-2">
-              <span className="text-gray-500">{formatCurrency(data?.openingBalance || 0)}</span>
+              <span className="text-muted-foreground">{formatCurrency(data?.openingBalance || 0)}</span>
               <ArrowUpRight className={`w-4 h-4 ${
                 (data?.netChange || 0) >= 0 ? 'text-green-500' : 'text-red-500 rotate-90'
               }`} />
-              <span className="text-xl font-bold text-gray-900">
+              <span className="text-xl font-bold text-foreground">
                 {formatCurrency(data?.closingBalance || 0)}
               </span>
             </div>
