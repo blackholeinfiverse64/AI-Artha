@@ -41,7 +41,6 @@ const receiptSchema = new mongoose.Schema({
 const expenseSchema = new mongoose.Schema({
   expenseNumber: {
     type: String,
-    required: true,
     unique: true,
   },
   date: {

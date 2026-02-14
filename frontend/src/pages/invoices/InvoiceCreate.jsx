@@ -128,32 +128,44 @@ const InvoiceCreate = () => {
     setSaving(true);
     try {
       const payload = {
-        customer: {
-          name: data.customerName,
-          email: data.customerEmail,
-          address: data.customerAddress,
-          gstn: data.customerGSTN,
-        },
+        customerName: data.customerName,
+        customerEmail: data.customerEmail || '',
+        customerAddress: data.customerAddress || '',
+        customerGSTIN: data.customerGSTN || '',
         invoiceDate: data.invoiceDate,
         dueDate: data.dueDate,
-        lineItems: data.lineItems,
-        notes: data.notes,
-        terms: data.terms,
-        subtotal: totals.subtotal,
-        taxAmount: totals.totalGst,
-        totalAmount: totals.total,
+        items: data.lineItems.map(item => ({
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: String(item.rate),
+          amount: String(item.quantity * item.rate),
+          taxRate: item.gstRate,
+        })),
+        notes: data.notes || '',
+        terms: data.terms || '',
+        subtotal: String(totals.subtotal.toFixed(2)),
+        taxAmount: String(totals.totalGst.toFixed(2)),
+        totalAmount: String(totals.total.toFixed(2)),
       };
 
+      console.log('Sending invoice payload:', payload);
+
       if (isEditing) {
-        await api.put(`/invoices/${id}`, payload);
+        const response = await api.put(`/invoices/${id}`, payload);
+        console.log('Update response:', response.data);
         toast.success('Invoice updated successfully');
       } else {
-        await api.post('/invoices', payload);
+        const response = await api.post('/invoices', payload);
+        console.log('Create response:', response.data);
         toast.success('Invoice created successfully');
       }
       navigate('/invoices');
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to save invoice');
+      console.error('Invoice save error:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      const errorMsg = error.response?.data?.message || error.message || 'Failed to save invoice';
+      toast.error(errorMsg);
     } finally {
       setSaving(false);
     }

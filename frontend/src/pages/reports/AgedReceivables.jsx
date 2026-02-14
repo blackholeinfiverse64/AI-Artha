@@ -31,6 +31,7 @@ import {
   EmptyState,
 } from '../../components/common';
 import api from '../../services/api';
+import toast from 'react-hot-toast';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const AgedReceivables = () => {
@@ -46,7 +47,8 @@ const AgedReceivables = () => {
   const fetchAgedReceivables = async () => {
     setLoading(true);
     try {
-      const response = await api.get('/reports/aged-receivables');
+      const asOfDate = new Date().toISOString().split('T')[0];
+      const response = await api.get(`/reports/aged-receivables?asOfDate=${asOfDate}`);
       setData(response.data.data);
     } catch (error) {
       console.error('Failed to fetch aged receivables:', error);
@@ -154,6 +156,35 @@ const AgedReceivables = () => {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const asOfDate = new Date().toISOString().split('T')[0];
+      const token = localStorage.getItem('token');
+      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/reports/aged-receivables/export?asOfDate=${asOfDate}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `aged-receivables-${asOfDate}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success('Report exported successfully');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export report. Please try again.');
+    }
+  };
+
   const agingBuckets = [
     { key: 'current', label: 'Current', color: '#10B981' },
     { key: 'days1_30', label: '1-30 Days', color: '#3B82F6' },
@@ -202,7 +233,7 @@ const AgedReceivables = () => {
         title="Aged Receivables"
         description="Track outstanding customer invoices by aging buckets"
         action={
-          <Button variant="secondary" icon={Download}>
+          <Button variant="secondary" icon={Download} onClick={handleExport}>
             Export PDF
           </Button>
         }

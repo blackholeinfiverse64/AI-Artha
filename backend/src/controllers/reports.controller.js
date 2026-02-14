@@ -194,3 +194,83 @@ export const getKPIs = async (req, res) => {
     });
   }
 };
+
+// @desc    Export Profit & Loss as PDF
+// @route   GET /api/v1/reports/profit-loss/export
+// @access  Private
+export const exportProfitLossPDF = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, message: 'Start date and end date are required' });
+    }
+    const exportService = (await import('../services/export.service.js')).default;
+    const pdfDoc = await exportService.exportProfitLossPDF(startDate, endDate);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=profit-loss-${startDate}-to-${endDate}.pdf`);
+    pdfDoc.pipe(res);
+  } catch (error) {
+    logger.error('Export P&L error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Export Balance Sheet as PDF
+// @route   GET /api/v1/reports/balance-sheet/export
+// @access  Private
+export const exportBalanceSheetPDF = async (req, res) => {
+  try {
+    const { asOfDate } = req.query;
+    if (!asOfDate) {
+      return res.status(400).json({ success: false, message: 'As of date is required' });
+    }
+    const exportService = (await import('../services/export.service.js')).default;
+    const pdfDoc = await exportService.exportBalanceSheetPDF(asOfDate);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=balance-sheet-${asOfDate}.pdf`);
+    pdfDoc.pipe(res);
+  } catch (error) {
+    logger.error('Export balance sheet error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Export Cash Flow as PDF
+// @route   GET /api/v1/reports/cash-flow/export
+// @access  Private
+export const exportCashFlowPDF = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    if (!startDate || !endDate) {
+      return res.status(400).json({ success: false, message: 'Start date and end date are required' });
+    }
+    const exportService = (await import('../services/export.service.js')).default;
+    const pdfDoc = await exportService.exportCashFlowPDF(startDate, endDate);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=cash-flow-${startDate}-to-${endDate}.pdf`);
+    pdfDoc.pipe(res);
+  } catch (error) {
+    logger.error('Export cash flow error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Export Trial Balance as PDF
+// @route   GET /api/v1/reports/trial-balance/export
+// @access  Private
+export const exportTrialBalancePDF = async (req, res) => {
+  try {
+    const { asOfDate } = req.query;
+    if (!asOfDate) {
+      return res.status(400).json({ success: false, message: 'As of date is required' });
+    }
+    const exportService = (await import('../services/export.service.js')).default;
+    const pdfDoc = await exportService.exportTrialBalancePDF(asOfDate);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=trial-balance-${asOfDate}.pdf`);
+    pdfDoc.pipe(res);
+  } catch (error) {
+    logger.error('Export trial balance error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

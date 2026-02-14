@@ -14,6 +14,7 @@ import {
   Loading,
 } from '../../components/common';
 import api from '../../services/api';
+import toast from 'react-hot-toast';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const TrialBalance = () => {
@@ -30,7 +31,7 @@ const TrialBalance = () => {
   const fetchTrialBalance = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/reports/trial-balance?date=${asOfDate}`);
+      const response = await api.get(`/reports/trial-balance?asOfDate=${asOfDate}`);
       setData(response.data.data);
     } catch (error) {
       console.error('Failed to fetch trial balance:', error);
@@ -67,6 +68,34 @@ const TrialBalance = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/reports/trial-balance/export?asOfDate=${asOfDate}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `trial-balance-${asOfDate}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success('Report exported successfully');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export report. Please try again.');
     }
   };
 
@@ -123,7 +152,7 @@ const TrialBalance = () => {
               onChange={(e) => setAsOfDate(e.target.value)}
               className="px-3 py-2 border border-border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
-            <Button variant="secondary" icon={Download}>
+            <Button variant="secondary" icon={Download} onClick={handleExport}>
               Export PDF
             </Button>
           </div>

@@ -160,7 +160,7 @@ const JournalEntryCreate = () => {
         description: data.description,
         reference: data.reference,
         lines: data.lines.map((line) => ({
-          accountId: line.accountId,
+          account: line.accountId,
           debit: Number(line.debit) || 0,
           credit: Number(line.credit) || 0,
           description: line.description,

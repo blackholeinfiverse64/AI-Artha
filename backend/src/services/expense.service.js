@@ -218,11 +218,10 @@ class ExpenseService {
    * Record expense in ledger
    */
   async recordExpense(expenseId, userId) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    const { withTransaction } = await import('../config/database.js');
     
-    try {
-      const expense = await Expense.findById(expenseId).session(session);
+    return await withTransaction(async (session) => {
+      const expense = session ? await Expense.findById(expenseId).session(session) : await Expense.findById(expenseId);
       
       if (!expense) {
         throw new Error('Expense not found');
@@ -296,8 +295,6 @@ class ExpenseService {
       expense.account = expenseAccount._id;
       await expense.save({ session });
       
-      await session.commitTransaction();
-      
       // Invalidate related caches
       await cacheService.invalidateExpenseCaches();
       await cacheService.invalidateLedgerCaches();
@@ -305,13 +302,7 @@ class ExpenseService {
       logger.info(`Expense recorded: ${expense.expenseNumber}`);
       
       return expense;
-    } catch (error) {
-      await session.abortTransaction();
-      logger.error('Record expense error:', error);
-      throw error;
-    } finally {
-      session.endSession();
-    }
+    });
   }
   
   /**

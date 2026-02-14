@@ -77,8 +77,13 @@ const Dashboard = () => {
 
   const fetchDashboardData = async () => {
     try {
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const startDate = `${currentYear}-01-01`;
+      const endDate = now.toISOString().split('T')[0];
+      
       const [kpis, invoices, expenses] = await Promise.all([
-        api.get('/reports/kpis').catch(() => ({ data: { data: null } })),
+        api.get(`/reports/kpis?startDate=${startDate}&endDate=${endDate}`).catch(() => ({ data: { data: null } })),
         api.get('/invoices/stats').catch(() => ({ data: { data: null } })),
         api.get('/expenses/stats').catch(() => ({ data: { data: null } })),
       ]);

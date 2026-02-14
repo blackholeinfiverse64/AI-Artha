@@ -20,22 +20,22 @@ const router = express.Router();
 // Validation rules with support for both items and lines
 const invoiceValidation = [
   body('customerName').trim().notEmpty().withMessage('Customer name is required'),
-  body('invoiceDate').isISO8601().withMessage('Valid invoice date required'),
-  body('dueDate').isISO8601().withMessage('Valid due date required'),
-  // Support both items and lines for backward compatibility
+  body('customerEmail').isEmail().withMessage('Valid email required'),
+  body('invoiceDate').custom(value => {
+    return !isNaN(Date.parse(value));
+  }).withMessage('Valid invoice date required'),
+  body('dueDate').custom(value => {
+    return !isNaN(Date.parse(value));
+  }).withMessage('Valid due date required'),
   body().custom((value, { req }) => {
     const hasItems = req.body.items && Array.isArray(req.body.items) && req.body.items.length > 0;
     const hasLines = req.body.lines && Array.isArray(req.body.lines) && req.body.lines.length > 0;
     
     if (!hasItems && !hasLines) {
-      throw new Error('At least 1 line item required (use either items or lines field)');
+      throw new Error('At least 1 line item required');
     }
     return true;
   }),
-  // Validate monetary fields as numeric strings
-  body('subtotal').optional().isString().matches(/^\d+(\.\d{1,2})?$/).withMessage('Invalid subtotal format'),
-  body('totalAmount').optional().isString().matches(/^\d+(\.\d{1,2})?$/).withMessage('Invalid total amount format'),
-  body('taxAmount').optional().isString().matches(/^\d+(\.\d{1,2})?$/).withMessage('Invalid tax amount format'),
 ];
 
 const paymentValidation = [

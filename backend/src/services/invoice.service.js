@@ -138,11 +138,10 @@ class InvoiceService {
    * Record payment for invoice
    */
   async recordPayment(invoiceId, paymentData, userId) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    const { withTransaction } = await import('../config/database.js');
     
-    try {
-      const invoice = await Invoice.findById(invoiceId).session(session);
+    return await withTransaction(async (session) => {
+      const invoice = session ? await Invoice.findById(invoiceId).session(session) : await Invoice.findById(invoiceId);
       
       if (!invoice) {
         throw new Error('Invoice not found');
@@ -211,8 +210,6 @@ class InvoiceService {
       
       await invoice.save({ session });
       
-      await session.commitTransaction();
-      
       // Invalidate related caches
       await cacheService.invalidateInvoiceCaches();
       await cacheService.invalidateLedgerCaches();
@@ -220,24 +217,17 @@ class InvoiceService {
       logger.info(`Payment recorded for invoice: ${invoice.invoiceNumber}`);
       
       return invoice;
-    } catch (error) {
-      await session.abortTransaction();
-      logger.error('Record payment error:', error);
-      throw error;
-    } finally {
-      session.endSession();
-    }
+    });
   }
   
   /**
    * Send invoice (change status to sent)
    */
   async sendInvoice(invoiceId, userId) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+    const { withTransaction } = await import('../config/database.js');
     
-    try {
-      const invoice = await Invoice.findById(invoiceId).session(session);
+    return await withTransaction(async (session) => {
+      const invoice = session ? await Invoice.findById(invoiceId).session(session) : await Invoice.findById(invoiceId);
       
       if (!invoice) {
         throw new Error('Invoice not found');
@@ -286,18 +276,10 @@ class InvoiceService {
       invoice.status = 'sent';
       await invoice.save({ session });
       
-      await session.commitTransaction();
-      
       logger.info(`Invoice sent: ${invoice.invoiceNumber}`);
       
       return invoice;
-    } catch (error) {
-      await session.abortTransaction();
-      logger.error('Send invoice error:', error);
-      throw error;
-    } finally {
-      session.endSession();
-    }
+    });
   }
   
   /**

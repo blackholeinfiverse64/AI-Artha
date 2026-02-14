@@ -54,7 +54,25 @@ const GSTDashboard = () => {
   const fetchGSTData = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/gst/summary?period=${period}`);
+      // Convert period to YYYY-MM format
+      const now = new Date();
+      let periodParam;
+      
+      switch(period) {
+        case 'current_month':
+          periodParam = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+          break;
+        case 'previous_month':
+          const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1);
+          periodParam = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
+          break;
+        case 'current_quarter':
+        case 'current_fy':
+        default:
+          periodParam = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      }
+      
+      const response = await api.get(`/gst/summary?period=${periodParam}`);
       setData(response.data.data);
     } catch (error) {
       console.error('Failed to fetch GST data:', error);
@@ -98,6 +116,36 @@ const GSTDashboard = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExportGSTR1 = async () => {
+    try {
+      const now = new Date();
+      const periodParam = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const token = localStorage.getItem('token');
+      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/gst/filing-packet/export?type=gstr-1&period=${periodParam}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      if (!response.ok) throw new Error('Export failed');
+      
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `GSTR-1-${periodParam}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success('GSTR-1 exported successfully');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export GSTR-1');
     }
   };
 
@@ -165,7 +213,7 @@ const GSTDashboard = () => {
               onChange={(e) => setPeriod(e.target.value)}
               className="w-48"
             />
-            <Button variant="secondary" icon={Download}>
+            <Button variant="secondary" icon={Download} onClick={handleExportGSTR1}>
               Download GSTR-1
             </Button>
           </div>

@@ -32,13 +32,14 @@ if (process.env.NODE_ENV === 'production') {
   }
 }
 
-// Rate limiting
+// Rate limiting - More lenient for development
 export const limiter = rateLimit({
   windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 100,
+  max: parseInt(process.env.RATE_LIMIT_MAX) || 1000, // Increased from 100 to 1000
   message: 'Too many requests from this IP, please try again later',
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV === 'development', // Skip in development
 });
 
 // Strict rate limit for auth endpoints

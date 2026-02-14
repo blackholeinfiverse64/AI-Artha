@@ -38,9 +38,12 @@ const expenseValidation = [
     .withMessage('Valid category required'),
   body('vendor').trim().notEmpty().withMessage('Vendor is required'),
   body('description').trim().notEmpty().withMessage('Description is required'),
-  body('amount').isNumeric().withMessage('Amount is required'),
+  body('amount').custom(value => {
+    const num = parseFloat(value);
+    return !isNaN(num) && num > 0;
+  }).withMessage('Amount must be a positive number'),
   body('paymentMethod')
-    .isIn(['cash', 'bank_transfer', 'check', 'card', 'upi', 'other'])
+    .isIn(['cash', 'credit_card', 'debit_card', 'check', 'bank_transfer', 'other'])
     .withMessage('Valid payment method required'),
 ];
 

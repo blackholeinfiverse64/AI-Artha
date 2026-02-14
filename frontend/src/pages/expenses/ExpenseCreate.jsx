@@ -171,9 +171,31 @@ const ExpenseCreate = () => {
     setSaving(true);
     try {
       const formData = new FormData();
-      Object.keys(data).forEach((key) => {
-        formData.append(key, data[key]);
-      });
+      
+      // Map category to backend format
+      const categoryMap = {
+        'Operations': 'other',
+        'IT': 'software',
+        'Travel': 'travel',
+        'Entertainment': 'meals',
+        'HR': 'professional_services',
+        'Marketing': 'marketing',
+        'Utilities': 'utilities',
+        'Office': 'supplies',
+        'Professional': 'professional_services',
+        'Other': 'other'
+      };
+      
+      formData.append('vendor', data.vendor || 'Unknown');
+      formData.append('description', data.description);
+      formData.append('category', categoryMap[data.category] || 'other');
+      formData.append('date', data.date);
+      formData.append('amount', String(data.amount));
+      formData.append('taxAmount', String(data.gstAmount || 0));
+      formData.append('totalAmount', String(data.amount));
+      formData.append('paymentMethod', 'other');
+      if (data.notes) formData.append('notes', data.notes);
+      
       files.forEach((file) => {
         formData.append('receipts', file);
       });
@@ -191,6 +213,7 @@ const ExpenseCreate = () => {
       }
       navigate('/expenses');
     } catch (error) {
+      console.error('Expense save error:', error.response?.data);
       toast.error(error.response?.data?.message || 'Failed to save expense');
     } finally {
       setSaving(false);

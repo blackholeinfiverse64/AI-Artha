@@ -55,7 +55,7 @@ const TDSManagement = () => {
   const fetchTDSData = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/tds/summary?quarter=${quarter}&year=${year}`);
+      const response = await api.get(`/tds/summary?quarter=${quarter}&financialYear=${year}`);
       setData(response.data.data);
     } catch (error) {
       console.error('Failed to fetch TDS data:', error);
@@ -163,6 +163,52 @@ const TDSManagement = () => {
     }
   };
 
+  const handleExportForm26Q = async () => {
+    try {
+      const response = await api.get(`/tds/form26q?quarter=${quarter}&financialYear=${year}`);
+      
+      // Convert JSON data to CSV
+      const data = response.data.data;
+      if (!data || !data.entries || data.entries.length === 0) {
+        toast.error('No TDS data available for export');
+        return;
+      }
+      
+      // Create CSV content
+      const headers = ['Deductee', 'PAN', 'Section', 'Amount', 'TDS Rate', 'TDS Amount', 'Deduction Date', 'Status'];
+      const rows = data.entries.map(entry => [
+        entry.deductee?.name || '',
+        entry.deductee?.pan || '',
+        entry.section || '',
+        entry.paymentAmount || 0,
+        entry.tdsRate || 0,
+        entry.tdsAmount || 0,
+        entry.transactionDate ? new Date(entry.transactionDate).toLocaleDateString() : '',
+        entry.status || ''
+      ]);
+      
+      const csvContent = [
+        headers.join(','),
+        ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ].join('\n');
+      
+      // Download CSV
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `Form26Q-${quarter}-${year}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success('Form 26Q exported successfully');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export Form 26Q');
+    }
+  };
+
   const quarterOptions = [
     { value: 'Q1', label: 'Q1 (Apr-Jun)' },
     { value: 'Q2', label: 'Q2 (Jul-Sep)' },
@@ -254,7 +300,7 @@ const TDSManagement = () => {
               onChange={(e) => setYear(e.target.value)}
               className="w-36"
             />
-            <Button variant="secondary" icon={Download}>
+            <Button variant="secondary" icon={Download} onClick={handleExportForm26Q}>
               Download Form 26Q
             </Button>
           </div>

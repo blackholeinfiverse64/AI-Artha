@@ -29,7 +29,46 @@ import {
   Loading,
 } from '../../components/common';
 import api from '../../services/api';
+import toast from 'react-hot-toast';
 import { formatCurrency, getFinancialYear } from '../../utils/formatters';
+
+const getPeriodDates = (period) => {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  
+  switch (period) {
+    case 'current_fy':
+      const fyStart = currentMonth >= 3 ? currentYear : currentYear - 1;
+      return {
+        startDate: `${fyStart}-04-01`,
+        endDate: `${fyStart + 1}-03-31`
+      };
+    case 'previous_fy':
+      const prevFyStart = currentMonth >= 3 ? currentYear - 1 : currentYear - 2;
+      return {
+        startDate: `${prevFyStart}-04-01`,
+        endDate: `${prevFyStart + 1}-03-31`
+      };
+    case 'current_quarter':
+      const quarterStart = new Date(currentYear, Math.floor(currentMonth / 3) * 3, 1);
+      const quarterEnd = new Date(currentYear, Math.floor(currentMonth / 3) * 3 + 3, 0);
+      return {
+        startDate: quarterStart.toISOString().split('T')[0],
+        endDate: quarterEnd.toISOString().split('T')[0]
+      };
+    case 'ytd':
+      return {
+        startDate: `${currentYear}-01-01`,
+        endDate: now.toISOString().split('T')[0]
+      };
+    default:
+      return {
+        startDate: `${currentYear}-01-01`,
+        endDate: now.toISOString().split('T')[0]
+      };
+  }
+};
 
 const ProfitLoss = () => {
   const [loading, setLoading] = useState(true);
@@ -44,7 +83,8 @@ const ProfitLoss = () => {
   const fetchProfitLoss = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/reports/profit-loss?period=${period}`);
+      const { startDate, endDate } = getPeriodDates(period);
+      const response = await api.get(`/reports/profit-loss?startDate=${startDate}&endDate=${endDate}`);
       setData(response.data.data);
     } catch (error) {
       console.error('Failed to fetch P&L:', error);
@@ -92,6 +132,39 @@ const ProfitLoss = () => {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      const { startDate, endDate } = getPeriodDates(period);
+      const token = localStorage.getItem('token');
+      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/reports/profit-loss/export?startDate=${startDate}&endDate=${endDate}`;
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+      
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = `profit-loss-${startDate}-to-${endDate}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+      toast.success('Report exported successfully');
+    } catch (error) {
+      console.error('Export failed:', error);
+      toast.error('Failed to export report. Please try again.');
+    }
+  };
+
   const periodOptions = [
     { value: 'current_fy', label: `Current FY (${getFinancialYear()})` },
     { value: 'previous_fy', label: 'Previous FY' },
@@ -124,7 +197,7 @@ const ProfitLoss = () => {
               onChange={(e) => setPeriod(e.target.value)}
               className="w-48"
             />
-            <Button variant="secondary" icon={Download}>
+            <Button variant="secondary" icon={Download} onClick={handleExport}>
               Export PDF
             </Button>
           </div>

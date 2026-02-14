@@ -18,7 +18,6 @@ const validateDecimal = {
 const invoiceSchema = new mongoose.Schema({
   invoiceNumber: {
     type: String,
-    required: true,
     unique: true,
   },
   customerName: {
@@ -208,45 +207,59 @@ invoiceSchema.virtual('amountDue').get(function() {
 });
 
 // Sync items and lines fields for backward compatibility
-invoiceSchema.pre('save', function(next) {
-  // Sync items and lines
-  if (this.items && this.items.length > 0 && (!this.lines || this.lines.length === 0)) {
-    this.lines = this.items;
-  } else if (this.lines && this.lines.length > 0 && (!this.items || this.items.length === 0)) {
-    this.items = this.lines;
-  }
-  
-  // Update status based on payments using Decimal.js
+invoiceSchema.pre('save', async function(next) {
   try {
-    const total = new Decimal(this.totalAmount || 0);
-    const paid = new Decimal(this.amountPaid || 0);
+    // Auto-generate invoice number
+    if (this.isNew && !this.invoiceNumber) {
+      const date = new Date();
+      const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
+      const count = await mongoose.model('Invoice').countDocuments({
+        invoiceNumber: new RegExp(`^INV-${dateStr}`)
+      });
+      this.invoiceNumber = `INV-${dateStr}-${String(count + 1).padStart(4, '0')}`;
+    }
     
-    if (this.status !== 'cancelled') {
-      if (paid.greaterThanOrEqualTo(total) && total.greaterThan(0)) {
-        this.status = 'paid';
-      } else if (paid.greaterThan(0)) {
-        this.status = 'partial';
-      } else if (this.status === 'sent' && new Date() > this.dueDate) {
-        this.status = 'overdue';
+    // Sync items and lines
+    if (this.items && this.items.length > 0 && (!this.lines || this.lines.length === 0)) {
+      this.lines = this.items;
+    } else if (this.lines && this.lines.length > 0 && (!this.items || this.items.length === 0)) {
+      this.items = this.lines;
+    }
+    
+    // Update status based on payments using Decimal.js
+    try {
+      const total = new Decimal(this.totalAmount || 0);
+      const paid = new Decimal(this.amountPaid || 0);
+      
+      if (this.status !== 'cancelled') {
+        if (paid.greaterThanOrEqualTo(total) && total.greaterThan(0)) {
+          this.status = 'paid';
+        } else if (paid.greaterThan(0)) {
+          this.status = 'partial';
+        } else if (this.status === 'sent' && new Date() > this.dueDate) {
+          this.status = 'overdue';
+        }
+      }
+    } catch (error) {
+      // If decimal parsing fails, use original logic as fallback
+      const total = parseFloat(this.totalAmount) || 0;
+      const paid = parseFloat(this.amountPaid) || 0;
+      
+      if (this.status !== 'cancelled') {
+        if (paid >= total && total > 0) {
+          this.status = 'paid';
+        } else if (paid > 0) {
+          this.status = 'partial';
+        } else if (this.status === 'sent' && new Date() > this.dueDate) {
+          this.status = 'overdue';
+        }
       }
     }
+    
+    next();
   } catch (error) {
-    // If decimal parsing fails, use original logic as fallback
-    const total = parseFloat(this.totalAmount) || 0;
-    const paid = parseFloat(this.amountPaid) || 0;
-    
-    if (this.status !== 'cancelled') {
-      if (paid >= total && total > 0) {
-        this.status = 'paid';
-      } else if (paid > 0) {
-        this.status = 'partial';
-      } else if (this.status === 'sent' && new Date() > this.dueDate) {
-        this.status = 'overdue';
-      }
-    }
+    next(error);
   }
-  
-  next();
 });
 
 // Ensure virtual fields are serialized
