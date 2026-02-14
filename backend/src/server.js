@@ -68,23 +68,45 @@ connectRedisWithFallback();
 // Initialize express
 const app = express();
 
-// --- CORS Middleware (MUST be before all routes) ---
-const ALLOWED_ORIGIN = 'https://ai-artha.vercel.app';
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (origin === ALLOWED_ORIGIN) {
-    res.header('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
-    res.header('Vary', 'Origin');
-  }
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  if (req.method === 'OPTIONS') {
-    // Preflight request: respond with 204 No Content
-    return res.status(204).end();
-  }
-  next();
-});
+// --- CORS Configuration (MUST be before all routes) ---
+const corsOptions = {
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      'https://ai-artha.vercel.app',
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:5173',
+    ];
+
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+  allowedHeaders: [
+    'Origin',
+    'X-Requested-With',
+    'Content-Type',
+    'Accept',
+    'Authorization',
+    'X-CSRF-Token',
+    'X-API-Key',
+  ],
+  exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
+  maxAge: 86400,
+  preflightContinue: false,
+};
+
+// Apply CORS middleware
+app.use(cors(corsOptions));
+
+// Handle preflight requests explicitly (safety net)
+app.options('*', cors(corsOptions));
 
 // Security middleware (after CORS)
 app.use(helmetConfig);
@@ -152,12 +174,6 @@ app.use('/api/v1/users', usersRoutes);
 
 // Legacy routes (Backward compatibility)
 app.use('/api', legacyRoutes);
-
-
-// --- Catch-all OPTIONS handler for CORS preflight (prevents 404 on OPTIONS) ---
-app.options('*', (req, res) => {
-  res.sendStatus(204);
-});
 
 // 404 handler
 app.use((req, res) => {
