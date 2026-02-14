@@ -1,22 +1,24 @@
 import express from 'express';
 import dotenv from 'dotenv';
-import cors from 'cors';
 import connectDB from './config/database.js';
 import { connectRedis } from './config/redis.js';
 import logger from './config/logger.js';
 import healthService from './services/health.service.js';
 import { validateEnvironment } from './config/validation.js';
+
 import {
   helmetConfig,
   limiter,
   sanitizeInput,
   watermark,
 } from './middleware/security.js';
+
 import {
   requestLogger,
   performanceMonitor,
   errorTracker,
 } from './middleware/monitoring.js';
+
 import { memoryMonitor } from './middleware/performance.js';
 
 // Routes
@@ -36,137 +38,121 @@ import healthRoutes from './routes/health.routes.js';
 import usersRoutes from './routes/users.routes.js';
 import legacyRoutes from './routes/index.js';
 
-// Load env vars
 dotenv.config();
 
-// Validate environment configuration
+// Validate env in production
 if (process.env.NODE_ENV === 'production') {
   validateEnvironment();
 }
 
-// Connect to database
+// DB
 connectDB();
 
-// Connect to Redis with consistent error handling
-const connectRedisWithFallback = async () => {
+// Redis (safe fallback)
+(async () => {
   try {
     await connectRedis();
-    logger.info('Redis connected successfully');
+    logger.info('Redis connected');
   } catch (err) {
-    logger.warn('Redis connection failed:', err.message);
-    if (process.env.NODE_ENV === 'production') {
-      logger.warn('Running without Redis caching in production - performance may be impacted');
-    } else {
-      logger.info('Redis unavailable in development - continuing without cache');
-    }
+    logger.warn('Redis unavailable, continuing without cache');
   }
-};
+})();
 
-connectRedisWithFallback();
-
-
-// Initialize express
 const app = express();
 
-// --- SIMPLE CORS Configuration ---
-const corsOptions = {
-  origin: '*', // Allow all origins - temporary fix
-  credentials: false, // Disable credentials for now
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  optionsSuccessStatus: 204,
-};
+/* =========================================================
+   🔥 CORS + PREFLIGHT (MUST BE FIRST)
+   ========================================================= */
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header(
+    'Access-Control-Allow-Methods',
+    'GET, POST, PUT, DELETE, OPTIONS'
+  );
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Content-Type, Authorization'
+  );
 
-// Apply CORS middleware
-app.use(cors(corsOptions));
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
+  }
 
-// Handle preflight requests explicitly (safety net)
-app.options('*', cors(corsOptions));
+  next();
+});
 
-// CORS debugging middleware (remove in production)
-if (process.env.NODE_ENV === 'development') {
-  app.use((req, res, next) => {
-    logger.info(`CORS Debug - Origin: ${req.headers.origin}, Method: ${req.method}, Path: ${req.path}`);
-    next();
-  });
-}
-
-// Security middleware (after CORS)
+/* =========================================================
+   🔐 SECURITY MIDDLEWARE
+   ========================================================= */
 app.use(helmetConfig);
 app.use(limiter);
 app.use(watermark);
 
-// Monitoring middleware (only in production)
+/* =========================================================
+   📊 MONITORING (PRODUCTION ONLY)
+   ========================================================= */
 if (process.env.NODE_ENV === 'production') {
   app.use(requestLogger);
   app.use(performanceMonitor);
-  
-  // Start memory monitoring
   memoryMonitor();
 }
 
-// Body parser
+/* =========================================================
+   🧾 BODY PARSERS
+   ========================================================= */
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Sanitize inputs
+/* =========================================================
+   🧹 SANITIZATION
+   ========================================================= */
 app.use(sanitizeInput);
 
-// Serve uploaded files
+/* =========================================================
+   📂 STATIC FILES
+   ========================================================= */
 app.use('/uploads', express.static('uploads'));
 
-// Mount health routes (before other routes for priority)
+/* =========================================================
+   ❤️ HEALTH ROUTES
+   ========================================================= */
 app.use('/', healthRoutes);
 
-// Enhanced health check (now handled by health routes)
-// Legacy health endpoint for backward compatibility
 app.get('/api/health', async (req, res) => {
   try {
     const health = await healthService.getSystemHealth();
-    const statusCode = health.status === 'healthy' ? 200 : 503;
-    
-    res.status(statusCode).json({
+    res.status(health.status === 'healthy' ? 200 : 503).json({
       success: health.status === 'healthy',
       message: `ARTHA API is ${health.status}`,
       data: health,
     });
-  } catch (error) {
-    logger.error('Health check error:', error);
-    res.status(503).json({
-      success: false,
-      message: 'Health check failed',
-      error: error.message,
-    });
+  } catch (err) {
+    res.status(503).json({ success: false, message: 'Health check failed' });
   }
 });
 
-// Simple test endpoints for debugging
+/* =========================================================
+   🧪 TEST ROUTES
+   ========================================================= */
 app.get('/test', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Server is running!',
-    timestamp: new Date().toISOString(),
-  });
+  res.json({ success: true, message: 'Server running' });
 });
 
 app.get('/api/test', (req, res) => {
   res.json({
     success: true,
-    message: 'API is accessible!',
+    message: 'API accessible',
     origin: req.headers.origin,
-    timestamp: new Date().toISOString(),
   });
 });
 
 app.get('/api/v1/auth/test', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Auth routes working!',
-    timestamp: new Date().toISOString(),
-  });
+  res.json({ success: true, message: 'Auth routes working' });
 });
 
-// Mount routes - V1 API (Primary)
+/* =========================================================
+   🚀 API ROUTES
+   ========================================================= */
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/ledger', ledgerRoutes);
 app.use('/api/v1/accounts', accountsRoutes);
@@ -181,85 +167,38 @@ app.use('/api/v1/performance', performanceRoutes);
 app.use('/api/v1/database', databaseRoutes);
 app.use('/api/v1/users', usersRoutes);
 
-// Legacy routes (Backward compatibility)
+// Legacy
 app.use('/api', legacyRoutes);
 
-// 404 handler
+/* =========================================================
+   ❌ 404 HANDLER
+   ========================================================= */
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found',
-  });
+  res.status(404).json({ success: false, message: 'Route not found' });
 });
 
-// Error tracking middleware
+/* =========================================================
+   🧯 ERROR HANDLING
+   ========================================================= */
 app.use(errorTracker);
 
-// Global error handler
 app.use((err, req, res, _next) => {
-  logger.error('Global error:', err);
-  
+  logger.error(err);
   res.status(err.statusCode || 500).json({
     success: false,
     message: err.message || 'Server error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 });
 
-// Start server (only if not in test mode)
-let server;
+/* =========================================================
+   ▶️ START SERVER
+   ========================================================= */
 if (process.env.NODE_ENV !== 'test') {
   const PORT = process.env.PORT || 5000;
-  server = app.listen(PORT, () => {
-    logger.info(`✅ Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-    logger.info(`✅ CORS enabled for all origins`);
-    logger.info(`✅ Available routes:`);
-    logger.info(`   POST /api/v1/auth/register`);
-    logger.info(`   POST /api/v1/auth/login`);
-    logger.info(`   GET  /api/test-cors`);
-    logger.info(`   GET  /api/health`);
+  app.listen(PORT, () => {
+    logger.info(`✅ Server running on port ${PORT}`);
+    logger.info(`✅ CORS + OPTIONS fixed`);
   });
 }
-
-// Handle unhandled promise rejections
-process.on('unhandledRejection', (err) => {
-  logger.error('Unhandled Rejection:', err);
-  if (server) {
-    server.close(() => process.exit(1));
-  } else {
-    process.exit(1);
-  }
-});
-
-// Handle uncaught exceptions
-process.on('uncaughtException', (err) => {
-  logger.error('Uncaught Exception:', err);
-  process.exit(1);
-});
-
-// Graceful shutdown
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM received, shutting down gracefully');
-  if (server) {
-    server.close(() => {
-      logger.info('Process terminated');
-      process.exit(0);
-    });
-  } else {
-    process.exit(0);
-  }
-});
-
-process.on('SIGINT', () => {
-  logger.info('SIGINT received, shutting down gracefully');
-  if (server) {
-    server.close(() => {
-      logger.info('Process terminated');
-      process.exit(0);
-    });
-  } else {
-    process.exit(0);
-  }
-});
 
 export default app;
