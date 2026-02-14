@@ -7,14 +7,9 @@ import { validateJWTConfig, validateRedisConfig } from '../config/validation.js'
 
 // Helmet configuration
 export const helmetConfig = helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
-      imgSrc: ["'self'", 'data:', 'https:'],
-    },
-  },
+  contentSecurityPolicy: false, // Disable CSP for API
+  crossOriginResourcePolicy: false, // Allow cross-origin requests
+  crossOriginOpenerPolicy: false,
   hsts: {
     maxAge: 31536000,
     includeSubDomains: true,
