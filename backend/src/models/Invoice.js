@@ -184,7 +184,6 @@ const invoiceSchema = new mongoose.Schema({
 });
 
 // Additional indexes for performance
-invoiceSchema.index({ invoiceNumber: 1 }); // Already unique, but explicit
 invoiceSchema.index({ status: 1 });
 invoiceSchema.index({ invoiceDate: -1 });
 invoiceSchema.index({ dueDate: 1 });

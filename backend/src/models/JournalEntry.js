@@ -151,8 +151,6 @@ const journalEntrySchema = new mongoose.Schema({
 });
 
 // Additional indexes for performance
-journalEntrySchema.index({ entryNumber: 1 });
-journalEntrySchema.index({ status: 1 });
 journalEntrySchema.index({ date: -1 });
 journalEntrySchema.index({ status: 1, date: -1 });
 journalEntrySchema.index({ 'lines.account': 1 });
@@ -164,7 +162,6 @@ journalEntrySchema.index({ tags: 1 });
 // Hash-chain indexes
 journalEntrySchema.index({ chainPosition: 1, status: 1 });
 journalEntrySchema.index({ hash: 1, prevHash: 1 });
-journalEntrySchema.index({ prevHash: 1 });
 
 // Static method to compute hash for an entry
 journalEntrySchema.statics.computeHash = function(entryData, prevHash = '0') {

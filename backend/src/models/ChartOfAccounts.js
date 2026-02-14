@@ -43,7 +43,6 @@ const chartOfAccountsSchema = new mongoose.Schema({
 });
 
 // Additional indexes for performance
-chartOfAccountsSchema.index({ code: 1 }); // Already unique, but explicit
 chartOfAccountsSchema.index({ type: 1 });
 chartOfAccountsSchema.index({ isActive: 1 });
 chartOfAccountsSchema.index({ type: 1, isActive: 1 });

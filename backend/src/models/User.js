@@ -39,7 +39,6 @@ const userSchema = new mongoose.Schema({
 });
 
 // Additional indexes for performance
-userSchema.index({ email: 1 }); // Already unique, but explicit
 userSchema.index({ role: 1 });
 userSchema.index({ isActive: 1 });
 userSchema.index({ lastLogin: -1 });

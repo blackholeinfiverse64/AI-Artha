@@ -124,7 +124,6 @@ const expenseSchema = new mongoose.Schema({
 });
 
 // Additional indexes for performance
-expenseSchema.index({ expenseNumber: 1 }); // Already unique, but explicit
 expenseSchema.index({ status: 1 });
 expenseSchema.index({ date: -1 });
 expenseSchema.index({ status: 1, date: -1 });
