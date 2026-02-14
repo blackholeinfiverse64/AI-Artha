@@ -71,25 +71,9 @@ const app = express();
 // --- CORS Configuration (MUST be before all routes) ---
 const corsOptions = {
   origin: function (origin, callback) {
-    const allowedOrigins = [
-      'https://ai-artha.vercel.app',
-      'http://localhost:3000',
-      'http://localhost:5173',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:5173',
-    ];
-
-    // In production, be more strict about origins
-    if (process.env.NODE_ENV === 'production') {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    } else {
-      // In development, allow all origins
-      callback(null, true);
-    }
+    // Allow all origins in production for now to debug CORS issues
+    // We'll tighten this later once CORS is working
+    callback(null, true);
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
@@ -183,6 +167,20 @@ app.get('/api/test-cors', (req, res) => {
   });
 });
 
+// Auth route test endpoint
+app.get('/api/v1/auth/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Auth routes are working!',
+    availableEndpoints: [
+      'POST /api/v1/auth/register',
+      'POST /api/v1/auth/login',
+      'GET  /api/v1/auth/me',
+    ],
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Mount routes - V1 API (Primary)
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/ledger', ledgerRoutes);
@@ -228,7 +226,13 @@ let server;
 if (process.env.NODE_ENV !== 'test') {
   const PORT = process.env.PORT || 5000;
   server = app.listen(PORT, () => {
-    logger.info(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+    logger.info(`✅ Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+    logger.info(`✅ CORS enabled for all origins`);
+    logger.info(`✅ Available routes:`);
+    logger.info(`   POST /api/v1/auth/register`);
+    logger.info(`   POST /api/v1/auth/login`);
+    logger.info(`   GET  /api/test-cors`);
+    logger.info(`   GET  /api/health`);
   });
 }
 
