@@ -68,7 +68,7 @@
     "verify:hash-chain": "node scripts/verify-hash-chain.js",
     "test:connections": "node test-connections.js",
     "test:redis": "node test-redis.js",
-    "prepare": "husky install"
+    "prepare": "node -e \"try { require('husky').install() } catch (e) {if (e.code !== 'MODULE_NOT_FOUND') throw e}\""
   },
   "dependencies": {
     "axios": "^1.6.2",
