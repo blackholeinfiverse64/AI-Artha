@@ -79,11 +79,16 @@ const corsOptions = {
       'http://127.0.0.1:5173',
     ];
 
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
+    // In production, be more strict about origins
+    if (process.env.NODE_ENV === 'production') {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
     } else {
-      callback(new Error('Not allowed by CORS'));
+      // In development, allow all origins
+      callback(null, true);
     }
   },
   credentials: true,
@@ -96,10 +101,13 @@ const corsOptions = {
     'Authorization',
     'X-CSRF-Token',
     'X-API-Key',
+    'X-Total-Count',
+    'X-Page-Count',
   ],
   exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
   maxAge: 86400,
   preflightContinue: false,
+  optionsSuccessStatus: 204,
 };
 
 // Apply CORS middleware
@@ -107,6 +115,14 @@ app.use(cors(corsOptions));
 
 // Handle preflight requests explicitly (safety net)
 app.options('*', cors(corsOptions));
+
+// CORS debugging middleware (remove in production)
+if (process.env.NODE_ENV === 'development') {
+  app.use((req, res, next) => {
+    logger.info(`CORS Debug - Origin: ${req.headers.origin}, Method: ${req.method}, Path: ${req.path}`);
+    next();
+  });
+}
 
 // Security middleware (after CORS)
 app.use(helmetConfig);
@@ -157,6 +173,16 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
+// CORS test endpoint
+app.get('/api/test-cors', (req, res) => {
+  res.json({
+    success: true,
+    message: 'CORS is working correctly!',
+    origin: req.headers.origin,
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Mount routes - V1 API (Primary)
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/ledger', ledgerRoutes);
@@ -187,7 +213,7 @@ app.use((req, res) => {
 app.use(errorTracker);
 
 // Global error handler
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   logger.error('Global error:', err);
   
   res.status(err.statusCode || 500).json({
