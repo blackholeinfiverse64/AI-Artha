@@ -68,29 +68,12 @@ connectRedisWithFallback();
 // Initialize express
 const app = express();
 
-// --- CORS Configuration (MUST be before all routes) ---
+// --- SIMPLE CORS Configuration ---
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow all origins in production for now to debug CORS issues
-    // We'll tighten this later once CORS is working
-    callback(null, true);
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
-  allowedHeaders: [
-    'Origin',
-    'X-Requested-With',
-    'Content-Type',
-    'Accept',
-    'Authorization',
-    'X-CSRF-Token',
-    'X-API-Key',
-    'X-Total-Count',
-    'X-Page-Count',
-  ],
-  exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
-  maxAge: 86400,
-  preflightContinue: false,
+  origin: '*', // Allow all origins - temporary fix
+  credentials: false, // Disable credentials for now
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   optionsSuccessStatus: 204,
 };
 
@@ -157,26 +140,28 @@ app.get('/api/health', async (req, res) => {
   }
 });
 
-// CORS test endpoint
-app.get('/api/test-cors', (req, res) => {
+// Simple test endpoints for debugging
+app.get('/test', (req, res) => {
   res.json({
     success: true,
-    message: 'CORS is working correctly!',
+    message: 'Server is running!',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.get('/api/test', (req, res) => {
+  res.json({
+    success: true,
+    message: 'API is accessible!',
     origin: req.headers.origin,
     timestamp: new Date().toISOString(),
   });
 });
 
-// Auth route test endpoint
 app.get('/api/v1/auth/test', (req, res) => {
   res.json({
     success: true,
-    message: 'Auth routes are working!',
-    availableEndpoints: [
-      'POST /api/v1/auth/register',
-      'POST /api/v1/auth/login',
-      'GET  /api/v1/auth/me',
-    ],
+    message: 'Auth routes working!',
     timestamp: new Date().toISOString(),
   });
 });
