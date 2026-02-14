@@ -64,19 +64,24 @@ const connectRedisWithFallback = async () => {
 
 connectRedisWithFallback();
 
+
 // Initialize express
 const app = express();
 
-// CORS - Simple permissive configuration for production
+// --- CORS Middleware (MUST be before all routes) ---
+const ALLOWED_ORIGIN = 'https://ai-artha.vercel.app';
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  res.header('Access-Control-Allow-Origin', origin || '*');
+  if (origin === ALLOWED_ORIGIN) {
+    res.header('Access-Control-Allow-Origin', ALLOWED_ORIGIN);
+    res.header('Vary', 'Origin');
+  }
   res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,PATCH,OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    // Preflight request: respond with 204 No Content
+    return res.status(204).end();
   }
   next();
 });
@@ -147,6 +152,12 @@ app.use('/api/v1/users', usersRoutes);
 
 // Legacy routes (Backward compatibility)
 app.use('/api', legacyRoutes);
+
+
+// --- Catch-all OPTIONS handler for CORS preflight (prevents 404 on OPTIONS) ---
+app.options('*', (req, res) => {
+  res.sendStatus(204);
+});
 
 // 404 handler
 app.use((req, res) => {
