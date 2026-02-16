@@ -305,6 +305,7 @@ GET /live
 - `GET /metrics` - Public performance metrics
 - `GET /status` - System component status
 - `GET /api/health` - Legacy health status
+-
 
 
 
@@ -476,5 +477,6 @@ For issues and support:
 ---
 
 **Last Updated**: December 5, 2025
-**Status**: Production Ready v0.1#   A I - A r t h a  
+**Status**: Production Ready v0.1#   A I - A r t h a 
+ 
  
