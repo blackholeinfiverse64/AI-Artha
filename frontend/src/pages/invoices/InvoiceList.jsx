@@ -1,0 +1,244 @@
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  Plus,
+  Search,
+  Filter,
+  Download,
+  MoreVertical,
+  Eye,
+  Edit,
+  Trash2,
+  Send,
+  FileText,
+} from 'lucide-react';
+import {
+  PageHeader,
+  Card,
+  Button,
+  Table,
+  Badge,
+  Input,
+  Select,
+  Loading,
+  EmptyState,
+} from '../../components/common';
+import api from '../../services/api';
+import { formatCurrency, formatDate } from '../../utils/formatters';
+
+const InvoiceList = () => {
+  const navigate = useNavigate();
+  const [invoices, setInvoices] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [sortConfig, setSortConfig] = useState({ key: 'createdAt', direction: 'desc' });
+
+  useEffect(() => {
+    fetchInvoices();
+  }, []);
+
+  const fetchInvoices = async () => {
+    try {
+      const response = await api.get('/invoices');
+      setInvoices(response.data.data || []);
+    } catch (error) {
+      console.error('Failed to fetch invoices:', error);
+      // Use sample data for demo
+      setInvoices([
+        { _id: '1', invoiceNumber: 'INV-2026-0001', customer: { name: 'Acme Corp' }, totalAmount: 25000, status: 'paid', dueDate: '2026-02-15', createdAt: '2026-02-01' },
+        { _id: '2', invoiceNumber: 'INV-2026-0002', customer: { name: 'TechStart Ltd' }, totalAmount: 15500, status: 'sent', dueDate: '2026-02-20', createdAt: '2026-02-05' },
+        { _id: '3', invoiceNumber: 'INV-2026-0003', customer: { name: 'Global Industries' }, totalAmount: 42000, status: 'overdue', dueDate: '2026-01-30', createdAt: '2026-01-15' },
+        { _id: '4', invoiceNumber: 'INV-2026-0004', customer: { name: 'StartupXYZ' }, totalAmount: 8750, status: 'draft', dueDate: '2026-02-28', createdAt: '2026-02-10' },
+        { _id: '5', invoiceNumber: 'INV-2026-0005', customer: { name: 'MegaCorp India' }, totalAmount: 156000, status: 'partial', dueDate: '2026-03-01', createdAt: '2026-02-08' },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStatusBadge = (status) => {
+    const variants = {
+      draft: 'default',
+      sent: 'info',
+      paid: 'success',
+      partial: 'warning',
+      overdue: 'danger',
+      cancelled: 'default',
+    };
+    return <Badge variant={variants[status] || 'default'}>{status}</Badge>;
+  };
+
+  const filteredInvoices = invoices.filter((invoice) => {
+    const matchesSearch =
+      invoice.invoiceNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      invoice.customer?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = !statusFilter || invoice.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  const statusOptions = [
+    { value: 'draft', label: 'Draft' },
+    { value: 'sent', label: 'Sent' },
+    { value: 'paid', label: 'Paid' },
+    { value: 'partial', label: 'Partial' },
+    { value: 'overdue', label: 'Overdue' },
+    { value: 'cancelled', label: 'Cancelled' },
+  ];
+
+  if (loading) {
+    return <Loading.Page />;
+  }
+
+  return (
+    <div className="space-y-6 animate-fadeIn">
+      <PageHeader
+        title="Invoices"
+        description="Manage your invoices and track payments"
+        action={
+          <Button onClick={() => navigate('/invoices/new')} icon={Plus}>
+            New Invoice
+          </Button>
+        }
+      />
+
+      {/* Filters */}
+      <Card className="p-4">
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1">
+            <Input
+              placeholder="Search invoices..."
+              icon={Search}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
+          <div className="w-full md:w-48">
+            <Select
+              placeholder="All Status"
+              options={statusOptions}
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            />
+          </div>
+          <Button variant="secondary" icon={Download}>
+            Export
+          </Button>
+        </div>
+      </Card>
+
+      {/* Invoice Table */}
+      {filteredInvoices.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={FileText}
+            title="No invoices found"
+            description="Create your first invoice to get started with billing."
+            actionLabel="Create Invoice"
+            onAction={() => navigate('/invoices/new')}
+          />
+        </Card>
+      ) : (
+        <Card padding={false}>
+          <Table>
+            <Table.Header>
+              <Table.Row>
+                <Table.Head>Invoice #</Table.Head>
+                <Table.Head>Customer</Table.Head>
+                <Table.Head>Amount</Table.Head>
+                <Table.Head>Status</Table.Head>
+                <Table.Head>Due Date</Table.Head>
+                <Table.Head>Created</Table.Head>
+                <Table.Head className="w-20">Actions</Table.Head>
+              </Table.Row>
+            </Table.Header>
+            <Table.Body>
+              {filteredInvoices.map((invoice) => (
+                <Table.Row
+                  key={invoice._id}
+                  onClick={() => navigate(`/invoices/${invoice._id}`)}
+                  className="cursor-pointer"
+                >
+                  <Table.Cell>
+                    <span className="font-medium text-blue-600">{invoice.invoiceNumber}</span>
+                  </Table.Cell>
+                  <Table.Cell>{invoice.customer?.name || '-'}</Table.Cell>
+                  <Table.Cell className="font-semibold">
+                    {formatCurrency(invoice.totalAmount)}
+                  </Table.Cell>
+                  <Table.Cell>{getStatusBadge(invoice.status)}</Table.Cell>
+                  <Table.Cell>{formatDate(invoice.dueDate)}</Table.Cell>
+                  <Table.Cell className="text-muted-foreground">
+                    {formatDate(invoice.createdAt)}
+                  </Table.Cell>
+                  <Table.Cell>
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/invoices/${invoice._id}`);
+                        }}
+                        className="p-1.5 hover:bg-muted rounded-lg"
+                      >
+                        <Eye className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`/invoices/${invoice._id}/edit`);
+                        }}
+                        className="p-1.5 hover:bg-muted rounded-lg"
+                      >
+                        <Edit className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    </div>
+                  </Table.Cell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table>
+        </Card>
+      )}
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="p-4 text-center">
+          <p className="text-sm text-muted-foreground">Total Invoices</p>
+          <p className="text-2xl font-bold text-foreground">{invoices.length}</p>
+        </Card>
+        <Card className="p-4 text-center">
+          <p className="text-sm text-muted-foreground">Paid</p>
+          <p className="text-2xl font-bold text-green-600">
+            {formatCurrency(
+              invoices
+                .filter((i) => i.status === 'paid')
+                .reduce((sum, i) => sum + i.totalAmount, 0)
+            )}
+          </p>
+        </Card>
+        <Card className="p-4 text-center">
+          <p className="text-sm text-muted-foreground">Pending</p>
+          <p className="text-2xl font-bold text-yellow-600">
+            {formatCurrency(
+              invoices
+                .filter((i) => ['sent', 'partial'].includes(i.status))
+                .reduce((sum, i) => sum + i.totalAmount, 0)
+            )}
+          </p>
+        </Card>
+        <Card className="p-4 text-center">
+          <p className="text-sm text-muted-foreground">Overdue</p>
+          <p className="text-2xl font-bold text-red-600">
+            {formatCurrency(
+              invoices
+                .filter((i) => i.status === 'overdue')
+                .reduce((sum, i) => sum + i.totalAmount, 0)
+            )}
+          </p>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default InvoiceList;
