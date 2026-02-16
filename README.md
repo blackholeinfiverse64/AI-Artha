@@ -84,6 +84,21 @@ docker-compose -f docker-compose.dev.yml up -d
 docker exec artha-backend-dev npm run seed
 ```
 
+4. **Git Commands**:
+```bash
+git status
+
+git add -A
+
+git commit -m "comment"
+
+git pull origin main && git pull collaborator main
+
+git push origin main && git push collaborator main
+
+```
+
+
 5. **Access application**:
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:5000
