@@ -4,53 +4,82 @@
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-18+-blue.svg)](https://reactjs.org/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-7+-green.svg)](https://www.mongodb.com/)
+[![Integrity](https://img.shields.io/badge/Integrity-Verified-brightgreen.svg)]()
 
-**ARTHA** is a comprehensive, India-compliant accounting and financial management system built on modern web technologies.
+**ARTHA** is a comprehensive, India-compliant accounting and financial management system built on modern web technologies with full double-entry bookkeeping integrity.
 
 ## 🎯 Key Features
 
 ### ✅ Core Accounting
-- **Double-Entry Ledger**: HMAC-chain verified, tamper-proof ledger system
+- **Double-Entry Ledger**: HMAC-chain verified, tamper-proof ledger system with Decimal.js precision
 - **Hash-Chain Verification**: Full ledger integrity checking with entry-by-entry verification
-- **Financial Reports**: P&L, Balance Sheet, Cash Flow, Trial Balance, Aged Receivables
-- **Dashboard**: Real-time KPIs, balance summaries, recent activities
+- **Financial Reports**: P&L with monthly trends, Balance Sheet, Cash Flow, Trial Balance, Aged Receivables
+- **Dashboard**: Real-time KPIs with Revenue vs Expenses charts and Expense Breakdown
+- **Chart of Accounts**: 33 pre-configured accounts following Indian accounting standards
+- **Account Balances**: Real-time balance calculation from posted journal entries
 
 ### ✅ India Compliance
 - **GST Integration**:
+  - Real-time GST dashboard with 6-month trends
   - GSTR-1 filing packet (outward supplies)
   - GSTR-3B filing packet (tax summary & reconciliation)
   - IGST / CGST+SGST calculation
+  - B2B/B2C categorization
   - Filing-ready JSON/CSV export
+  - Quarterly due date tracking
 
-- **TDS/PF/ESI**: Tax calculation and deduction recording
-- **Multi-Year Support**: Multiple financial years
+- **TDS Management**:
+  - Section-wise tracking (194A, 194C, 194H, 194I, 194J, 192, 194Q)
+  - Quarterly dashboard with Form 24Q/26Q/27Q status
+  - Automatic journal entry creation on deduction
+  - Challan recording and reconciliation
+  - Status workflow: Pending → Deducted → Deposited → Filed
+
+- **Multi-Year Support**: Multiple financial years with FY-based reporting
 
 ### ✅ Invoice Management
 - Invoice lifecycle: Draft → Sent → Partial → Paid → Cancelled
-- Automatic journal entry creation
-- Tax calculation per line item
-- Payment tracking and recording
+- Automatic journal entry creation on send:
+  - DR Accounts Receivable (1100)
+  - CR Revenue (4000)
+  - CR GST Payable (2200)
+- Payment recording with automatic journal entries:
+  - DR Cash/Bank (1010)
+  - CR Accounts Receivable (1100)
+- Tax calculation per line item with IGST/CGST+SGST support
+- Payment tracking with partial payment support
+- Customer GSTIN validation for B2B transactions
 
 ### ✅ Expense Management
-- Expense approval workflow
+- Expense approval workflow: Pending → Approved → Recorded → Rejected
 - **OCR Receipt Scanning**: Extract vendor, date, amount, tax from receipt images
-- Automatic expense-to-ledger posting
-- Category tracking
+- Automatic expense-to-ledger posting:
+  - DR Expense Account (6xxx)
+  - CR Cash/Bank (1010)
+- Category tracking with real-time breakdown charts
+- Multi-receipt upload support
+- Input GST credit tracking
 
 ### ✅ Production Features
 - **Hash-Chain Ledger**: Every entry linked with HMAC-SHA256 for audit trail
+- **Accounting Integrity**: Verified double-entry system (Debits = Credits)
+- **Real-time Calculations**: All reports calculated from posted journal entries
 - **Redis Caching**: Response caching and session management
 - **Docker Deployment**: Multi-container production setup
 - **Health Checks**: Liveness, readiness, and detailed health endpoints
 - **Backup & Restore**: Automated MongoDB backups with recovery scripts
 - **Monitoring**: Real-time system health dashboard
+- **Performance Optimization**: Database indexing and query optimization
 
 ### ✅ Security
 - JWT authentication with refresh tokens
-- Role-based access control (admin, accountant, user)
+- Role-based access control (admin, accountant, user, viewer)
 - Audit logging for all actions
 - Input validation and sanitization
 - CORS protection
+- Helmet security headers
+- Rate limiting
+- Non-root Docker containers
 
 ## 🚀 Quick Start
 
@@ -81,25 +110,26 @@ docker-compose -f docker-compose.dev.yml up -d
 
 4. **Seed database**:
 ```bash
-docker exec artha-backend-dev npm run seed
+cd backend
+node scripts/seed.js
+node scripts/seed-tds.js
 ```
 
-4. **Git Commands**:
+5. **Verify integrity**:
+```bash
+node scripts/verify-integrity.js
+```
+
+6. **Git Commands**:
 ```bash
 git status
-
 git add -A
-
-git commit -m "comment"
-
+git commit -m "your message"
 git pull origin main && git pull collaborator main
-
 git push origin main && git push collaborator main
-
 ```
 
-
-5. **Access application**:
+7. **Access application**:
 - Frontend: http://localhost:5173
 - Backend API: http://localhost:5000
 - Adminer: http://localhost:8080
@@ -198,6 +228,33 @@ GET /api/v1/gst/filing-packet/gstr-3b?period=2025-02
 GET /api/v1/gst/filing-packet/export?type=gstr-1&period=2025-02
 ```
 
+### TDS Management
+```bash
+# Get TDS Dashboard
+GET /api/v1/tds/dashboard?quarter=Q4&financialYear=FY2025-26
+
+# Get TDS Entries
+GET /api/v1/tds/entries?quarter=Q4&financialYear=FY2025-26
+
+# Create TDS Entry
+POST /api/v1/tds/entries
+Body: { deductee: { name, pan }, section, paymentAmount, tdsRate }
+
+# Record TDS Deduction
+POST /api/v1/tds/entries/:id/deduct
+
+# Record Challan
+POST /api/v1/tds/entries/:id/challan
+Body: { challanNumber, challanDate, bankBSR }
+
+# Generate Form 26Q
+GET /api/v1/tds/form26q?quarter=Q4&financialYear=FY2025-26
+
+# Calculate TDS
+POST /api/v1/tds/calculate
+Body: { amount, section, customRate }
+```
+
 ### Reports
 ```bash
 # Profit & Loss
@@ -212,8 +269,17 @@ GET /api/v1/reports/cash-flow?startDate=2025-01-01&endDate=2025-12-31
 # Trial Balance
 GET /api/v1/reports/trial-balance?asOfDate=2025-12-31
 
+# Aged Receivables
+GET /api/v1/reports/aged-receivables?asOfDate=2025-12-31
+
 # Dashboard Summary
 GET /api/v1/reports/dashboard
+
+# Revenue vs Expenses Chart
+GET /api/v1/reports/revenue-expenses-chart?year=2025
+
+# Expense Breakdown
+GET /api/v1/reports/expense-breakdown?startDate=2025-01-01&endDate=2025-12-31
 ```
 
 ### Health & Monitoring
@@ -231,257 +297,138 @@ GET /ready
 GET /live
 ```
 
-## API Endpoints (Legacy)
+## 🔄 Data Flow & Integrity
 
-### Authentication (Legacy)
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login user
-- `GET /api/auth/me` - Get current user (requires auth)
-- `POST /api/auth/logout` - Logout user
+### Invoice Workflow
+1. **Create Invoice (Draft)**: No accounting impact
+2. **Send Invoice**: Creates journal entry
+   - DR Accounts Receivable (1100): ₹Total Amount
+   - CR Revenue (4000): ₹Subtotal
+   - CR GST Payable (2200): ₹Tax Amount
+3. **Record Payment**: Creates journal entry
+   - DR Cash/Bank (1010): ₹Payment Amount
+   - CR Accounts Receivable (1100): ₹Payment Amount
+4. **Status Updates**: Draft → Sent → Partial → Paid
 
-### Authentication (V1)
-- `POST /api/v1/auth/register` - Register new user (enhanced)
-- `POST /api/v1/auth/login` - Login user (enhanced)
-- `GET /api/v1/auth/me` - Get current user (enhanced)
-- `POST /api/v1/auth/logout` - Logout user
+### Expense Workflow
+1. **Create Expense**: Status = Pending
+2. **Approve Expense**: Status = Approved
+3. **Record Expense**: Creates journal entry
+   - DR Expense Account (6xxx): ₹Total Amount
+   - CR Cash/Bank (1010): ₹Total Amount
+4. **Status**: Pending → Approved → Recorded
 
-### Chart of Accounts
-- `GET /api/v1/accounts` - Get all accounts with filters
-- `GET /api/v1/accounts/:id` - Get single account
-- `POST /api/v1/accounts` - Create new account (admin/accountant)
-- `PUT /api/v1/accounts/:id` - Update account (admin/accountant)
-- `DELETE /api/v1/accounts/:id` - Deactivate account (admin)
-- `POST /api/v1/accounts/seed` - Seed default accounts (admin)
+### TDS Workflow
+1. **Create TDS Entry**: Status = Pending
+2. **Record Deduction**: Creates journal entry
+   - DR Expense Account: ₹Payment Amount
+   - CR TDS Payable (2300): ₹TDS Amount
+   - CR Cash/Bank: ₹Net Payable
+3. **Record Challan**: Status = Deposited
+4. **File Return**: Status = Filed
 
-### Ledger Management
-- `GET /api/v1/ledger/entries` - Get journal entries with filters
-- `GET /api/v1/ledger/entries/:id` - Get single journal entry
-- `POST /api/v1/ledger/entries` - Create journal entry (admin/accountant)
-- `POST /api/v1/ledger/entries/:id/post` - Post journal entry (admin/accountant)
-- `POST /api/v1/ledger/entries/:id/void` - Void journal entry (admin/accountant)
-- `GET /api/v1/ledger/balances` - Get account balances
-- `GET /api/v1/ledger/summary` - Get ledger summary
-- `GET /api/v1/ledger/verify` - Verify ledger integrity (admin)
+### GST Calculation
+- **Output GST**: Sum of taxAmount from sent/paid invoices
+- **Input GST**: Sum of taxAmount from recorded expenses
+- **Net Payable**: Output GST - Input GST
+- **B2B/B2C**: Categorized by customer GSTIN presence
 
-### Legacy Ledger Routes (Backward Compatibility)
-- `GET /api/v1/ledger/journal-entries` - Get journal entries (legacy)
-- `POST /api/v1/ledger/journal-entries` - Create journal entry (legacy)
-- `GET /api/v1/ledger/journal-entries/:id` - Get single journal entry (legacy)
-- `POST /api/v1/ledger/journal-entries/:id/post` - Post journal entry (legacy)
-- `POST /api/v1/ledger/journal-entries/:id/void` - Void journal entry (legacy)
-- `GET /api/v1/ledger/verify-chain` - Verify ledger integrity (legacy)
+### Report Generation
+- **Balance Sheet**: Real-time from account balances (Assets = Liabilities + Equity)
+- **P&L Statement**: Real-time from Income/Expense accounts
+- **Trial Balance**: All accounts with debit/credit totals (must balance)
+- **Aged Receivables**: From unpaid/partial invoices with aging buckets
+- **Cash Flow**: Categorized by Operating/Investing/Financing activities
 
-### Reports
-- `GET /api/v1/reports/general-ledger` - Export General Ledger as PDF (admin/accountant)
+## ✅ Integrity Verification
 
-### Invoices
-- `GET /api/v1/invoices` - Get all invoices with filters (admin/accountant/manager)
-- `GET /api/v1/invoices/stats` - Get invoice statistics (admin/accountant/manager)
-- `GET /api/v1/invoices/:id` - Get single invoice (admin/accountant/manager)
-- `POST /api/v1/invoices` - Create new invoice (admin/accountant)
-- `PUT /api/v1/invoices/:id` - Update invoice (admin/accountant)
-- `POST /api/v1/invoices/:id/send` - Send invoice and create AR entry (admin/accountant)
-- `POST /api/v1/invoices/:id/payment` - Record payment for invoice (admin/accountant)
-- `POST /api/v1/invoices/:id/cancel` - Cancel invoice (admin/accountant)
-
-### Expenses
-- `GET /api/v1/expenses` - Get all expenses with filters (admin/accountant/manager)
-- `GET /api/v1/expenses/stats` - Get expense statistics (admin/accountant/manager)
-- `GET /api/v1/expenses/:id` - Get single expense (admin/accountant/manager/owner)
-- `POST /api/v1/expenses` - Create new expense with receipt uploads (all users)
-- `PUT /api/v1/expenses/:id` - Update expense with additional receipts (admin/accountant/owner)
-- `POST /api/v1/expenses/:id/approve` - Approve expense (admin/accountant)
-- `POST /api/v1/expenses/:id/reject` - Reject expense (admin/accountant)
-- `POST /api/v1/expenses/:id/record` - Record expense in ledger (admin/accountant)
-- `DELETE /api/v1/expenses/:id/receipts/:receiptId` - Delete receipt (admin/accountant/owner)
-
-### InsightFlow (RL Experience Buffer)
-- `POST /api/v1/insightflow/experience` - Log RL experience data (all authenticated users)
-- `GET /api/v1/insightflow/experiences` - Get RL experiences with filters (admin)
-- `GET /api/v1/insightflow/stats` - Get RL experience statistics (admin)
-
-### Performance Monitoring
-- `GET /api/v1/performance/metrics` - Get performance metrics (admin)
-- `GET /api/v1/performance/health` - Get performance health status (admin)
-- `POST /api/v1/performance/reset` - Reset performance metrics (admin)
-
-### Database Optimization
-- `GET /api/v1/database/stats` - Get database statistics (admin)
-- `GET /api/v1/database/collections` - Get collection statistics (admin)
-- `GET /api/v1/database/indexes` - Get index information (admin)
-- `POST /api/v1/database/indexes` - Create all indexes (admin)
-- `GET /api/v1/database/optimize` - Get optimization suggestions (admin)
-
-### Health Check
-- `GET /health` - Main API health status
-- `GET /health/detailed` - Comprehensive system health
-- `GET /ready` - Readiness probe (Kubernetes)
-- `GET /live` - Liveness probe (Kubernetes)
-- `GET /metrics` - Public performance metrics
-- `GET /status` - System component status
-- `GET /api/health` - Legacy health status
--
-
-
-
-## 🏢 Architecture
-
+Run the integrity verification script:
+```bash
+cd backend
+node scripts/verify-integrity.js
 ```
-artha/
-├── backend/
-│   ├── src/
-│   │   ├── controllers/    # API controllers
-│   │   ├── services/       # Business logic
-│   │   ├── models/         # MongoDB schemas
-│   │   ├── routes/         # API routes
-│   │   ├── middleware/     # Auth, validation, logging
-│   │   └── config/         # Configuration
-│   ├── tests/              # Test suites
-│   ├── scripts/            # Utilities (seed, backup)
-│   └── Dockerfile.prod     # Production image
-│
-├── frontend/
-│   ├── src/
-│   │   ├── pages/          # Route pages
-│   │   ├── components/     # Reusable components
-│   │   ├── services/       # API clients
-│   │   └── App.jsx         # Main component
-│   └── Dockerfile.prod     # Production image
-│
-├── docs/
-│   ├── DEPLOYMENT.md       # Deployment guide
-│   └── PRAVAH_DEPLOYMENT.md # Pravah-specific guide
-│
-└── docker-compose*.yml     # Dev/prod orchestration
-```
+
+This verifies:
+- ✓ All sent invoices have journal entries
+- ✓ All paid invoices have payment entries
+- ✓ Accounting equation: Debits = Credits
+- ✓ Account balances match journal entries
+- ✓ GST calculations match invoice data
+- ✓ Reports pull from real-time data
+
+## 🏗️ Architecture
+
+### Backend Stack
+- **Node.js 18+** with Express.js
+- **MongoDB 7+** with Mongoose ODM
+- **Redis 7+** for caching
+- **Decimal.js** for precise financial calculations
+- **HMAC-SHA256** for ledger hash-chain
+- **JWT** for authentication
+
+### Frontend Stack
+- **React 18+** with Vite
+- **Recharts** for data visualization
+- **Tailwind CSS** for styling
+- **React Router** for navigation
+- **Axios** for API calls
+
+### Database Models (11)
+1. User
+2. ChartOfAccounts
+3. JournalEntry
+4. AccountBalance
+5. Invoice
+6. Expense
+7. TDSEntry
+8. AuditLog
+9. Settings
+10. FinancialYear
+11. InsightFlowExperience
+
+### Key Services (20+)
+- Authentication Service
+- Ledger Service
+- Invoice Service
+- Expense Service
+- TDS Service
+- GST Filing Service
+- Financial Reports Service
+- Export Service
+- Health Service
+- Performance Service
+
+## 📊 Sample Data
+
+After seeding, you'll have:
+- **33 Chart of Accounts** (Assets, Liabilities, Equity, Income, Expenses)
+- **Sample Invoices** with automatic journal entries
+- **Sample Expenses** with approval workflow
+- **6 TDS Entries** (Q4 FY2025-26)
+- **Posted Journal Entries** maintaining double-entry integrity
 
 ## 🧪 Testing
 
-### Run all tests:
 ```bash
-./scripts/run-all-tests.sh
+# Run all tests
+npm run test
+
+# Run specific tests
+npm run test:ledger
+npm run test:invoice
+npm run test:gst
 ```
 
-### Run specific tests:
-```bash
-npm run test:ledger      # Ledger hash-chain tests
-npm run test:ocr         # OCR pipeline tests
-npm run test:gst         # GST filing tests
-npm run test:all         # Full coverage
-```
-
-### Test Coverage:
-- Authentication & Authorization (✓)
-- Ledger Hash-Chain Verification (✓)
-- Invoice Workflow (✓)
-- Expense OCR Pipeline (✓)
-- GST Filing Packets (✓)
-- Financial Reports (✓)
-- Health Checks (✓)
-
-## 🔐 Security Checklist
-
-- [x] JWT authentication with refresh tokens
-- [x] Role-based access control
-- [x] Input validation & sanitization
-- [x] HMAC-based ledger tamper-proofing
-- [x] Audit logging for all actions
-- [x] Rate limiting
-- [x] CORS protection
-- [x] Helmet security headers
-- [x] Non-root Docker containers
-- [x] Secrets management (env-based)
-
-## 📈 Production Readiness
-
-- [x] Multi-container Docker setup
-- [x] MongoDB replica set support
-- [x] Redis caching layer
-- [x] Load balancing ready
-- [x] Health check endpoints
-- [x] Automated backups
-- [x] Comprehensive logging
-- [x] Error handling
-- [x] Database indexing optimization
-- [x] Performance monitoring
-
-## 📏 Features Added in Completion Sprint
-
-### Day 1: Ledger Hash-Chain Hardening ✅
-- Full HMAC-SHA256 hash-chain implementation
-- Entry-by-entry verification
-- Chain segment audit queries
-- Tamper detection
-
-### Day 2: Expense OCR Pipeline ✅
-- Receipt image processing
-- Vendor, date, amount extraction
-- Confidence scoring
-- Fallback to mock OCR (development)
-- Integration with expense creation
-
-### Day 3: GST Filing Packets ✅
-- GSTR-1 generation (outward supplies)
-- GSTR-3B generation (tax summary)
-- CSV export functionality
-- Period-based filing packets
-
-### Day 4: CI/CD & Pravah Documentation ✅
-- Complete Pravah deployment guide
-- Build → Test → Deploy → Verify pipeline
-- Secrets management guide
-- Health check configuration
-
-### Day 5-6: Testing & Frontend UX ✅
-- Full integration test suite
-- Ledger integrity status widget
-- GST summary & export component
-- OCR receipt scanning UI
-
-### Day 7: Polish & Submission ✅
-- Comprehensive README
-- Test execution scripts
-- Documentation review
-- Final code quality checks
-
-## 📆 Documentation
-
-- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Full production deployment guide
-- **[docs/PRAVAH_DEPLOYMENT.md](docs/PRAVAH_DEPLOYMENT.md)** - Pravah platform setup
-- **[API Documentation](#-api-documentation)** - REST API reference
-- **[Architecture](#-architecture)** - System design
-
-## 🐛 Troubleshooting
-
-### MongoDB connection issues
-```bash
-docker-compose -f docker-compose.dev.yml logs mongodb
-docker exec artha-mongo-dev mongosh --eval "rs.status()"
-```
-
-### Backend won't start
-```bash
-docker logs artha-backend-dev --tail 100
-# Check .env variables are set correctly
-```
-
-### Frontend blank/not loading
-```bash
-# Check browser console for errors
-# Verify API URL in .env
-# Check CORS settings
-```
-
-## 📄 License
+## 📝 License
 
 Proprietary - BHIV Inc.
 
-## 👥 Team
+## 👥 Contributors
 
 - **Nilesh** - Architecture & Coordination
-- **Ishan** - InsightFlow & Compliance Alignment
-- **Akash** - APIs & OCR Integration
-- **You** - Full Stack Development
+- **Ishan** - InsightFlow & Compliance
+- **Akash** - APIs & Integration
+- **Development Team** - Full Stack Implementation
 
 ## 📞 Support
 
@@ -491,7 +438,7 @@ For issues and support:
 
 ---
 
-**Last Updated**: December 5, 2025
-**Status**: Production Ready v0.1#   A I - A r t h a 
- 
- 
+**Last Updated**: February 19, 2025  
+**Version**: 0.1  
+**Status**: Production Ready ✓  
+**Integrity**: Verified ✓

@@ -5,9 +5,9 @@ import {
   getGSTReturns,
   fileGSTReturn,
   validateGSTIN,
+  getGSTSummary as getGSTSummaryController,
 } from '../controllers/gst.controller.js';
 import {
-  getGSTSummary,
   getGSTR1FilingPacket,
   getGSTR3BFilingPacket,
   exportFilingPacket,
@@ -43,12 +43,10 @@ router.route('/returns/:id/file').post(
 
 router.route('/validate-gstin').post(validateGSTIN);
 
-// GST Filing routes
-router.route('/summary').get(
-  authorize('accountant', 'admin'),
-  getGSTSummary
-);
+// GST Summary for dashboard
+router.route('/summary').get(getGSTSummaryController);
 
+// GST Filing routes
 router.route('/filing-packet/gstr-1').get(
   authorize('accountant', 'admin'),
   getGSTR1FilingPacket

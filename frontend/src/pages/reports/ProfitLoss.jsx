@@ -84,48 +84,53 @@ const ProfitLoss = () => {
     setLoading(true);
     try {
       const { startDate, endDate } = getPeriodDates(period);
-      const response = await api.get(`/reports/profit-loss?startDate=${startDate}&endDate=${endDate}`);
-      setData(response.data.data);
-    } catch (error) {
-      console.error('Failed to fetch P&L:', error);
-      // Sample data
+      const [plResponse, chartResponse] = await Promise.all([
+        api.get(`/reports/profit-loss?startDate=${startDate}&endDate=${endDate}`),
+        api.get(`/reports/revenue-expenses-chart?year=${new Date(startDate).getFullYear()}`)
+      ]);
+      
+      const rawData = plResponse.data.data;
+      const chartData = chartResponse.data.data || [];
+      
+      // Transform backend data to frontend format
+      const totalIncome = parseFloat(rawData.income?.total || 0);
+      const totalExpenses = parseFloat(rawData.expenses?.total || 0);
+      const netProfit = parseFloat(rawData.netIncome || 0);
+      const profitMargin = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
+      
       setData({
-        period: 'FY 2025-26',
-        startDate: '2025-04-01',
-        endDate: '2026-03-31',
+        period: `${startDate} to ${endDate}`,
         income: {
-          total: 1700000,
-          items: [
-            { name: 'Sales Revenue', amount: 1250000 },
-            { name: 'Service Revenue', amount: 450000 },
-          ],
+          total: totalIncome,
+          items: (rawData.income?.accounts || []).map(acc => ({
+            name: acc.name,
+            amount: parseFloat(acc.amount || 0)
+          }))
         },
         expenses: {
-          total: 1120000,
-          items: [
-            { name: 'Cost of Goods Sold', amount: 620000 },
-            { name: 'Salaries & Wages', amount: 380000 },
-            { name: 'Rent Expense', amount: 96000 },
-            { name: 'Utilities', amount: 24000 },
-          ],
+          total: totalExpenses,
+          items: (rawData.expenses?.accounts || []).map(acc => ({
+            name: acc.name,
+            amount: parseFloat(acc.amount || 0)
+          }))
         },
-        grossProfit: 1080000,
-        operatingExpenses: 500000,
-        netProfit: 580000,
-        profitMargin: 34.12,
-        monthlyData: [
-          { month: 'Apr', income: 140000, expenses: 95000, profit: 45000 },
-          { month: 'May', income: 155000, expenses: 98000, profit: 57000 },
-          { month: 'Jun', income: 148000, expenses: 92000, profit: 56000 },
-          { month: 'Jul', income: 162000, expenses: 105000, profit: 57000 },
-          { month: 'Aug', income: 175000, expenses: 110000, profit: 65000 },
-          { month: 'Sep', income: 168000, expenses: 102000, profit: 66000 },
-          { month: 'Oct', income: 145000, expenses: 88000, profit: 57000 },
-          { month: 'Nov', income: 152000, expenses: 95000, profit: 57000 },
-          { month: 'Dec', income: 165000, expenses: 100000, profit: 65000 },
-          { month: 'Jan', income: 130000, expenses: 85000, profit: 45000 },
-          { month: 'Feb', income: 160000, expenses: 150000, profit: 10000 },
-        ],
+        netProfit,
+        profitMargin,
+        monthlyData: chartData.map(item => ({
+          month: item.month,
+          income: item.revenue,
+          expenses: item.expenses
+        }))
+      });
+    } catch (error) {
+      console.error('Failed to fetch P&L:', error);
+      toast.error('Failed to load Profit & Loss report');
+      setData({
+        income: { total: 0, items: [] },
+        expenses: { total: 0, items: [] },
+        netProfit: 0,
+        profitMargin: 0,
+        monthlyData: []
       });
     } finally {
       setLoading(false);
@@ -265,47 +270,49 @@ const ProfitLoss = () => {
         </Card>
       </div>
 
-      {/* Chart */}
-      <Card>
-        <h2 className="text-lg font-semibold text-foreground mb-4">Monthly Trend</h2>
-        <div className="h-80">
-          <ResponsiveContainer>
-            <AreaChart data={data?.monthlyData || []}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: '#6B7280', fontSize: 12 }} />
-              <YAxis
-                tick={{ fill: '#6B7280', fontSize: 12 }}
-                tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}K`}
-              />
-              <Tooltip
-                formatter={(value) => formatCurrency(value)}
-                contentStyle={{
-                  backgroundColor: 'white',
-                  border: '1px solid #E5E7EB',
-                  borderRadius: '8px',
-                }}
-              />
-              <Legend />
-              <Area
-                type="monotone"
-                dataKey="income"
-                name="Income"
-                stroke="#10B981"
-                fill="#D1FAE5"
-                strokeWidth={2}
-              />
-              <Area
-                type="monotone"
-                dataKey="expenses"
-                name="Expenses"
-                stroke="#EF4444"
-                fill="#FEE2E2"
-                strokeWidth={2}
-              />
-            </AreaChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
+      {/* Chart - Monthly Trend */}
+      {data?.monthlyData?.length > 0 && (
+        <Card>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Monthly Trend</h2>
+          <div className="h-80">
+            <ResponsiveContainer>
+              <AreaChart data={data.monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="month" tick={{ fill: '#6B7280', fontSize: 12 }} />
+                <YAxis
+                  tick={{ fill: '#6B7280', fontSize: 12 }}
+                  tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}K`}
+                />
+                <Tooltip
+                  formatter={(value) => formatCurrency(value)}
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: '8px',
+                  }}
+                />
+                <Legend />
+                <Area
+                  type="monotone"
+                  dataKey="income"
+                  name="Income"
+                  stroke="#10B981"
+                  fill="#D1FAE5"
+                  strokeWidth={2}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="expenses"
+                  name="Expenses"
+                  stroke="#EF4444"
+                  fill="#FEE2E2"
+                  strokeWidth={2}
+                />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
 
       {/* Detailed Statement */}
       <Card>

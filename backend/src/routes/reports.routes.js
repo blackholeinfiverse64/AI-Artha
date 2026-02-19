@@ -12,6 +12,8 @@ import {
   exportBalanceSheetPDF,
   exportCashFlowPDF,
   exportTrialBalancePDF,
+  getRevenueExpensesChart,
+  getExpenseBreakdown,
 } from '../controllers/reports.controller.js';
 import { protect } from '../middleware/auth.js';
 
@@ -33,5 +35,7 @@ router.route('/trial-balance/export').get(exportTrialBalancePDF);
 router.route('/aged-receivables').get(getAgedReceivables);
 router.route('/dashboard').get(getDashboardSummary);
 router.route('/kpis').get(getKPIs);
+router.route('/revenue-expenses-chart').get(getRevenueExpensesChart);
+router.route('/expense-breakdown').get(getExpenseBreakdown);
 
 export default router;

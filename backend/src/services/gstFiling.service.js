@@ -202,23 +202,140 @@ class GSTFilingService {
   }
 
   /**
-   * Get GST summary for period
+   * Get GST summary for period (Dashboard)
    */
   async getGSTSummary(period) {
     try {
-      const gstr1 = await this.generateGSTR1FilingPacket(period);
-      const gstr3b = await this.generateGSTR3BFilingPacket(period);
+      const [year, month] = period.split('-');
+      const startDate = new Date(`${year}-${month}-01`);
+      const endDate = new Date(year, parseInt(month), 0);
+
+      // Get invoices for the period
+      const invoices = await Invoice.find({
+        invoiceDate: { $gte: startDate, $lte: endDate },
+        status: { $in: ['sent', 'partial', 'paid'] },
+      }).lean();
+
+      // Get expenses for the period
+      const expenses = await Expense.find({
+        date: { $gte: startDate, $lte: endDate },
+        status: 'recorded',
+      }).lean();
+
+      // Calculate output GST (from invoices)
+      let outputGST = new Decimal(0);
+      let b2bCount = 0;
+      let b2bTaxable = new Decimal(0);
+      let b2bTax = new Decimal(0);
+      let b2cCount = 0;
+      let b2cTaxable = new Decimal(0);
+      let b2cTax = new Decimal(0);
+      let exportCount = 0;
+      let exportTaxable = new Decimal(0);
+
+      invoices.forEach(invoice => {
+        const taxAmount = new Decimal(invoice.taxAmount || 0);
+        const taxableAmount = new Decimal(invoice.totalAmount || 0).minus(taxAmount);
+        outputGST = outputGST.plus(taxAmount);
+
+        if (invoice.customerGSTIN) {
+          b2bCount++;
+          b2bTaxable = b2bTaxable.plus(taxableAmount);
+          b2bTax = b2bTax.plus(taxAmount);
+        } else {
+          b2cCount++;
+          b2cTaxable = b2cTaxable.plus(taxableAmount);
+          b2cTax = b2cTax.plus(taxAmount);
+        }
+      });
+
+      // Calculate input GST (from expenses)
+      let inputGST = new Decimal(0);
+      expenses.forEach(expense => {
+        const taxAmount = new Decimal(expense.taxAmount || 0);
+        inputGST = inputGST.plus(taxAmount);
+      });
+
+      // Calculate net payable
+      const netPayable = outputGST.minus(inputGST);
+      const previousCredit = new Decimal(0); // TODO: Get from previous period
+      const finalPayable = netPayable.minus(previousCredit);
+
+      // Get last 6 months data for trend
+      const monthlyData = [];
+      for (let i = 5; i >= 0; i--) {
+        const trendDate = new Date(year, parseInt(month) - 1 - i, 1);
+        const trendEndDate = new Date(year, parseInt(month) - i, 0);
+        
+        const monthInvoices = await Invoice.find({
+          invoiceDate: { $gte: trendDate, $lte: trendEndDate },
+          status: { $in: ['sent', 'partial', 'paid'] },
+        }).lean();
+
+        const monthExpenses = await Expense.find({
+          date: { $gte: trendDate, $lte: trendEndDate },
+          status: 'recorded',
+        }).lean();
+
+        let monthOutput = new Decimal(0);
+        monthInvoices.forEach(inv => {
+          monthOutput = monthOutput.plus(inv.taxAmount || 0);
+        });
+
+        let monthInput = new Decimal(0);
+        monthExpenses.forEach(exp => {
+          monthInput = monthInput.plus(exp.taxAmount || 0);
+        });
+
+        const monthNet = monthOutput.minus(monthInput);
+
+        monthlyData.push({
+          month: trendDate.toLocaleString('default', { month: 'short' }),
+          output: parseFloat(monthOutput.toString()),
+          input: parseFloat(monthInput.toString()),
+          net: parseFloat(monthNet.toString()),
+        });
+      }
+
+      // Calculate due dates
+      const nextMonth = new Date(year, parseInt(month), 1);
+      const gstr1DueDate = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 11);
+      const gstr3bDueDate = new Date(nextMonth.getFullYear(), nextMonth.getMonth(), 20);
 
       return {
-        period,
-        generatedAt: new Date().toISOString(),
-        gstr1Summary: gstr1.summary,
-        gstr3bNetLiability: gstr3b.netLiability,
-        combined: {
-          totalOutwardTax: gstr1.summary.totalTaxCollected,
-          totalInwardCredit: gstr3b.inwardSupplies.totalInputCredit,
-          netTaxPayable: gstr3b.netLiability.totalPayable,
+        summary: {
+          outputGST: parseFloat(outputGST.toString()),
+          inputGST: parseFloat(inputGST.toString()),
+          netPayable: parseFloat(netPayable.toString()),
+          previousCredit: parseFloat(previousCredit.toString()),
+          finalPayable: parseFloat(finalPayable.toString()),
         },
+        currentMonth: {
+          period: `${new Date(year, parseInt(month) - 1).toLocaleString('default', { month: 'long' })} ${year}`,
+          gstr1DueDate: gstr1DueDate.toISOString(),
+          gstr3bDueDate: gstr3bDueDate.toISOString(),
+          gstr1Status: 'not_filed',
+          gstr3bStatus: 'not_filed',
+        },
+        monthlyData,
+        invoicesSummary: {
+          b2b: {
+            count: b2bCount,
+            taxable: parseFloat(b2bTaxable.toString()),
+            tax: parseFloat(b2bTax.toString()),
+          },
+          b2c: {
+            count: b2cCount,
+            taxable: parseFloat(b2cTaxable.toString()),
+            tax: parseFloat(b2cTax.toString()),
+          },
+          exports: {
+            count: exportCount,
+            taxable: parseFloat(exportTaxable.toString()),
+            tax: 0,
+          },
+        },
+        returns: [], // TODO: Get from GSTReturn model
       };
     } catch (error) {
       logger.error('Get GST summary error:', error);

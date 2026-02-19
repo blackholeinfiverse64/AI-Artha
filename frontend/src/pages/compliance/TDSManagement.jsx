@@ -41,7 +41,7 @@ const TDSManagement = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
   const [quarter, setQuarter] = useState('Q4');
-  const [year, setYear] = useState('2025-26');
+  const [year, setYear] = useState('FY2025-26');
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -55,107 +55,34 @@ const TDSManagement = () => {
   const fetchTDSData = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/tds/summary?quarter=${quarter}&financialYear=${year}`);
-      setData(response.data.data);
+      console.log('Fetching TDS data:', { quarter, year });
+      const response = await api.get(`/tds/dashboard?quarter=${quarter}&financialYear=${year}`);
+      console.log('TDS API Response:', response.data);
+      const apiData = response.data.data;
+      
+      setData({
+        summary: apiData.summary,
+        bySection: apiData.bySection,
+        entries: apiData.entries,
+        filingStatus: apiData.filingStatus,
+      });
     } catch (error) {
       console.error('Failed to fetch TDS data:', error);
-      // Sample data
+      console.error('Error details:', error.response?.data);
+      toast.error('Failed to load TDS data');
       setData({
         summary: {
-          totalDeducted: 485000,
-          totalPaid: 390000,
-          pendingPayment: 95000,
-          pendingCount: 12,
+          totalDeducted: 0,
+          totalPaid: 0,
+          pendingPayment: 0,
+          pendingCount: 0,
         },
-        bySection: [
-          { section: '194A', name: 'Interest', deducted: 125000, paid: 110000, pending: 15000 },
-          { section: '194C', name: 'Contractor', deducted: 180000, paid: 160000, pending: 20000 },
-          { section: '194J', name: 'Professional', deducted: 95000, paid: 70000, pending: 25000 },
-          { section: '194H', name: 'Commission', deducted: 45000, paid: 30000, pending: 15000 },
-          { section: '194I', name: 'Rent', deducted: 40000, paid: 20000, pending: 20000 },
-        ],
-        entries: [
-          {
-            _id: '1',
-            deductee: 'ABC Consultants',
-            pan: 'ABCDE1234F',
-            section: '194J',
-            amount: 100000,
-            tdsRate: 10,
-            tdsAmount: 10000,
-            deductionDate: '2026-02-05',
-            dueDate: '2026-03-07',
-            status: 'pending',
-          },
-          {
-            _id: '2',
-            deductee: 'XYZ Contractors',
-            pan: 'XYZAB5678C',
-            section: '194C',
-            amount: 250000,
-            tdsRate: 2,
-            tdsAmount: 5000,
-            deductionDate: '2026-02-10',
-            dueDate: '2026-03-07',
-            status: 'pending',
-          },
-          {
-            _id: '3',
-            deductee: 'Metro Properties',
-            pan: 'METRO9012P',
-            section: '194I',
-            amount: 100000,
-            tdsRate: 10,
-            tdsAmount: 10000,
-            deductionDate: '2026-02-01',
-            dueDate: '2026-03-07',
-            status: 'pending',
-          },
-          {
-            _id: '4',
-            deductee: 'Sales Agent Co.',
-            pan: 'SALES3456A',
-            section: '194H',
-            amount: 75000,
-            tdsRate: 5,
-            tdsAmount: 3750,
-            deductionDate: '2026-02-08',
-            dueDate: '2026-03-07',
-            status: 'pending',
-          },
-          {
-            _id: '5',
-            deductee: 'Finance Corp',
-            pan: 'FINCO7890F',
-            section: '194A',
-            amount: 200000,
-            tdsRate: 10,
-            tdsAmount: 20000,
-            deductionDate: '2026-01-15',
-            dueDate: '2026-02-07',
-            status: 'paid',
-            paidDate: '2026-02-05',
-            challanNo: 'CHL202602050001',
-          },
-          {
-            _id: '6',
-            deductee: 'Tech Solutions Ltd',
-            pan: 'TECHS1234T',
-            section: '194J',
-            amount: 150000,
-            tdsRate: 10,
-            tdsAmount: 15000,
-            deductionDate: '2026-01-20',
-            dueDate: '2026-02-07',
-            status: 'paid',
-            paidDate: '2026-02-06',
-            challanNo: 'CHL202602060001',
-          },
-        ],
+        bySection: [],
+        entries: [],
         filingStatus: {
-          form24Q: { status: 'pending', dueDate: '2026-05-15' },
-          form26Q: { status: 'pending', dueDate: '2026-05-15' },
-          form27Q: { status: 'not_applicable' },
+          form24Q: { status: 'pending', dueDate: null },
+          form26Q: { status: 'pending', dueDate: null },
+          form27Q: { status: 'not_applicable', dueDate: null },
         },
       });
     } finally {
@@ -168,23 +95,20 @@ const TDSManagement = () => {
       const response = await api.get(`/tds/form26q?quarter=${quarter}&financialYear=${year}`);
       
       // Convert JSON data to CSV
-      const data = response.data.data;
-      if (!data || !data.entries || data.entries.length === 0) {
+      const formData = response.data.data;
+      if (!formData || !formData.deductees || formData.deductees.length === 0) {
         toast.error('No TDS data available for export');
         return;
       }
       
       // Create CSV content
-      const headers = ['Deductee', 'PAN', 'Section', 'Amount', 'TDS Rate', 'TDS Amount', 'Deduction Date', 'Status'];
-      const rows = data.entries.map(entry => [
-        entry.deductee?.name || '',
-        entry.deductee?.pan || '',
-        entry.section || '',
-        entry.paymentAmount || 0,
-        entry.tdsRate || 0,
-        entry.tdsAmount || 0,
-        entry.transactionDate ? new Date(entry.transactionDate).toLocaleDateString() : '',
-        entry.status || ''
+      const headers = ['Deductee', 'PAN', 'Total Payment', 'Total TDS', 'Entries'];
+      const rows = formData.deductees.map(deductee => [
+        deductee.name || '',
+        deductee.pan || '',
+        deductee.totalPayment || 0,
+        deductee.totalTDS || 0,
+        deductee.entries?.length || 0
       ]);
       
       const csvContent = [
@@ -217,8 +141,8 @@ const TDSManagement = () => {
   ];
 
   const yearOptions = [
-    { value: '2025-26', label: 'FY 2025-26' },
-    { value: '2024-25', label: 'FY 2024-25' },
+    { value: 'FY2025-26', label: 'FY 2025-26' },
+    { value: 'FY2024-25', label: 'FY 2024-25' },
   ];
 
   const statusOptions = [

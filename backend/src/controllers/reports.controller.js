@@ -166,6 +166,56 @@ export const getDashboardSummary = async (req, res) => {
   }
 };
 
+// @desc    Get Revenue vs Expenses Chart
+// @route   GET /api/v1/reports/revenue-expenses-chart
+// @access  Private
+export const getRevenueExpensesChart = async (req, res) => {
+  try {
+    const { year } = req.query;
+    const chartData = await financialReportsService.generateRevenueExpensesChart(year);
+
+    res.json({
+      success: true,
+      data: chartData,
+    });
+  } catch (error) {
+    logger.error('Get revenue expenses chart error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Get Expense Breakdown Chart
+// @route   GET /api/v1/reports/expense-breakdown
+// @access  Private
+export const getExpenseBreakdown = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    if (!startDate || !endDate) {
+      return res.status(400).json({
+        success: false,
+        message: 'Start date and end date are required',
+      });
+    }
+
+    const breakdown = await financialReportsService.generateExpenseBreakdown(startDate, endDate);
+
+    res.json({
+      success: true,
+      data: breakdown,
+    });
+  } catch (error) {
+    logger.error('Get expense breakdown error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 // @desc    Generate KPIs
 // @route   GET /api/v1/reports/kpis
 // @access  Private

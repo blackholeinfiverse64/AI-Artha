@@ -6,6 +6,7 @@ import {
   recordTDSDeduction,
   recordChallanDeposit,
   getTDSSummary,
+  getTDSDashboard,
   generateForm26Q,
   calculateTDS,
 } from '../controllers/tds.controller.js';
@@ -31,6 +32,8 @@ router.use(protect);
 router.route('/calculate').post(calculateTDS);
 
 router.route('/summary').get(getTDSSummary);
+
+router.route('/dashboard').get(getTDSDashboard);
 
 router.route('/form26q').get(authorize('accountant', 'admin'), generateForm26Q);
 

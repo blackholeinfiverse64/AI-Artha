@@ -44,14 +44,7 @@ const InvoiceList = () => {
       setInvoices(response.data.data || []);
     } catch (error) {
       console.error('Failed to fetch invoices:', error);
-      // Use sample data for demo
-      setInvoices([
-        { _id: '1', invoiceNumber: 'INV-2026-0001', customer: { name: 'Acme Corp' }, totalAmount: 25000, status: 'paid', dueDate: '2026-02-15', createdAt: '2026-02-01' },
-        { _id: '2', invoiceNumber: 'INV-2026-0002', customer: { name: 'TechStart Ltd' }, totalAmount: 15500, status: 'sent', dueDate: '2026-02-20', createdAt: '2026-02-05' },
-        { _id: '3', invoiceNumber: 'INV-2026-0003', customer: { name: 'Global Industries' }, totalAmount: 42000, status: 'overdue', dueDate: '2026-01-30', createdAt: '2026-01-15' },
-        { _id: '4', invoiceNumber: 'INV-2026-0004', customer: { name: 'StartupXYZ' }, totalAmount: 8750, status: 'draft', dueDate: '2026-02-28', createdAt: '2026-02-10' },
-        { _id: '5', invoiceNumber: 'INV-2026-0005', customer: { name: 'MegaCorp India' }, totalAmount: 156000, status: 'partial', dueDate: '2026-03-01', createdAt: '2026-02-08' },
-      ]);
+      setInvoices([]);
     } finally {
       setLoading(false);
     }
@@ -72,7 +65,7 @@ const InvoiceList = () => {
   const filteredInvoices = invoices.filter((invoice) => {
     const matchesSearch =
       invoice.invoiceNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      invoice.customer?.name?.toLowerCase().includes(searchQuery.toLowerCase());
+      invoice.customerName?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = !statusFilter || invoice.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -162,7 +155,7 @@ const InvoiceList = () => {
                   <Table.Cell>
                     <span className="font-medium text-blue-600">{invoice.invoiceNumber}</span>
                   </Table.Cell>
-                  <Table.Cell>{invoice.customer?.name || '-'}</Table.Cell>
+                  <Table.Cell>{invoice.customerName || '-'}</Table.Cell>
                   <Table.Cell className="font-semibold">
                     {formatCurrency(invoice.totalAmount)}
                   </Table.Cell>
@@ -212,7 +205,7 @@ const InvoiceList = () => {
             {formatCurrency(
               invoices
                 .filter((i) => i.status === 'paid')
-                .reduce((sum, i) => sum + i.totalAmount, 0)
+                .reduce((sum, i) => sum + parseFloat(i.totalAmount || 0), 0)
             )}
           </p>
         </Card>
@@ -222,7 +215,7 @@ const InvoiceList = () => {
             {formatCurrency(
               invoices
                 .filter((i) => ['sent', 'partial'].includes(i.status))
-                .reduce((sum, i) => sum + i.totalAmount, 0)
+                .reduce((sum, i) => sum + parseFloat(i.totalAmount || 0), 0)
             )}
           </p>
         </Card>
@@ -232,7 +225,7 @@ const InvoiceList = () => {
             {formatCurrency(
               invoices
                 .filter((i) => i.status === 'overdue')
-                .reduce((sum, i) => sum + i.totalAmount, 0)
+                .reduce((sum, i) => sum + parseFloat(i.totalAmount || 0), 0)
             )}
           </p>
         </Card>

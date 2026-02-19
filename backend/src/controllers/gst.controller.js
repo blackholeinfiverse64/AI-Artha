@@ -1,4 +1,5 @@
 import gstService from '../services/gst.service.js';
+import gstFilingService from '../services/gstFiling.service.js';
 import logger from '../config/logger.js';
 
 // @desc    Generate GSTR1
@@ -131,6 +132,35 @@ export const validateGSTIN = async (req, res) => {
     });
   } catch (error) {
     logger.error('Validate GSTIN error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Get GST summary for dashboard
+// @route   GET /api/v1/gst/summary
+// @access  Private
+export const getGSTSummary = async (req, res) => {
+  try {
+    const { period } = req.query;
+    
+    if (!period) {
+      return res.status(400).json({
+        success: false,
+        message: 'Period is required (format: YYYY-MM)',
+      });
+    }
+    
+    const summary = await gstFilingService.getGSTSummary(period);
+    
+    res.json({
+      success: true,
+      data: summary,
+    });
+  } catch (error) {
+    logger.error('Get GST summary error:', error);
     res.status(500).json({
       success: false,
       message: error.message,

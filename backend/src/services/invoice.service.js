@@ -323,42 +323,75 @@ class InvoiceService {
       if (dateTo) match.invoiceDate.$lte = new Date(dateTo);
     }
     
-    const stats = await Invoice.aggregate([
-      { $match: match },
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 },
-          totalAmount: { $sum: { $toDouble: '$totalAmount' } },
+    const [stats, totalStats] = await Promise.all([
+      Invoice.aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: '$status',
+            count: { $sum: 1 },
+            totalAmount: { $sum: { $toDouble: '$totalAmount' } },
+            totalDue: {
+              $sum: {
+                $subtract: [
+                  { $toDouble: '$totalAmount' },
+                  { $toDouble: '$amountPaid' }
+                ]
+              }
+            },
+          },
         },
-      },
+      ]),
+      Invoice.aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: null,
+            totalCount: { $sum: 1 },
+            totalAmount: { $sum: { $toDouble: '$totalAmount' } },
+            totalPaid: { $sum: { $toDouble: '$amountPaid' } },
+            totalDue: {
+              $sum: {
+                $subtract: [
+                  { $toDouble: '$totalAmount' },
+                  { $toDouble: '$amountPaid' }
+                ]
+              }
+            },
+          },
+        },
+      ]),
     ]);
     
     const summary = {
-      draft: { count: 0, amount: '0' },
-      sent: { count: 0, amount: '0' },
-      partial: { count: 0, amount: '0' },
-      paid: { count: 0, amount: '0' },
-      overdue: { count: 0, amount: '0' },
-      cancelled: { count: 0, amount: '0' },
-      total: { count: 0, amount: '0' },
+      draft: { count: 0, amount: '0.00', due: '0.00' },
+      sent: { count: 0, amount: '0.00', due: '0.00' },
+      partial: { count: 0, amount: '0.00', due: '0.00' },
+      paid: { count: 0, amount: '0.00', due: '0.00' },
+      overdue: { count: 0, amount: '0.00', due: '0.00' },
+      cancelled: { count: 0, amount: '0.00', due: '0.00' },
     };
-    
-    let totalCount = 0;
-    let totalAmount = new Decimal(0);
     
     stats.forEach(stat => {
       summary[stat._id] = {
         count: stat.count,
         amount: stat.totalAmount.toFixed(2),
+        due: stat.totalDue.toFixed(2),
       };
-      totalCount += stat.count;
-      totalAmount = totalAmount.plus(stat.totalAmount);
     });
     
+    const totals = totalStats[0] || {
+      totalCount: 0,
+      totalAmount: 0,
+      totalPaid: 0,
+      totalDue: 0,
+    };
+    
     summary.total = {
-      count: totalCount,
-      amount: totalAmount.toString(),
+      count: totals.totalCount,
+      amount: totals.totalAmount.toFixed(2),
+      paid: totals.totalPaid.toFixed(2),
+      due: totals.totalDue.toFixed(2),
     };
     
     // Cache the result

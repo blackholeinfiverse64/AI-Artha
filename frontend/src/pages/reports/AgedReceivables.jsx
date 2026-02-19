@@ -49,107 +49,52 @@ const AgedReceivables = () => {
     try {
       const asOfDate = new Date().toISOString().split('T')[0];
       const response = await api.get(`/reports/aged-receivables?asOfDate=${asOfDate}`);
-      setData(response.data.data);
-    } catch (error) {
-      console.error('Failed to fetch aged receivables:', error);
-      // Sample data
+      const rawData = response.data.data;
+      
+      // Parse backend response
+      const totals = rawData.totals || {};
+      const customers = (rawData.customers || []).map(customer => ({
+        _id: customer.customerName,
+        name: customer.customerName,
+        email: customer.customerEmail,
+        total: parseFloat(customer.totalDue || 0),
+        current: parseFloat(customer.aging?.current || 0),
+        days1_30: parseFloat(customer.aging?.['1-30'] || 0),
+        days31_60: parseFloat(customer.aging?.['31-60'] || 0),
+        days61_90: parseFloat(customer.aging?.['61-90'] || 0),
+        over90: parseFloat(customer.aging?.['90+'] || 0),
+        invoices: (customer.invoices || []).map(inv => ({
+          number: inv.invoiceNumber,
+          amount: parseFloat(inv.amountDue || 0),
+          dueDate: inv.dueDate,
+          daysOverdue: inv.daysOverdue || 0,
+        })),
+      }));
+      
       setData({
         summary: {
-          total: 485000,
-          current: 180000,
-          days1_30: 120000,
-          days31_60: 95000,
-          days61_90: 55000,
-          over90: 35000,
+          total: parseFloat(totals.total || 0),
+          current: parseFloat(totals.current || 0),
+          days1_30: parseFloat(totals['1-30'] || 0),
+          days31_60: parseFloat(totals['31-60'] || 0),
+          days61_90: parseFloat(totals['61-90'] || 0),
+          over90: parseFloat(totals['90+'] || 0),
         },
-        customers: [
-          {
-            _id: '1',
-            name: 'Acme Corporation',
-            email: 'accounts@acme.com',
-            total: 125000,
-            current: 50000,
-            days1_30: 45000,
-            days31_60: 20000,
-            days61_90: 10000,
-            over90: 0,
-            invoices: [
-              { number: 'INV-2026-0001', amount: 50000, dueDate: '2026-02-20', daysOverdue: 0 },
-              { number: 'INV-2026-0005', amount: 45000, dueDate: '2026-02-01', daysOverdue: 14 },
-              { number: 'INV-2025-0125', amount: 20000, dueDate: '2026-01-10', daysOverdue: 36 },
-              { number: 'INV-2025-0098', amount: 10000, dueDate: '2025-12-15', daysOverdue: 62 },
-            ],
-          },
-          {
-            _id: '2',
-            name: 'TechStart Inc.',
-            email: 'finance@techstart.io',
-            total: 95000,
-            current: 30000,
-            days1_30: 25000,
-            days31_60: 25000,
-            days61_90: 15000,
-            over90: 0,
-            invoices: [
-              { number: 'INV-2026-0012', amount: 30000, dueDate: '2026-02-25', daysOverdue: 0 },
-              { number: 'INV-2026-0008', amount: 25000, dueDate: '2026-01-25', daysOverdue: 21 },
-              { number: 'INV-2025-0142', amount: 25000, dueDate: '2025-12-28', daysOverdue: 49 },
-              { number: 'INV-2025-0110', amount: 15000, dueDate: '2025-12-01', daysOverdue: 76 },
-            ],
-          },
-          {
-            _id: '3',
-            name: 'Global Services Ltd.',
-            email: 'ap@globalservices.com',
-            total: 85000,
-            current: 40000,
-            days1_30: 20000,
-            days31_60: 15000,
-            days61_90: 10000,
-            over90: 0,
-            invoices: [
-              { number: 'INV-2026-0015', amount: 40000, dueDate: '2026-02-28', daysOverdue: 0 },
-              { number: 'INV-2026-0009', amount: 20000, dueDate: '2026-01-28', daysOverdue: 18 },
-              { number: 'INV-2025-0136', amount: 15000, dueDate: '2025-12-30', daysOverdue: 47 },
-              { number: 'INV-2025-0102', amount: 10000, dueDate: '2025-12-05', daysOverdue: 72 },
-            ],
-          },
-          {
-            _id: '4',
-            name: 'Innovate Solutions',
-            email: 'billing@innovate.co',
-            total: 65000,
-            current: 20000,
-            days1_30: 15000,
-            days31_60: 20000,
-            days61_90: 10000,
-            over90: 0,
-            invoices: [
-              { number: 'INV-2026-0018', amount: 20000, dueDate: '2026-02-22', daysOverdue: 0 },
-              { number: 'INV-2026-0004', amount: 15000, dueDate: '2026-01-20', daysOverdue: 26 },
-              { number: 'INV-2025-0148', amount: 20000, dueDate: '2025-12-25', daysOverdue: 52 },
-              { number: 'INV-2025-0115', amount: 10000, dueDate: '2025-12-01', daysOverdue: 76 },
-            ],
-          },
-          {
-            _id: '5',
-            name: 'Metro Enterprises',
-            email: 'accounts@metro.in',
-            total: 115000,
-            current: 40000,
-            days1_30: 15000,
-            days31_60: 15000,
-            days61_90: 10000,
-            over90: 35000,
-            invoices: [
-              { number: 'INV-2026-0020', amount: 40000, dueDate: '2026-02-18', daysOverdue: 0 },
-              { number: 'INV-2026-0006', amount: 15000, dueDate: '2026-01-22', daysOverdue: 24 },
-              { number: 'INV-2025-0140', amount: 15000, dueDate: '2025-12-28', daysOverdue: 49 },
-              { number: 'INV-2025-0095', amount: 10000, dueDate: '2025-12-10', daysOverdue: 67 },
-              { number: 'INV-2025-0065', amount: 35000, dueDate: '2025-10-25', daysOverdue: 113 },
-            ],
-          },
-        ],
+        customers,
+      });
+    } catch (error) {
+      console.error('Failed to fetch aged receivables:', error);
+      toast.error('Failed to load Aged Receivables');
+      setData({
+        summary: {
+          total: 0,
+          current: 0,
+          days1_30: 0,
+          days31_60: 0,
+          days61_90: 0,
+          over90: 0,
+        },
+        customers: [],
       });
     } finally {
       setLoading(false);
