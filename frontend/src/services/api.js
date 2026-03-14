@@ -3,6 +3,9 @@ import toast from 'react-hot-toast';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 
+// Ensure API_BASE_URL doesn't end with /api/v1 to avoid double prefixing
+const cleanBaseUrl = API_BASE_URL.replace(/\/api\/v1$/, '');
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
