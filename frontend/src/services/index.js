@@ -80,12 +80,11 @@ export const reportService = {
 
 // Dashboard Services (uses reports/invoices/expenses endpoints)
 export const dashboardService = {
-  getKPIs: () => api.get('/reports/kpis'),
   getStats: () => api.get('/reports/dashboard'),
   getInvoiceStats: () => api.get('/invoices/stats'),
   getExpenseStats: () => api.get('/expenses/stats'),
-  getRecentInvoices: () => api.get('/invoices', { params: { limit: 5, sort: '-createdAt' } }),
-  getRecentExpenses: () => api.get('/expenses', { params: { limit: 5, sort: '-createdAt' } }),
+  getRecentInvoices: () => api.get('/invoices', { params: { limit: 5, sortBy: 'invoiceDate', sortOrder: 'desc' } }),
+  getRecentExpenses: () => api.get('/expenses', { params: { limit: 5, sortBy: 'date', sortOrder: 'desc' } }),
 };
 
 // Settings Services

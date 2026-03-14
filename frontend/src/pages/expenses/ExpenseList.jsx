@@ -44,14 +44,7 @@ const ExpenseList = () => {
       setExpenses(response.data.data || []);
     } catch (error) {
       console.error('Failed to fetch expenses:', error);
-      // Sample data for demo
-      setExpenses([
-        { _id: '1', description: 'Office Supplies', amount: 2500, category: 'Operations', vendor: 'Amazon', status: 'approved', date: '2026-02-10', submittedBy: { name: 'John Doe' } },
-        { _id: '2', description: 'Software License - Adobe CC', amount: 52000, category: 'IT', vendor: 'Adobe', status: 'pending', date: '2026-02-09', submittedBy: { name: 'Jane Smith' } },
-        { _id: '3', description: 'Client Dinner - Project Alpha', amount: 8500, category: 'Entertainment', vendor: 'Taj Hotel', status: 'approved', date: '2026-02-08', submittedBy: { name: 'Mike Johnson' } },
-        { _id: '4', description: 'Flight Tickets - Conference', amount: 35000, category: 'Travel', vendor: 'MakeMyTrip', status: 'rejected', date: '2026-02-05', submittedBy: { name: 'Sarah Wilson' } },
-        { _id: '5', description: 'Team Building Event', amount: 45000, category: 'HR', vendor: 'EventCo', status: 'pending', date: '2026-02-11', submittedBy: { name: 'Admin' } },
-      ]);
+      setExpenses([]);
     } finally {
       setLoading(false);
     }
@@ -198,7 +191,7 @@ const ExpenseList = () => {
                   </Table.Cell>
                   <Table.Cell className="text-muted-foreground">{expense.vendor || '-'}</Table.Cell>
                   <Table.Cell className="font-semibold">
-                    {formatCurrency(expense.amount)}
+                    {formatCurrency(expense.totalAmount || expense.amount)}
                   </Table.Cell>
                   <Table.Cell>{getStatusBadge(expense.status)}</Table.Cell>
                   <Table.Cell className="text-muted-foreground">{formatDate(expense.date)}</Table.Cell>
@@ -227,7 +220,7 @@ const ExpenseList = () => {
         <Card className="p-4 text-center">
           <p className="text-sm text-muted-foreground">Total Expenses</p>
           <p className="text-2xl font-bold text-foreground">
-            {formatCurrency(expenses.reduce((sum, e) => sum + e.amount, 0))}
+            {formatCurrency(expenses.reduce((sum, e) => sum + parseFloat(e.totalAmount || e.amount || 0), 0))}
           </p>
         </Card>
         <Card className="p-4 text-center">
@@ -240,7 +233,7 @@ const ExpenseList = () => {
           <p className="text-sm text-muted-foreground">Approved</p>
           <p className="text-2xl font-bold text-green-600">
             {formatCurrency(
-              expenses.filter((e) => e.status === 'approved').reduce((sum, e) => sum + e.amount, 0)
+              expenses.filter((e) => e.status === 'approved').reduce((sum, e) => sum + parseFloat(e.totalAmount || e.amount || 0), 0)
             )}
           </p>
         </Card>
@@ -250,7 +243,7 @@ const ExpenseList = () => {
             {formatCurrency(
               expenses
                 .filter((e) => new Date(e.date).getMonth() === new Date().getMonth())
-                .reduce((sum, e) => sum + e.amount, 0)
+                .reduce((sum, e) => sum + parseFloat(e.totalAmount || e.amount || 0), 0)
             )}
           </p>
         </Card>

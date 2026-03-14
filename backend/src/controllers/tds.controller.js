@@ -132,6 +132,35 @@ export const getTDSSummary = async (req, res) => {
   }
 };
 
+// @desc    Get TDS dashboard summary
+// @route   GET /api/v1/tds/dashboard
+// @access  Private
+export const getTDSDashboard = async (req, res) => {
+  try {
+    const { quarter, financialYear } = req.query;
+    
+    if (!quarter || !financialYear) {
+      return res.status(400).json({
+        success: false,
+        message: 'Quarter and financial year are required',
+      });
+    }
+    
+    const dashboard = await tdsService.getTDSDashboardSummary(quarter, financialYear);
+    
+    res.json({
+      success: true,
+      data: dashboard,
+    });
+  } catch (error) {
+    logger.error('Get TDS dashboard error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 // @desc    Generate Form 26Q
 // @route   GET /api/v1/tds/form26q
 // @access  Private (accountant, admin)

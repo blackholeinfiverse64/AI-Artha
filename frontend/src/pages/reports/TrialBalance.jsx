@@ -32,39 +32,35 @@ const TrialBalance = () => {
     setLoading(true);
     try {
       const response = await api.get(`/reports/trial-balance?asOfDate=${asOfDate}`);
-      setData(response.data.data);
+      const rawData = response.data.data;
+      
+      // Parse the backend response
+      const accounts = (rawData.accounts || []).map(acc => ({
+        code: acc.code,
+        name: acc.name,
+        type: acc.type,
+        debit: parseFloat(acc.debit || 0),
+        credit: parseFloat(acc.credit || 0),
+      }));
+      
+      setData({
+        asOfDate: rawData.asOfDate,
+        isBalanced: rawData.totals?.isBalanced || false,
+        totalDebits: parseFloat(rawData.totals?.debit || 0),
+        totalCredits: parseFloat(rawData.totals?.credit || 0),
+        accounts,
+        summary: rawData.summary || {},
+      });
     } catch (error) {
       console.error('Failed to fetch trial balance:', error);
-      // Sample data
+      toast.error('Failed to load Trial Balance');
       setData({
         asOfDate: asOfDate,
         isBalanced: true,
-        totalDebits: 2805000,
-        totalCredits: 2805000,
-        accounts: [
-          { code: '1000', name: 'Cash', type: 'Assets', debit: 125000, credit: 0 },
-          { code: '1100', name: 'Bank Accounts', type: 'Assets', debit: 850000, credit: 0 },
-          { code: '1200', name: 'Accounts Receivable', type: 'Assets', debit: 250000, credit: 0 },
-          { code: '1300', name: 'Inventory', type: 'Assets', debit: 180000, credit: 0 },
-          { code: '1400', name: 'GST Input Credit', type: 'Assets', debit: 85000, credit: 0 },
-          { code: '2000', name: 'Accounts Payable', type: 'Liabilities', debit: 0, credit: 95000 },
-          { code: '2100', name: 'Short Term Loans', type: 'Liabilities', debit: 0, credit: 200000 },
-          { code: '2200', name: 'GST Payable', type: 'Liabilities', debit: 0, credit: 45000 },
-          { code: '2300', name: 'TDS Payable', type: 'Liabilities', debit: 0, credit: 38000 },
-          { code: '3000', name: 'Share Capital', type: 'Equity', debit: 0, credit: 500000 },
-          { code: '3100', name: 'Retained Earnings', type: 'Equity', debit: 0, credit: 350000 },
-          { code: '4000', name: 'Sales Revenue', type: 'Income', debit: 0, credit: 1250000 },
-          { code: '4100', name: 'Service Revenue', type: 'Income', debit: 0, credit: 450000 },
-          { code: '5000', name: 'Cost of Goods Sold', type: 'Expense', debit: 620000, credit: 0 },
-          { code: '5100', name: 'Salaries & Wages', type: 'Expense', debit: 380000, credit: 0 },
-          { code: '5200', name: 'Rent Expense', type: 'Expense', debit: 96000, credit: 0 },
-          { code: '5300', name: 'Utilities', type: 'Expense', debit: 24000, credit: 0 },
-          { code: '5400', name: 'Depreciation', type: 'Expense', debit: 50000, credit: 0 },
-          { code: '5500', name: 'Interest Expense', type: 'Expense', debit: 45000, credit: 0 },
-          { code: '5600', name: 'Office Supplies', type: 'Expense', debit: 12000, credit: 0 },
-          { code: '5700', name: 'Marketing Expense', type: 'Expense', debit: 88000, credit: 0 },
-          { code: '3200', name: 'Current Year Profit', type: 'Equity', debit: 0, credit: -123000 },
-        ],
+        totalDebits: 0,
+        totalCredits: 0,
+        accounts: [],
+        summary: {},
       });
     } finally {
       setLoading(false);
@@ -306,10 +302,10 @@ const TrialBalance = () => {
 
       {/* Account Type Summary */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {['Assets', 'Liabilities', 'Equity', 'Income', 'Expense'].map((type) => {
-          const typeAccounts = data?.accounts?.filter((a) => a.type === type) || [];
-          const totalDebit = typeAccounts.reduce((sum, a) => sum + (a.debit || 0), 0);
-          const totalCredit = typeAccounts.reduce((sum, a) => sum + (a.credit || 0), 0);
+        {['Asset', 'Liability', 'Equity', 'Income', 'Expense'].map((type) => {
+          const summary = data?.summary?.[type] || { debit: '0', credit: '0' };
+          const totalDebit = parseFloat(summary.debit || 0);
+          const totalCredit = parseFloat(summary.credit || 0);
           
           return (
             <Card key={type} className="p-4 text-center">

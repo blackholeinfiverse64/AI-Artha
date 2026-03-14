@@ -289,6 +289,160 @@ class TDSService {
   }
   
   /**
+   * Get TDS dashboard summary
+   */
+  async getTDSDashboardSummary(quarter, financialYear) {
+    try {
+      // Get all TDS entries for the quarter
+      const entries = await TDSEntry.find({
+        quarter,
+        financialYear,
+      });
+
+      // Calculate totals
+      let totalDeducted = new Decimal(0);
+      let totalPaid = new Decimal(0);
+      let pendingPayment = new Decimal(0);
+      let pendingEntries = 0;
+
+      const sectionMap = {};
+      const byStatus = {
+        pending: 0,
+        deducted: 0,
+        deposited: 0,
+        filed: 0,
+      };
+
+      entries.forEach(entry => {
+        const tdsAmount = new Decimal(entry.tdsAmount || 0);
+
+        // Count by status
+        if (byStatus[entry.status] !== undefined) {
+          byStatus[entry.status]++;
+        }
+
+        // Calculate totals
+        if (entry.status === 'deducted' || entry.status === 'deposited' || entry.status === 'filed') {
+          totalDeducted = totalDeducted.plus(tdsAmount);
+        }
+
+        if (entry.status === 'deposited' || entry.status === 'filed') {
+          totalPaid = totalPaid.plus(tdsAmount);
+        }
+
+        if (entry.status === 'deducted') {
+          pendingPayment = pendingPayment.plus(tdsAmount);
+        }
+
+        if (entry.status === 'pending') {
+          pendingEntries++;
+        }
+
+        // Group by section
+        if (!sectionMap[entry.section]) {
+          sectionMap[entry.section] = {
+            section: entry.section,
+            name: this.getSectionName(entry.section),
+            deducted: new Decimal(0),
+            paid: new Decimal(0),
+            pending: new Decimal(0),
+          };
+        }
+        
+        sectionMap[entry.section].deducted = sectionMap[entry.section].deducted.plus(tdsAmount);
+        
+        if (entry.status === 'deposited' || entry.status === 'filed') {
+          sectionMap[entry.section].paid = sectionMap[entry.section].paid.plus(tdsAmount);
+        } else if (entry.status === 'deducted') {
+          sectionMap[entry.section].pending = sectionMap[entry.section].pending.plus(tdsAmount);
+        }
+      });
+
+      // Convert section data to array
+      const bySection = Object.values(sectionMap).map(s => ({
+        section: s.section,
+        name: s.name,
+        deducted: parseFloat(s.deducted.toString()),
+        paid: parseFloat(s.paid.toString()),
+        pending: parseFloat(s.pending.toString()),
+      }));
+
+      // Calculate due dates for forms
+      const quarterDueDates = {
+        Q1: { month: 7, day: 31 },  // July 31
+        Q2: { month: 10, day: 31 }, // October 31
+        Q3: { month: 1, day: 31 },  // January 31
+        Q4: { month: 5, day: 31 },  // May 31
+      };
+
+      const dueDate = quarterDueDates[quarter];
+      const fyYear = parseInt(financialYear.replace('FY', '').split('-')[0]);
+      const dueDateObj = new Date(fyYear + (quarter === 'Q4' ? 1 : 0), dueDate.month - 1, dueDate.day);
+
+      return {
+        quarter,
+        financialYear,
+        summary: {
+          totalDeducted: parseFloat(totalDeducted.toString()),
+          totalPaid: parseFloat(totalPaid.toString()),
+          pendingPayment: parseFloat(pendingPayment.toString()),
+          pendingCount: pendingEntries,
+        },
+        bySection,
+        byStatus,
+        filingStatus: {
+          form24Q: {
+            status: byStatus.filed > 0 ? 'filed' : 'pending',
+            dueDate: dueDateObj.toISOString(),
+          },
+          form26Q: {
+            status: byStatus.filed > 0 ? 'filed' : 'pending',
+            dueDate: dueDateObj.toISOString(),
+          },
+          form27Q: {
+            status: 'not_applicable',
+            dueDate: null,
+          },
+        },
+        entries: entries.map(e => ({
+          _id: e._id.toString(),
+          entryNumber: e.entryNumber,
+          deductee: e.deductee.name,
+          pan: e.deductee.pan,
+          section: e.section,
+          amount: parseFloat(e.paymentAmount),
+          tdsRate: e.tdsRate,
+          tdsAmount: parseFloat(e.tdsAmount),
+          deductionDate: e.transactionDate,
+          dueDate: dueDateObj,
+          status: e.status,
+          challanNo: e.challanNumber,
+          paidDate: e.challanDate,
+        })),
+      };
+    } catch (error) {
+      logger.error('Get TDS dashboard summary error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get section name
+   */
+  getSectionName(section) {
+    const names = {
+      '194A': 'Interest',
+      '194C': 'Contractor',
+      '194H': 'Commission',
+      '194I': 'Rent',
+      '194J': 'Professional',
+      '192': 'Salary',
+      '194Q': 'Purchase',
+    };
+    return names[section] || 'Other';
+  }
+
+  /**
    * Get TDS summary for quarter
    */
   async getTDSSummary(quarter, financialYear) {

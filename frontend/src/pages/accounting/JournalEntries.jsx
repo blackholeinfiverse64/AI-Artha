@@ -39,86 +39,19 @@ const JournalEntries = () => {
   const fetchEntries = async () => {
     try {
       const response = await api.get('/ledger/entries');
-      setEntries(response.data.data || []);
+      const entriesData = response.data.data || [];
+      
+      // Calculate debit/credit totals from lines
+      const entriesWithTotals = entriesData.map(entry => ({
+        ...entry,
+        debitTotal: entry.lines?.reduce((sum, line) => sum + parseFloat(line.debit || 0), 0) || 0,
+        creditTotal: entry.lines?.reduce((sum, line) => sum + parseFloat(line.credit || 0), 0) || 0,
+      }));
+      
+      setEntries(entriesWithTotals);
     } catch (error) {
       console.error('Failed to fetch entries:', error);
-      // Sample data
-      setEntries([
-        {
-          _id: '1',
-          entryNumber: 'JE-2026-0001',
-          date: '2026-02-01',
-          description: 'Sales Invoice INV-2026-0001',
-          debitTotal: 25000,
-          creditTotal: 25000,
-          status: 'posted',
-          createdBy: { name: 'System' },
-          lines: [
-            { account: 'Accounts Receivable', debit: 25000, credit: 0 },
-            { account: 'Sales Revenue', debit: 0, credit: 21186 },
-            { account: 'GST Payable', debit: 0, credit: 3814 },
-          ],
-        },
-        {
-          _id: '2',
-          entryNumber: 'JE-2026-0002',
-          date: '2026-02-05',
-          description: 'Office Rent Payment',
-          debitTotal: 50000,
-          creditTotal: 50000,
-          status: 'posted',
-          createdBy: { name: 'Admin' },
-          lines: [
-            { account: 'Rent Expense', debit: 42373, credit: 0 },
-            { account: 'GST Input Credit', debit: 7627, credit: 0 },
-            { account: 'Bank Account', debit: 0, credit: 50000 },
-          ],
-        },
-        {
-          _id: '3',
-          entryNumber: 'JE-2026-0003',
-          date: '2026-02-08',
-          description: 'Salary Payment - February',
-          debitTotal: 380000,
-          creditTotal: 380000,
-          status: 'posted',
-          createdBy: { name: 'Admin' },
-          lines: [
-            { account: 'Salaries & Wages', debit: 380000, credit: 0 },
-            { account: 'Bank Account', debit: 0, credit: 342000 },
-            { account: 'TDS Payable', debit: 0, credit: 38000 },
-          ],
-        },
-        {
-          _id: '4',
-          entryNumber: 'JE-2026-0004',
-          date: '2026-02-10',
-          description: 'Customer Payment Received',
-          debitTotal: 25000,
-          creditTotal: 25000,
-          status: 'posted',
-          createdBy: { name: 'System' },
-          lines: [
-            { account: 'Bank Account', debit: 25000, credit: 0 },
-            { account: 'Accounts Receivable', debit: 0, credit: 25000 },
-          ],
-        },
-        {
-          _id: '5',
-          entryNumber: 'JE-2026-0005',
-          date: '2026-02-12',
-          description: 'Inventory Purchase',
-          debitTotal: 150000,
-          creditTotal: 150000,
-          status: 'draft',
-          createdBy: { name: 'Jane Smith' },
-          lines: [
-            { account: 'Inventory', debit: 127119, credit: 0 },
-            { account: 'GST Input Credit', debit: 22881, credit: 0 },
-            { account: 'Accounts Payable', debit: 0, credit: 150000 },
-          ],
-        },
-      ]);
+      setEntries([]);
     } finally {
       setLoading(false);
     }

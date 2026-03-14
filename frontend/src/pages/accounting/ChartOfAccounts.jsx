@@ -54,30 +54,30 @@ const ChartOfAccounts = () => {
 
   const fetchAccounts = async () => {
     try {
-      const response = await api.get('/accounts');
-      setAccounts(response.data.data || []);
+      const [accountsRes, balancesRes] = await Promise.all([
+        api.get('/accounts'),
+        api.get('/ledger/balances').catch(() => ({ data: { data: [] } }))
+      ]);
+      
+      const accountsList = accountsRes.data.data || [];
+      const balancesList = balancesRes.data.data || [];
+      
+      // Create balance map
+      const balanceMap = {};
+      balancesList.forEach(b => {
+        balanceMap[b.account || b.accountCode] = parseFloat(b.balance || 0);
+      });
+      
+      // Merge accounts with balances
+      const accountsWithBalances = accountsList.map(account => ({
+        ...account,
+        balance: balanceMap[account._id] || balanceMap[account.code] || 0
+      }));
+      
+      setAccounts(accountsWithBalances);
     } catch (error) {
       console.error('Failed to fetch accounts:', error);
-      // Sample data
-      setAccounts([
-        { _id: '1', code: '1000', name: 'Cash', type: 'Assets', balance: 125000, isGroup: false },
-        { _id: '2', code: '1100', name: 'Bank Accounts', type: 'Assets', balance: 850000, isGroup: true },
-        { _id: '21', code: '1101', name: 'HDFC Current Account', type: 'Assets', parentAccount: '2', balance: 550000, isGroup: false },
-        { _id: '22', code: '1102', name: 'ICICI Savings Account', type: 'Assets', parentAccount: '2', balance: 300000, isGroup: false },
-        { _id: '3', code: '1200', name: 'Accounts Receivable', type: 'Assets', balance: 250000, isGroup: false },
-        { _id: '4', code: '1300', name: 'Inventory', type: 'Assets', balance: 180000, isGroup: false },
-        { _id: '5', code: '2000', name: 'Accounts Payable', type: 'Liabilities', balance: 95000, isGroup: false },
-        { _id: '6', code: '2100', name: 'Short Term Loans', type: 'Liabilities', balance: 200000, isGroup: false },
-        { _id: '7', code: '2200', name: 'GST Payable', type: 'Liabilities', balance: 45000, isGroup: false },
-        { _id: '8', code: '3000', name: 'Share Capital', type: 'Equity', balance: 500000, isGroup: false },
-        { _id: '9', code: '3100', name: 'Retained Earnings', type: 'Equity', balance: 350000, isGroup: false },
-        { _id: '10', code: '4000', name: 'Sales Revenue', type: 'Income', balance: 1250000, isGroup: false },
-        { _id: '11', code: '4100', name: 'Service Revenue', type: 'Income', balance: 450000, isGroup: false },
-        { _id: '12', code: '5000', name: 'Cost of Goods Sold', type: 'Expense', balance: 620000, isGroup: false },
-        { _id: '13', code: '5100', name: 'Salaries & Wages', type: 'Expense', balance: 380000, isGroup: false },
-        { _id: '14', code: '5200', name: 'Rent Expense', type: 'Expense', balance: 96000, isGroup: false },
-        { _id: '15', code: '5300', name: 'Utilities', type: 'Expense', balance: 24000, isGroup: false },
-      ]);
+      setAccounts([]);
     } finally {
       setLoading(false);
     }
@@ -118,7 +118,7 @@ const ChartOfAccounts = () => {
     accounts: accounts.filter((a) => a.type === type.value && !a.parentAccount),
     total: accounts
       .filter((a) => a.type === type.value)
-      .reduce((sum, a) => sum + (a.balance || 0), 0),
+      .reduce((sum, a) => sum + parseFloat(a.balance || 0), 0),
   }));
 
   const filteredGroups = groupedAccounts.map((group) => ({

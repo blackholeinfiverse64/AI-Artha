@@ -33,58 +33,85 @@ const BalanceSheet = () => {
     setLoading(true);
     try {
       const response = await api.get(`/reports/balance-sheet?asOfDate=${asOfDate}`);
-      setData(response.data.data);
-    } catch (error) {
-      console.error('Failed to fetch balance sheet:', error);
-      // Sample data
+      const rawData = response.data.data;
+      
+      // Transform backend data to frontend format
+      const totalAssets = parseFloat(rawData.assets?.total || 0);
+      const totalLiabilities = parseFloat(rawData.liabilities?.total || 0);
+      const totalEquity = parseFloat(rawData.equity?.total || 0);
+      
+      // Separate current and non-current assets (backend doesn't separate yet)
+      const assetAccounts = rawData.assets?.accounts || [];
+      const currentAssets = assetAccounts.filter(acc => 
+        acc.code && acc.code >= '1000' && acc.code < '1800'
+      );
+      const nonCurrentAssets = assetAccounts.filter(acc => 
+        acc.code && acc.code >= '1800'
+      );
+      
+      // Separate current and non-current liabilities
+      const liabilityAccounts = rawData.liabilities?.accounts || [];
+      const currentLiabilities = liabilityAccounts.filter(acc => 
+        acc.code && acc.code >= '2000' && acc.code < '2500'
+      );
+      const nonCurrentLiabilities = liabilityAccounts.filter(acc => 
+        acc.code && acc.code >= '2500'
+      );
+      
       setData({
-        asOfDate: asOfDate,
+        asOfDate,
         assets: {
-          total: 1405000,
+          total: totalAssets,
           current: {
-            total: 1205000,
-            items: [
-              { name: 'Cash', amount: 125000 },
-              { name: 'Bank Accounts', amount: 850000 },
-              { name: 'Accounts Receivable', amount: 250000 },
-              { name: 'Inventory', amount: -20000 },
-            ],
+            total: currentAssets.reduce((sum, acc) => sum + parseFloat(acc.amount || 0), 0),
+            items: currentAssets.map(acc => ({
+              name: acc.name,
+              amount: parseFloat(acc.amount || 0)
+            }))
           },
           nonCurrent: {
-            total: 200000,
-            items: [
-              { name: 'Property & Equipment', amount: 250000 },
-              { name: 'Accumulated Depreciation', amount: -50000 },
-            ],
-          },
+            total: nonCurrentAssets.reduce((sum, acc) => sum + parseFloat(acc.amount || 0), 0),
+            items: nonCurrentAssets.map(acc => ({
+              name: acc.name,
+              amount: parseFloat(acc.amount || 0)
+            }))
+          }
         },
         liabilities: {
-          total: 340000,
+          total: totalLiabilities,
           current: {
-            total: 290000,
-            items: [
-              { name: 'Accounts Payable', amount: 95000 },
-              { name: 'GST Payable', amount: 45000 },
-              { name: 'TDS Payable', amount: 38000 },
-              { name: 'Short Term Loans', amount: 112000 },
-            ],
+            total: currentLiabilities.reduce((sum, acc) => sum + parseFloat(acc.amount || 0), 0),
+            items: currentLiabilities.map(acc => ({
+              name: acc.name,
+              amount: parseFloat(acc.amount || 0)
+            }))
           },
           nonCurrent: {
-            total: 50000,
-            items: [
-              { name: 'Long Term Loans', amount: 50000 },
-            ],
-          },
+            total: nonCurrentLiabilities.reduce((sum, acc) => sum + parseFloat(acc.amount || 0), 0),
+            items: nonCurrentLiabilities.map(acc => ({
+              name: acc.name,
+              amount: parseFloat(acc.amount || 0)
+            }))
+          }
         },
         equity: {
-          total: 1065000,
-          items: [
-            { name: 'Share Capital', amount: 500000 },
-            { name: 'Retained Earnings', amount: 350000 },
-            { name: 'Current Year Profit', amount: 215000 },
-          ],
+          total: totalEquity,
+          items: (rawData.equity?.accounts || []).map(acc => ({
+            name: acc.name,
+            amount: parseFloat(acc.amount || 0)
+          }))
         },
-        isBalanced: true,
+        isBalanced: rawData.totals?.isBalanced || false
+      });
+    } catch (error) {
+      console.error('Failed to fetch balance sheet:', error);
+      toast.error('Failed to load Balance Sheet');
+      setData({
+        asOfDate,
+        assets: { total: 0, current: { total: 0, items: [] }, nonCurrent: { total: 0, items: [] } },
+        liabilities: { total: 0, current: { total: 0, items: [] }, nonCurrent: { total: 0, items: [] } },
+        equity: { total: 0, items: [] },
+        isBalanced: true
       });
     } finally {
       setLoading(false);

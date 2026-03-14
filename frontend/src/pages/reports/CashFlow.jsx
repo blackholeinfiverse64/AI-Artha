@@ -82,54 +82,56 @@ const CashFlow = () => {
     try {
       const { startDate, endDate } = getPeriodDates(period);
       const response = await api.get(`/reports/cash-flow?startDate=${startDate}&endDate=${endDate}`);
-      setData(response.data.data);
-    } catch (error) {
-      console.error('Failed to fetch cash flow:', error);
-      // Sample data
+      const rawData = response.data.data;
+      
+      // Transform backend data to frontend format
+      const operatingTotal = parseFloat(rawData.operating?.netCashFlow || 0);
+      const investingTotal = parseFloat(rawData.investing?.netCashFlow || 0);
+      const financingTotal = parseFloat(rawData.financing?.netCashFlow || 0);
+      const netChange = parseFloat(rawData.netCashChange || 0);
+      
       setData({
-        period: `FY ${getFinancialYear()}`,
-        openingBalance: 850000,
-        closingBalance: 975000,
-        netChange: 125000,
+        period: `${startDate} to ${endDate}`,
+        openingBalance: 0, // Backend doesn't provide this yet
+        closingBalance: netChange,
+        netChange,
         operations: {
-          total: 580000,
-          items: [
-            { name: 'Net Profit', amount: 580000, type: 'inflow' },
-            { name: 'Depreciation', amount: 50000, type: 'inflow' },
-            { name: 'Increase in Receivables', amount: -120000, type: 'outflow' },
-            { name: 'Increase in Inventory', amount: -80000, type: 'outflow' },
-            { name: 'Increase in Payables', amount: 45000, type: 'inflow' },
-          ],
+          total: operatingTotal,
+          items: (rawData.operating?.activities || []).map(act => ({
+            name: act.description || act.account,
+            amount: parseFloat(act.amount || 0),
+            type: parseFloat(act.amount || 0) >= 0 ? 'inflow' : 'outflow'
+          }))
         },
         investing: {
-          total: -250000,
-          items: [
-            { name: 'Purchase of Equipment', amount: -200000, type: 'outflow' },
-            { name: 'Sale of Old Assets', amount: 50000, type: 'inflow' },
-            { name: 'Software Licenses', amount: -100000, type: 'outflow' },
-          ],
+          total: investingTotal,
+          items: (rawData.investing?.activities || []).map(act => ({
+            name: act.description || act.account,
+            amount: parseFloat(act.amount || 0),
+            type: parseFloat(act.amount || 0) >= 0 ? 'inflow' : 'outflow'
+          }))
         },
         financing: {
-          total: -205000,
-          items: [
-            { name: 'Loan Repayment', amount: -180000, type: 'outflow' },
-            { name: 'Interest Paid', amount: -45000, type: 'outflow' },
-            { name: 'Capital Injection', amount: 20000, type: 'inflow' },
-          ],
+          total: financingTotal,
+          items: (rawData.financing?.activities || []).map(act => ({
+            name: act.description || act.account,
+            amount: parseFloat(act.amount || 0),
+            type: parseFloat(act.amount || 0) >= 0 ? 'inflow' : 'outflow'
+          }))
         },
-        monthlyData: [
-          { month: 'Apr', operations: 45000, investing: -10000, financing: -15000, net: 20000 },
-          { month: 'May', operations: 55000, investing: -50000, financing: -20000, net: -15000 },
-          { month: 'Jun', operations: 48000, investing: 0, financing: -15000, net: 33000 },
-          { month: 'Jul', operations: 52000, investing: -100000, financing: -20000, net: -68000 },
-          { month: 'Aug', operations: 60000, investing: 0, financing: -15000, net: 45000 },
-          { month: 'Sep', operations: 58000, investing: -30000, financing: -20000, net: 8000 },
-          { month: 'Oct', operations: 42000, investing: 50000, financing: -15000, net: 77000 },
-          { month: 'Nov', operations: 50000, investing: 0, financing: -20000, net: 30000 },
-          { month: 'Dec', operations: 62000, investing: -60000, financing: -15000, net: -13000 },
-          { month: 'Jan', operations: 35000, investing: 0, financing: -20000, net: 15000 },
-          { month: 'Feb', operations: 73000, investing: -50000, financing: -30000, net: -7000 },
-        ],
+        monthlyData: [] // Backend doesn't provide monthly breakdown yet
+      });
+    } catch (error) {
+      console.error('Failed to fetch cash flow:', error);
+      toast.error('Failed to load Cash Flow report');
+      setData({
+        openingBalance: 0,
+        closingBalance: 0,
+        netChange: 0,
+        operations: { total: 0, items: [] },
+        investing: { total: 0, items: [] },
+        financing: { total: 0, items: [] },
+        monthlyData: []
       });
     } finally {
       setLoading(false);
@@ -261,34 +263,36 @@ const CashFlow = () => {
         </Card>
       </div>
 
-      {/* Monthly Chart */}
-      <Card>
-        <h2 className="text-lg font-semibold text-foreground mb-4">Monthly Cash Flow</h2>
-        <div className="h-80">
-          <ResponsiveContainer>
-            <BarChart data={data?.monthlyData || []}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: '#6B7280', fontSize: 12 }} />
-              <YAxis
-                tick={{ fill: '#6B7280', fontSize: 12 }}
-                tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}K`}
-              />
-              <Tooltip
-                formatter={(value) => formatCurrency(value)}
-                contentStyle={{
-                  backgroundColor: 'white',
-                  border: '1px solid #E5E7EB',
-                  borderRadius: '8px',
-                }}
-              />
-              <ReferenceLine y={0} stroke="#9CA3AF" />
-              <Bar dataKey="operations" name="Operations" fill="#3B82F6" radius={[2, 2, 0, 0]} />
-              <Bar dataKey="investing" name="Investing" fill="#8B5CF6" radius={[2, 2, 0, 0]} />
-              <Bar dataKey="financing" name="Financing" fill="#F59E0B" radius={[2, 2, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </Card>
+      {/* Monthly Chart - Hidden until backend provides monthly data */}
+      {data?.monthlyData?.length > 0 && (
+        <Card>
+          <h2 className="text-lg font-semibold text-foreground mb-4">Monthly Cash Flow</h2>
+          <div className="h-80">
+            <ResponsiveContainer>
+              <BarChart data={data.monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                <XAxis dataKey="month" tick={{ fill: '#6B7280', fontSize: 12 }} />
+                <YAxis
+                  tick={{ fill: '#6B7280', fontSize: 12 }}
+                  tickFormatter={(val) => `₹${(val / 1000).toFixed(0)}K`}
+                />
+                <Tooltip
+                  formatter={(value) => formatCurrency(value)}
+                  contentStyle={{
+                    backgroundColor: 'white',
+                    border: '1px solid #E5E7EB',
+                    borderRadius: '8px',
+                  }}
+                />
+                <ReferenceLine y={0} stroke="#9CA3AF" />
+                <Bar dataKey="operations" name="Operations" fill="#3B82F6" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="investing" name="Investing" fill="#8B5CF6" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="financing" name="Financing" fill="#F59E0B" radius={[2, 2, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+      )}
 
       {/* Activity Categories */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

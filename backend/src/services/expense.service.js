@@ -355,7 +355,7 @@ class ExpenseService {
       if (dateTo) match.date.$lte = new Date(dateTo);
     }
     
-    const [statusStats, categoryStats] = await Promise.all([
+    const [statusStats, categoryStats, totalStats] = await Promise.all([
       Expense.aggregate([
         { $match: match },
         {
@@ -367,7 +367,7 @@ class ExpenseService {
         },
       ]),
       Expense.aggregate([
-        { $match: { ...match, status: 'recorded' } },
+        { $match: { ...match, status: { $in: ['approved', 'recorded'] } } },
         {
           $group: {
             _id: '$category',
@@ -376,11 +376,75 @@ class ExpenseService {
           },
         },
       ]),
+      Expense.aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: null,
+            totalCount: { $sum: 1 },
+            totalAmount: { $sum: { $toDouble: '$totalAmount' } },
+            approvedCount: {
+              $sum: { $cond: [{ $eq: ['$status', 'approved'] }, 1, 0] }
+            },
+            approvedAmount: {
+              $sum: { $cond: [{ $eq: ['$status', 'approved'] }, { $toDouble: '$totalAmount' }, 0] }
+            },
+            recordedCount: {
+              $sum: { $cond: [{ $eq: ['$status', 'recorded'] }, 1, 0] }
+            },
+            recordedAmount: {
+              $sum: { $cond: [{ $eq: ['$status', 'recorded'] }, { $toDouble: '$totalAmount' }, 0] }
+            },
+            pendingCount: {
+              $sum: { $cond: [{ $eq: ['$status', 'pending'] }, 1, 0] }
+            },
+            pendingAmount: {
+              $sum: { $cond: [{ $eq: ['$status', 'pending'] }, { $toDouble: '$totalAmount' }, 0] }
+            },
+          },
+        },
+      ]),
     ]);
     
+    // Format status stats
+    const formattedStatusStats = {};
+    statusStats.forEach(stat => {
+      formattedStatusStats[stat._id] = {
+        count: stat.count,
+        amount: stat.totalAmount.toFixed(2),
+      };
+    });
+    
+    // Add missing statuses with zero values
+    ['pending', 'approved', 'rejected', 'recorded'].forEach(status => {
+      if (!formattedStatusStats[status]) {
+        formattedStatusStats[status] = { count: 0, amount: '0.00' };
+      }
+    });
+    
+    const totals = totalStats[0] || {
+      totalCount: 0,
+      totalAmount: 0,
+      approvedCount: 0,
+      approvedAmount: 0,
+      recordedCount: 0,
+      recordedAmount: 0,
+      pendingCount: 0,
+      pendingAmount: 0,
+    };
+    
     const result = {
-      byStatus: statusStats,
+      ...formattedStatusStats,
       byCategory: categoryStats,
+      total: {
+        count: totals.totalCount,
+        amount: totals.totalAmount.toFixed(2),
+      },
+      summary: {
+        pending: { count: totals.pendingCount, amount: totals.pendingAmount.toFixed(2) },
+        approved: { count: totals.approvedCount, amount: totals.approvedAmount.toFixed(2) },
+        recorded: { count: totals.recordedCount, amount: totals.recordedAmount.toFixed(2) },
+      },
     };
     
     // Cache the result
