@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Upload, FileText, CheckCircle, XCircle, Clock, AlertCircle, Trash2, Eye, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { bankStatementService } from '../../services';
-import { PageHeader, Card, Button } from '../../components/ui';
+import { PageHeader, Card, Button } from '../../components/common';
 
 const Statements = () => {
   const navigate = useNavigate();

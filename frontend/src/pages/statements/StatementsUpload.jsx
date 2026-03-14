@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { Upload, X, FileText, AlertCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { bankStatementService } from '../../services';
-import { PageHeader, Card, Button, Input, Label } from '../../components/ui';
+import { PageHeader, Card, Button, Input, Label } from '../../components/common';
 
 const uploadSchema = z.object({
   accountNumber: z.string().min(1, 'Account number is required'),

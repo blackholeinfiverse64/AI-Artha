@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { CheckCircle, XCircle, Clock, ArrowUpRight, ArrowDownRight, FileText, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { bankStatementService } from '../../services';
-import { PageHeader, Card, Button } from '../../components/ui';
+import { PageHeader, Card, Button } from '../../components/common';
 
 const StatementDetail = () => {
   const { id } = useParams();
