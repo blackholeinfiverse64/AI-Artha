@@ -112,3 +112,22 @@ export const userService = {
   updateProfile: (data) => api.put('/users/me', data),
 };
 
+// Bank Statement Services
+export const bankStatementService = {
+  upload: (file, data) => {
+    const formData = new FormData();
+    formData.append('statement', file);
+    Object.keys(data).forEach(key => {
+      formData.append(key, data[key]);
+    });
+    return api.post('/statements/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  getAll: (params) => api.get('/statements', { params }),
+  getById: (id) => api.get(`/statements/${id}`),
+  process: (id) => api.post(`/statements/${id}/process`),
+  matchTransactions: (id) => api.post(`/statements/${id}/match`),
+  createExpenses: (id, transactionIds) => api.post(`/statements/${id}/create-expenses`, { transactionIds }),
+};
+

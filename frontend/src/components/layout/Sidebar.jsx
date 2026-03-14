@@ -16,7 +16,8 @@ import {
   Calculator,
   Settings,
   ChevronDown,
-  X
+  X,
+  CreditCard
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -74,6 +75,15 @@ const menuItems = [
     title: 'TDS',
     icon: Calculator,
     path: '/tds',
+  },
+  {
+    title: 'Statements',
+    icon: CreditCard,
+    path: '/statements',
+    children: [
+      { title: 'All Statements', path: '/statements' },
+      { title: 'Upload Statement', path: '/statements/upload' },
+    ],
   },
   {
     title: 'Settings',

@@ -9,6 +9,12 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
+// Bank statements upload directory
+const statementsDir = 'uploads/statements';
+if (!fs.existsSync(statementsDir)) {
+  fs.mkdirSync(statementsDir, { recursive: true });
+}
+
 // Storage configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -21,7 +27,19 @@ const storage = multer.diskStorage({
   },
 });
 
-// File filter
+// Storage configuration for bank statements
+const statementsStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, statementsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${crypto.randomBytes(6).toString('hex')}`;
+    const ext = path.extname(file.originalname);
+    cb(null, `statement-${uniqueSuffix}${ext}`);
+  },
+});
+
+// File filter for receipts
 const fileFilter = (req, file, cb) => {
   const allowedTypes = [
     'image/jpeg',
@@ -38,6 +56,26 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
+// File filter for bank statements (CSV, Excel, PDF)
+const statementsFileFilter = (req, file, cb) => {
+  const allowedTypes = [
+    'text/csv',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/pdf',
+  ];
+  
+  // Also check file extension
+  const ext = path.extname(file.originalname).toLowerCase();
+  const allowedExtensions = ['.csv', '.xls', '.xlsx', '.pdf'];
+  
+  if (allowedTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only CSV, Excel (XLS/XLSX), and PDF are allowed for bank statements.'), false);
+  }
+};
+
 // Multer configuration
 export const uploadReceipts = multer({
   storage,
@@ -45,6 +83,16 @@ export const uploadReceipts = multer({
   limits: {
     fileSize: 10 * 1024 * 1024, // 10MB max file size
     files: 5, // Max 5 files per request
+  },
+});
+
+// Multer configuration for bank statements
+export const uploadFile = multer({
+  storage: statementsStorage,
+  fileFilter: statementsFileFilter,
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25MB max file size for statements
+    files: 1, // Single file per request
   },
 });
 

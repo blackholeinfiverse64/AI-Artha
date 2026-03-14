@@ -41,6 +41,11 @@ import AgedReceivables from './pages/reports/AgedReceivables';
 import GSTDashboard from './pages/compliance/GSTDashboard';
 import TDSManagement from './pages/compliance/TDSManagement';
 
+// Statements
+import StatementsList from './pages/statements/StatementsList';
+import StatementsUpload from './pages/statements/StatementsUpload';
+import StatementDetail from './pages/statements/StatementDetail';
+
 // Settings
 import CompanySettings from './pages/settings/CompanySettings';
 import UserManagement from './pages/settings/UserManagement';
@@ -170,6 +175,11 @@ function App() {
         {/* Compliance */}
         <Route path="/gst" element={<GSTDashboard />} />
         <Route path="/tds" element={<TDSManagement />} />
+
+        {/* Statements */}
+        <Route path="/statements" element={<StatementsList />} />
+        <Route path="/statements/upload" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><StatementsUpload /></RoleProtectedRoute>} />
+        <Route path="/statements/:id" element={<StatementDetail />} />
 
         {/* Settings - User Management is Admin only */}
         <Route path="/settings/company" element={<RoleProtectedRoute allowedRoles={['admin']}><CompanySettings /></RoleProtectedRoute>} />
