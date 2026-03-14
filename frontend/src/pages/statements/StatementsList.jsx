@@ -271,7 +271,7 @@ const Statements = () => {
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => handleViewStatement(statement)}
+                          onClick={() => handleViewStatement(statement._id)}
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
