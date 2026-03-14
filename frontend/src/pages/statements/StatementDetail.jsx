@@ -161,7 +161,10 @@ const StatementDetail = () => {
         <Card className="p-4">
           <div className="text-sm text-gray-600 mb-1">Account Number</div>
           <div className="text-lg font-semibold">
-            {statement.accountNumber.slice(-4).padStart(statement.accountNumber.length, '*')}
+            {statement.accountNumber 
+              ? statement.accountNumber.slice(-4).padStart(statement.accountNumber.length, '*')
+              : 'N/A'
+            }
           </div>
         </Card>
         <Card className="p-4">

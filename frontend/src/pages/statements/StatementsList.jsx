@@ -244,7 +244,10 @@ const Statements = () => {
                       {statement.bankName}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {statement.accountNumber.slice(-4).padStart(statement.accountNumber.length, '*')}
+                      {statement.accountNumber 
+                        ? statement.accountNumber.slice(-4).padStart(statement.accountNumber.length, '*')
+                        : 'N/A'
+                      }
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {formatDate(statement.startDate)} - {formatDate(statement.endDate)}
