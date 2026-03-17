@@ -19,9 +19,9 @@ class SmartUploadService {
     return 'receipt';
   }
 
-  async refinePdfType(filePath) {
+  async refinePdfType(filePath, password) {
     try {
-      const extraction = await ocrService.extractText(filePath);
+      const extraction = await ocrService.extractText(filePath, { password });
       const text = (extraction.text || '').toLowerCase();
 
       if (text.length < 10) return 'bill';
@@ -42,7 +42,7 @@ class SmartUploadService {
 
   async processUpload(file, userId, metadata = {}) {
     let docType = metadata.documentType || this.detectDocumentType(file);
-    if (docType === 'auto_detect_pdf') docType = await this.refinePdfType(file.path);
+    if (docType === 'auto_detect_pdf') docType = await this.refinePdfType(file.path, metadata.password);
 
     logger.info(`Smart upload: type=${docType}, file=${file.originalname}`);
 
@@ -103,34 +103,53 @@ class SmartUploadService {
    */
   async _processReceipt(file, userId, metadata, result) {
     try {
-      const ocrResult = await ocrService.processReceiptFile(file.path);
+      const ocrOpts = {};
+      if (metadata.password) ocrOpts.password = metadata.password;
+
+      const ocrResult = await ocrService.processReceiptFile(file.path, ocrOpts);
       const ocrData = ocrResult.success ? ocrResult.data : null;
       const rawText = ocrData?.rawText || '';
 
-      if (ocrResult.success) {
+      if (ocrData?.pdfError === 'password_required') {
+        result.actions.push({
+          type: 'password_required',
+          message: 'PDF is password-protected. Re-upload with the PDF password to extract data.',
+        });
+        result.pdfError = 'password_required';
+      } else if (ocrData?.pdfError) {
+        result.actions.push({
+          type: 'extraction_error',
+          message: ocrData.pdfErrorMessage || 'Failed to read PDF',
+        });
+      } else if (ocrResult.success && rawText.length > 0) {
         result.actions.push({
           type: 'extraction_completed',
           message: `Extracted ${rawText.length} chars — vendor: ${ocrData.vendor}, amount: ₹${ocrData.amount}, date: ${ocrData.date}`,
           confidence: ocrData.confidence,
         });
-
-        if (ocrData.pages > 0) {
-          result.pdfInfo = {
-            pages: ocrData.pages,
-            title: ocrData.pdfInfo?.title || null,
-            author: ocrData.pdfInfo?.author || null,
-            creator: ocrData.pdfInfo?.creator || null,
-          };
-        }
-
-        if (ocrData.items?.length) {
-          result.actions.push({
-            type: 'line_items_found',
-            message: `Found ${ocrData.items.length} line item(s) in document`,
-          });
-        }
+      } else if (ocrResult.success && rawText.length === 0) {
+        result.actions.push({
+          type: 'no_text_found',
+          message: 'No readable text found — PDF may be a scanned image or password-protected',
+        });
       } else {
         result.actions.push({ type: 'extraction_failed', message: 'Could not extract text from file' });
+      }
+
+      if (ocrData?.pages > 0) {
+        result.pdfInfo = {
+          pages: ocrData.pages,
+          title: ocrData.pdfInfo?.title || null,
+          author: ocrData.pdfInfo?.author || null,
+          creator: ocrData.pdfInfo?.creator || null,
+        };
+      }
+
+      if (ocrData?.items?.length) {
+        result.actions.push({
+          type: 'line_items_found',
+          message: `Found ${ocrData.items.length} line item(s) in document`,
+        });
       }
 
       const expenseData = {

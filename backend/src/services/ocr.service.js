@@ -6,8 +6,10 @@ import path from 'path';
 class OCRService {
   /**
    * Extract text from any file — pdf-parse v2 for PDFs, Tesseract for images.
+   * @param {string} filePath
+   * @param {object} opts - { password?: string }
    */
-  async extractText(filePath) {
+  async extractText(filePath, opts = {}) {
     if (!fs.existsSync(filePath)) {
       throw new Error(`File not found: ${filePath}`);
     }
@@ -16,42 +18,73 @@ class OCRService {
     logger.info(`OCR extractText: ${filePath} (ext=${ext})`);
 
     if (ext === '.pdf') {
-      return await this._extractFromPdf(filePath);
+      return await this._extractFromPdf(filePath, opts.password);
     }
     return await this._extractFromImage(filePath);
   }
 
   /**
-   * Extract text from PDF using pdf-parse v2 (PDFParse class API)
+   * Extract text from PDF using pdf-parse v2 (PDFParse class API).
+   * Handles password-protected PDFs.
    */
-  async _extractFromPdf(filePath) {
-    try {
-      const buffer = await fsPromises.readFile(filePath);
-      const { PDFParse } = await import('pdf-parse');
+  async _extractFromPdf(filePath, password) {
+    const buffer = await fsPromises.readFile(filePath);
+    const pdfModule = await import('pdf-parse');
+    const { PDFParse, PasswordException } = pdfModule;
 
-      const parser = new PDFParse({ data: buffer });
+    const parseOpts = { data: new Uint8Array(buffer) };
+    if (password) parseOpts.password = password;
+
+    let parser;
+    try {
+      parser = new PDFParse(parseOpts);
       const textResult = await parser.getText();
-      const infoResult = await parser.getInfo();
-      await parser.destroy();
+
+      let info = {};
+      try {
+        const infoResult = await parser.getInfo();
+        info = {
+          title: infoResult.info?.Title || null,
+          author: infoResult.info?.Author || null,
+          creator: infoResult.info?.Creator || null,
+          creationDate: infoResult.info?.CreationDate || null,
+        };
+      } catch { /* info is optional */ }
 
       const text = textResult.text || '';
       const totalPages = textResult.total || 0;
 
       logger.info(`PDF extracted: ${totalPages} pages, ${text.length} chars`);
 
-      return {
-        text,
-        pages: totalPages,
-        info: {
-          title: infoResult.info?.Title || null,
-          author: infoResult.info?.Author || null,
-          creator: infoResult.info?.Creator || null,
-          creationDate: infoResult.info?.CreationDate || null,
-        },
-      };
+      return { text, pages: totalPages, info };
     } catch (err) {
-      logger.error(`PDF extraction error: ${err.message}`, err);
-      return { text: '', pages: 0, info: {} };
+      if (parser) { try { await parser.destroy(); } catch {} }
+
+      const isPasswordError = (PasswordException && err instanceof PasswordException)
+        || err.name === 'PasswordException'
+        || /password/i.test(err.message);
+
+      if (isPasswordError) {
+        logger.warn(`PDF is password-protected: ${filePath}`);
+        return {
+          text: '',
+          pages: 0,
+          info: {},
+          error: 'password_required',
+          errorMessage: 'This PDF is password-protected. Please provide the password to extract data.',
+        };
+      }
+
+      logger.error(`PDF extraction error: ${err.name} - ${err.message}`);
+      return {
+        text: '',
+        pages: 0,
+        info: {},
+        error: 'extraction_failed',
+        errorMessage: `PDF extraction failed: ${err.message}`,
+      };
+    } finally {
+      if (parser) { try { await parser.destroy(); } catch {} }
     }
   }
 
@@ -95,11 +128,58 @@ class OCRService {
 
   /**
    * Full pipeline: extract → parse
+   * @param {string} filePath
+   * @param {object} opts - { password?: string }
    */
-  async processReceiptFile(filePath) {
+  async processReceiptFile(filePath, opts = {}) {
     try {
       logger.info(`Processing receipt: ${filePath}`);
-      const extraction = await this.extractText(filePath);
+      const extraction = await this.extractText(filePath, opts);
+
+      if (extraction.error === 'password_required') {
+        return {
+          success: true,
+          data: {
+            vendor: 'Unknown',
+            date: new Date().toISOString().split('T')[0],
+            amount: '0.00',
+            taxAmount: '0.00',
+            invoiceNumber: '',
+            items: [],
+            description: extraction.errorMessage,
+            rawText: '',
+            confidence: 0,
+            pages: 0,
+            pdfInfo: {},
+            pdfError: 'password_required',
+            pdfErrorMessage: extraction.errorMessage,
+            processedAt: new Date().toISOString(),
+          },
+        };
+      }
+
+      if (extraction.error) {
+        return {
+          success: true,
+          data: {
+            vendor: 'Unknown',
+            date: new Date().toISOString().split('T')[0],
+            amount: '0.00',
+            taxAmount: '0.00',
+            invoiceNumber: '',
+            items: [],
+            description: extraction.errorMessage || 'Failed to read document',
+            rawText: '',
+            confidence: 0,
+            pages: 0,
+            pdfInfo: {},
+            pdfError: extraction.error,
+            pdfErrorMessage: extraction.errorMessage,
+            processedAt: new Date().toISOString(),
+          },
+        };
+      }
+
       const rawText = extraction.text;
 
       if (!rawText || rawText.trim().length < 5) {
@@ -113,7 +193,7 @@ class OCRService {
             taxAmount: '0.00',
             invoiceNumber: '',
             items: [],
-            description: '(No readable text found in document)',
+            description: '(No readable text in document — may be a scanned image PDF)',
             rawText: '',
             confidence: 0,
             pages: extraction.pages,

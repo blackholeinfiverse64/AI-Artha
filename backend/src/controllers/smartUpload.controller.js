@@ -31,6 +31,7 @@ export const smartUpload = async (req, res) => {
       endDate: req.body.endDate,
       openingBalance: req.body.openingBalance,
       closingBalance: req.body.closingBalance,
+      password: req.body.password,
     };
 
     const result = await smartUploadService.processUpload(

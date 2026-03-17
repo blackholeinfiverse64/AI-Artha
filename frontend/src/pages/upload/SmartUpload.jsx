@@ -28,6 +28,8 @@ import {
   Wallet,
   StickyNote,
   Layers,
+  Lock,
+  RotateCcw,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { PageHeader, Card, Button } from '../../components/common';
@@ -73,6 +75,8 @@ const SmartUpload = () => {
   const [showRawText, setShowRawText] = useState({});
   const [approvingIds, setApprovingIds] = useState(new Set());
   const [approvedIds, setApprovedIds] = useState(new Set());
+  const [passwords, setPasswords] = useState({});
+  const [retrying, setRetrying] = useState(new Set());
 
   const handleDrag = useCallback((e) => {
     e.preventDefault();
@@ -163,6 +167,28 @@ const SmartUpload = () => {
     }
     toast.success('All approved! Redirecting to Expenses...');
     setTimeout(() => navigate('/expenses'), 800);
+  };
+
+  /* ── Retry with password ────────────────────────── */
+  const handleRetryWithPassword = async (index) => {
+    const pw = passwords[index];
+    if (!pw) return toast.error('Please enter the PDF password');
+    const file = files[index];
+    if (!file) return;
+
+    setRetrying((p) => new Set([...p, index]));
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      fd.append('password', pw);
+      const res = await api.post('/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setResults((prev) => prev.map((r, i) => i === index ? { fileName: file.name, success: true, data: res.data.data } : r));
+      toast.success('PDF unlocked & data extracted!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Retry failed');
+    } finally {
+      setRetrying((p) => { const n = new Set(p); n.delete(index); return n; });
+    }
   };
 
   /* ── Derived counts ─────────────────────────────── */
@@ -321,13 +347,16 @@ const SmartUpload = () => {
             const approving = approvingIds.has(eid);
             const rawText = d?.extractedContent;
             const rawOpen = showRawText[index];
+            const needsPassword = d?.pdfError === 'password_required';
+            const isRetrying = retrying.has(index);
 
             return (
-              <Card key={index} className={`overflow-hidden transition-all duration-300 ${!result.success ? 'border-destructive/20' : approved ? 'border-success/30' : ''}`}>
+              <Card key={index} className={`overflow-hidden transition-all duration-300 ${!result.success ? 'border-destructive/20' : needsPassword ? 'border-amber-400/40' : approved ? 'border-success/30' : ''}`}>
                 {/* ── Collapsed header ── */}
                 <div className="flex items-center gap-4 cursor-pointer select-none" onClick={() => toggleCard(index)}>
                   <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
                     {!result.success ? <AlertCircle className="w-5 h-5 text-destructive" />
+                      : needsPassword ? <Lock className="w-5 h-5 text-amber-500" />
                       : approved ? <CheckCircle2 className="w-5 h-5 text-success" />
                       : isSt ? <CreditCard className="w-5 h-5 text-blue-500" />
                       : <Receipt className="w-5 h-5 text-amber-500" />}
@@ -341,7 +370,8 @@ const SmartUpload = () => {
                         </span>
                       )}
                       {approved && <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase bg-success/10 text-success border border-success/20">Approved</span>}
-                      {isExp && !approved && result.success && <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase bg-amber-500/10 text-amber-600 border border-amber-200">Pending</span>}
+                      {needsPassword && <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase bg-amber-500/10 text-amber-600 border border-amber-200">Password Required</span>}
+                      {isExp && !approved && !needsPassword && result.success && <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold uppercase bg-amber-500/10 text-amber-600 border border-amber-200">Pending</span>}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5 truncate">{result.success ? s.message : result.error}</p>
                   </div>
@@ -354,6 +384,38 @@ const SmartUpload = () => {
                 {/* ── Expanded: ALL extracted data ── */}
                 {open && result.success && (
                   <div className="mt-4 pt-4 border-t border-border space-y-5">
+
+                    {/* — Password required — */}
+                    {needsPassword && (
+                      <div className="p-4 bg-amber-500/5 border border-amber-300/30 rounded-xl space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Lock className="w-4 h-4 text-amber-500" />
+                          <p className="text-sm font-semibold text-foreground">This PDF is password-protected</p>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Indian bank statements usually require your Date of Birth, Customer ID, or PAN as the password. Enter it below to unlock and extract all data.
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            type="password"
+                            placeholder="Enter PDF password"
+                            value={passwords[index] || ''}
+                            onChange={(e) => setPasswords((p) => ({ ...p, [index]: e.target.value }))}
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex-1 px-3 py-2 text-sm rounded-lg border border-border bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          />
+                          <Button
+                            onClick={(e) => { e.stopPropagation(); handleRetryWithPassword(index); }}
+                            disabled={isRetrying || !passwords[index]}
+                            className="gap-2"
+                          >
+                            {isRetrying
+                              ? <><Loader2 className="w-4 h-4 animate-spin" /> Unlocking...</>
+                              : <><RotateCcw className="w-4 h-4" /> Unlock &amp; Extract</>}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* — Expense / Bill — */}
                     {isExp && (
