@@ -377,9 +377,27 @@ const SmartUpload = () => {
                           <div className="p-3 bg-muted/40 rounded-xl">
                             <div className="flex items-center gap-2 mb-1">
                               <StickyNote className="w-3.5 h-3.5 text-muted-foreground" />
-                              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Description</span>
+                              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Extracted Description</span>
                             </div>
                             <p className="text-sm text-foreground">{s.description}</p>
+                          </div>
+                        )}
+
+                        {/* Line items from document */}
+                        {s.lineItems?.length > 0 && (
+                          <div className="p-3 bg-muted/40 rounded-xl">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Layers className="w-3.5 h-3.5 text-muted-foreground" />
+                              <span className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Line Items ({s.lineItems.length})</span>
+                            </div>
+                            <div className="space-y-1">
+                              {s.lineItems.map((item, li) => (
+                                <div key={li} className="flex items-center justify-between text-sm py-1 border-b border-border/40 last:border-0">
+                                  <span className="text-foreground">{item.description}</span>
+                                  <span className="font-semibold text-foreground ml-4 flex-shrink-0">₹{parseFloat(item.amount).toLocaleString('en-IN')}</span>
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         )}
 
@@ -398,15 +416,15 @@ const SmartUpload = () => {
                           </div>
                         )}
 
-                        {/* Raw extracted text (full document content) */}
+                        {/* Full extracted text — always visible for PDFs/docs */}
                         {rawText && (
                           <div>
                             <button onClick={(e) => { e.stopPropagation(); toggleRaw(index); }} className="flex items-center gap-2 text-xs font-medium text-primary hover:underline mb-2">
                               <FileSearch className="w-3.5 h-3.5" />
-                              {rawOpen ? 'Hide' : 'Show'} Full Extracted Text
+                              {rawOpen ? 'Hide' : 'Show'} Full Document Text ({rawText.length} chars)
                             </button>
                             {rawOpen && (
-                              <div className="p-4 bg-muted/50 rounded-xl border border-border max-h-80 overflow-auto">
+                              <div className="p-4 bg-muted/50 rounded-xl border border-border max-h-96 overflow-auto">
                                 <pre className="text-xs text-foreground whitespace-pre-wrap font-mono leading-relaxed">{rawText}</pre>
                               </div>
                             )}

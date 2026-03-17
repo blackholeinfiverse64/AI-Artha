@@ -6,82 +6,46 @@ import fs from 'fs/promises';
 import path from 'path';
 
 class SmartUploadService {
-  /**
-   * Detect document type from file metadata and content heuristics
-   * Returns: 'bank_statement' | 'bill' | 'receipt' | 'invoice'
-   */
   detectDocumentType(file) {
     const ext = path.extname(file.originalname).toLowerCase();
     const name = file.originalname.toLowerCase();
     const mime = file.mimetype;
 
-    if (ext === '.csv' || ext === '.xls' || ext === '.xlsx') {
-      return 'bank_statement';
-    }
-
-    if (name.includes('statement') || name.includes('passbook') || name.includes('txn')) {
-      return 'bank_statement';
-    }
-
-    if (name.includes('invoice') || name.includes('inv-') || name.includes('inv_')) {
-      return 'bill';
-    }
-
-    if (name.includes('bill') || name.includes('receipt') || name.includes('expense')) {
-      return 'receipt';
-    }
-
-    if (mime.startsWith('image/')) {
-      return 'receipt';
-    }
-
-    if (mime === 'application/pdf') {
-      return 'auto_detect_pdf';
-    }
-
+    if (['.csv', '.xls', '.xlsx'].includes(ext)) return 'bank_statement';
+    if (name.includes('statement') || name.includes('passbook') || name.includes('txn')) return 'bank_statement';
+    if (name.includes('invoice') || name.includes('inv-') || name.includes('inv_')) return 'bill';
+    if (name.includes('bill') || name.includes('receipt') || name.includes('expense')) return 'receipt';
+    if (mime.startsWith('image/')) return 'receipt';
+    if (mime === 'application/pdf') return 'auto_detect_pdf';
     return 'receipt';
   }
 
-  /**
-   * For PDFs, try to determine if it's a bank statement or a bill/receipt
-   * by checking for statement-like patterns in extracted text
-   */
   async refinePdfType(filePath) {
     try {
       const pdfParse = (await import('pdf-parse')).default;
-      const fileBuffer = await fs.readFile(filePath);
-      const pdfData = await pdfParse(fileBuffer);
-      const text = pdfData.text.toLowerCase();
+      const buf = await fs.readFile(filePath);
+      const pdf = await pdfParse(buf);
+      const text = pdf.text.toLowerCase();
 
-      const statementKeywords = [
+      const keywords = [
         'account statement', 'bank statement', 'transaction history',
         'opening balance', 'closing balance', 'passbook',
         'account number', 'account no', 'statement of account',
         'debit', 'credit', 'running balance',
       ];
-
-      const statementScore = statementKeywords.reduce((score, kw) => {
-        return score + (text.includes(kw) ? 1 : 0);
-      }, 0);
-
-      return statementScore >= 3 ? 'bank_statement' : 'bill';
+      const score = keywords.reduce((s, kw) => s + (text.includes(kw) ? 1 : 0), 0);
+      return score >= 3 ? 'bank_statement' : 'bill';
     } catch (err) {
       logger.warn(`PDF type detection failed: ${err.message}`);
       return 'bill';
     }
   }
 
-  /**
-   * Main pipeline: detect type → route to correct processor → return results
-   */
   async processUpload(file, userId, metadata = {}) {
     let docType = metadata.documentType || this.detectDocumentType(file);
+    if (docType === 'auto_detect_pdf') docType = await this.refinePdfType(file.path);
 
-    if (docType === 'auto_detect_pdf') {
-      docType = await this.refinePdfType(file.path);
-    }
-
-    logger.info(`Smart upload: detected type = ${docType}, file = ${file.originalname}`);
+    logger.info(`Smart upload: type=${docType}, file=${file.originalname}`);
 
     const result = {
       documentType: docType,
@@ -94,17 +58,11 @@ class SmartUploadService {
     switch (docType) {
       case 'bank_statement':
         return await this._processBankStatement(file, userId, metadata, result);
-      case 'bill':
-      case 'receipt':
-        return await this._processReceipt(file, userId, metadata, result);
       default:
         return await this._processReceipt(file, userId, metadata, result);
     }
   }
 
-  /**
-   * Process bank statement: parse → auto-reconcile
-   */
   async _processBankStatement(file, userId, metadata, result) {
     try {
       const statementData = {
@@ -117,9 +75,7 @@ class SmartUploadService {
         closingBalance: metadata.closingBalance || '0',
       };
 
-      const statement = await bankStatementService.uploadBankStatement(
-        statementData, userId, file
-      );
+      const statement = await bankStatementService.uploadBankStatement(statementData, userId, file);
 
       result.actions.push({
         type: 'bank_statement_created',
@@ -127,81 +83,55 @@ class SmartUploadService {
         id: statement._id,
         statementNumber: statement.statementNumber,
       });
-
       result.summary = {
         statementId: statement._id,
         statementNumber: statement.statementNumber,
         status: 'processing',
-        message: 'Statement uploaded. Auto-parsing, expense creation, invoice matching, and ledger posting running in background.',
+        message: 'Statement uploaded. Auto-reconciliation running in background.',
       };
-
       return result;
     } catch (err) {
       logger.error('Smart upload bank statement error:', err);
-      result.actions.push({
-        type: 'error',
-        message: `Bank statement processing failed: ${err.message}`,
-      });
+      result.actions.push({ type: 'error', message: `Bank statement failed: ${err.message}` });
       result.summary = { status: 'failed', message: err.message };
       return result;
     }
   }
 
   /**
-   * Process receipt/bill: OCR → auto-create expense
+   * Single extraction call that reads the REAL file content,
+   * then parses structured fields from it.
    */
   async _processReceipt(file, userId, metadata, result) {
     try {
-      let ocrData = null;
-      let fullExtractedText = null;
+      const ocrResult = await ocrService.processReceiptFile(file.path);
+      const ocrData = ocrResult.success ? ocrResult.data : null;
+      const rawText = ocrData?.rawText || '';
 
-      if (file.mimetype.startsWith('image/')) {
-        const ocrResult = await ocrService.processReceiptFile(file.path);
-        if (ocrResult.success) {
-          ocrData = ocrResult.data;
-          fullExtractedText = ocrData.rawText || null;
-          result.actions.push({
-            type: 'ocr_completed',
-            message: `OCR extracted: vendor=${ocrData.vendor}, amount=${ocrData.amount}, date=${ocrData.date}`,
-            confidence: ocrData.confidence,
-          });
-        }
-      }
+      if (ocrResult.success) {
+        result.actions.push({
+          type: 'extraction_completed',
+          message: `Extracted ${rawText.length} chars — vendor: ${ocrData.vendor}, amount: ₹${ocrData.amount}, date: ${ocrData.date}`,
+          confidence: ocrData.confidence,
+        });
 
-      if (file.mimetype === 'application/pdf') {
-        try {
-          const pdfParse = (await import('pdf-parse')).default;
-          const fileBuffer = await fs.readFile(file.path);
-          const pdfData = await pdfParse(fileBuffer);
-          fullExtractedText = pdfData.text || '';
+        if (ocrData.pages > 0) {
           result.pdfInfo = {
-            pages: pdfData.numpages || 0,
-            title: pdfData.info?.Title || null,
-            author: pdfData.info?.Author || null,
-            creator: pdfData.info?.Creator || null,
+            pages: ocrData.pages,
+            title: ocrData.pdfInfo?.title || null,
+            author: ocrData.pdfInfo?.author || null,
+            creator: ocrData.pdfInfo?.creator || null,
           };
-          result.actions.push({
-            type: 'pdf_parsed',
-            message: `PDF parsed: ${pdfData.numpages} page(s), ${fullExtractedText.length} characters extracted`,
-          });
-        } catch (pdfErr) {
-          logger.warn(`PDF text extraction failed: ${pdfErr.message}`);
         }
 
-        try {
-          const pdfOcr = await ocrService.processReceiptFile(file.path);
-          if (pdfOcr.success) {
-            ocrData = pdfOcr.data;
-            if (!fullExtractedText) fullExtractedText = ocrData.rawText || null;
-            result.actions.push({
-              type: 'ocr_completed',
-              message: `Data extracted: vendor=${ocrData.vendor}, amount=₹${ocrData.amount}, tax=₹${ocrData.taxAmount}`,
-              confidence: ocrData.confidence,
-            });
-          }
-        } catch (err) {
-          logger.warn('PDF OCR failed, creating expense with metadata only');
+        if (ocrData.items?.length) {
+          result.actions.push({
+            type: 'line_items_found',
+            message: `Found ${ocrData.items.length} line item(s) in document`,
+          });
         }
+      } else {
+        result.actions.push({ type: 'extraction_failed', message: 'Could not extract text from file' });
       }
 
       const expenseData = {
@@ -216,20 +146,16 @@ class SmartUploadService {
         notes: `Auto-created via Smart Upload from: ${file.originalname}`,
       };
 
-      const expense = await expenseService.createExpense(
-        expenseData,
-        userId,
-        [file]
-      );
+      const expense = await expenseService.createExpense(expenseData, userId, [file]);
 
       result.actions.push({
         type: 'expense_created',
-        message: `Expense ${expense.expenseNumber} created: ₹${expenseData.totalAmount} - ${expenseData.vendor}`,
+        message: `Expense ${expense.expenseNumber} created: ₹${expenseData.totalAmount} — ${expenseData.vendor}`,
         id: expense._id,
         expenseNumber: expense.expenseNumber,
       });
 
-      result.extractedContent = fullExtractedText || null;
+      result.extractedContent = rawText || null;
 
       result.summary = {
         expenseId: expense._id,
@@ -242,33 +168,26 @@ class SmartUploadService {
         taxAmount: expenseData.taxAmount,
         paymentMethod: expenseData.paymentMethod,
         invoiceNumber: ocrData?.invoiceNumber || null,
+        lineItems: ocrData?.items || [],
         status: 'created',
-        ocrConfidence: ocrData?.confidence || null,
-        message: 'Expense auto-created from uploaded document. Pending approval.',
+        ocrConfidence: ocrData?.confidence ?? null,
+        message: 'Expense auto-created. Review data below and approve.',
       };
 
       return result;
     } catch (err) {
       logger.error('Smart upload receipt error:', err);
-      result.actions.push({
-        type: 'error',
-        message: `Receipt processing failed: ${err.message}`,
-      });
+      result.actions.push({ type: 'error', message: `Processing failed: ${err.message}` });
       result.summary = { status: 'failed', message: err.message };
       return result;
     }
   }
 
-  /**
-   * Process multiple files in batch
-   */
   async processBatchUpload(files, userId, metadata = {}) {
     const results = [];
-
     for (const file of files) {
       try {
-        const result = await this.processUpload(file, userId, metadata);
-        results.push(result);
+        results.push(await this.processUpload(file, userId, metadata));
       } catch (err) {
         results.push({
           documentType: 'unknown',
@@ -279,7 +198,6 @@ class SmartUploadService {
         });
       }
     }
-
     return {
       totalFiles: files.length,
       processed: results.filter(r => r.summary?.status !== 'failed').length,

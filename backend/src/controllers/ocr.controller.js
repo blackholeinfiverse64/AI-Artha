@@ -14,12 +14,12 @@ export const processReceiptOCR = async (req, res) => {
       });
     }
 
-    const allowedMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'application/pdf'];
     if (!allowedMimes.includes(req.file.mimetype)) {
       fs.unlinkSync(req.file.path);
       return res.status(400).json({
         success: false,
-        message: 'Only image files (JPEG, PNG, WebP) are supported',
+        message: 'Only image files (JPEG, PNG, WebP) and PDFs are supported',
       });
     }
 
@@ -71,16 +71,12 @@ export const processReceiptOCR = async (req, res) => {
 // @access  Private
 export const getOCRStatus = async (req, res) => {
   try {
-    const ocrEnabled = process.env.OCR_ENABLED !== 'false';
-
     res.json({
       success: true,
       data: {
-        ocrEnabled,
-        status: ocrEnabled ? 'ready' : 'disabled',
-        message: ocrEnabled
-          ? 'OCR service is available'
-          : 'OCR service is disabled (using mock extraction)',
+        ocrEnabled: true,
+        status: 'ready',
+        message: 'OCR service active — PDF text extraction via pdf-parse, image OCR via Tesseract.js',
       },
     });
   } catch (error) {
