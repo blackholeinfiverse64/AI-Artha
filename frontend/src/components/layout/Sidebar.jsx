@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { 
+import {
   LayoutDashboard, 
   FileText, 
   Receipt, 
@@ -16,7 +16,8 @@ import {
   Settings,
   ChevronDown,
   X,
-  CreditCard
+  CreditCard,
+  Zap,
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -28,6 +29,11 @@ const menuItems = [
     title: 'Dashboard',
     icon: LayoutDashboard,
     path: '/dashboard',
+  },
+  {
+    title: 'Smart Upload',
+    icon: Zap,
+    path: '/upload',
   },
   {
     title: 'Invoices',

@@ -38,6 +38,7 @@ import healthRoutes from './routes/health.routes.js';
 import usersRoutes from './routes/users.routes.js';
 import legacyRoutes from './routes/index.js';
 import bankStatementRoutes from './routes/bankStatement.routes.js';
+import smartUploadRoutes from './routes/smartUpload.routes.js';
 
 dotenv.config();
 
@@ -168,6 +169,7 @@ app.use('/api/v1/performance', performanceRoutes);
 app.use('/api/v1/database', databaseRoutes);
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/statements', bankStatementRoutes);
+app.use('/api/v1/upload', smartUploadRoutes);
 
 // Legacy
 app.use('/api', legacyRoutes);

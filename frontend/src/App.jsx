@@ -46,6 +46,9 @@ import StatementsList from './pages/statements/StatementsList';
 import StatementsUpload from './pages/statements/StatementsUpload';
 import StatementDetail from './pages/statements/StatementDetail';
 
+// Smart Upload
+import SmartUpload from './pages/upload/SmartUpload';
+
 // Settings
 import CompanySettings from './pages/settings/CompanySettings';
 import UserManagement from './pages/settings/UserManagement';
@@ -175,6 +178,9 @@ function App() {
         {/* Compliance */}
         <Route path="/gst" element={<GSTDashboard />} />
         <Route path="/tds" element={<TDSManagement />} />
+
+        {/* Smart Upload */}
+        <Route path="/upload" element={<SmartUpload />} />
 
         {/* Statements */}
         <Route path="/statements" element={<StatementsList />} />

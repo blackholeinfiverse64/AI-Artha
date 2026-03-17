@@ -112,6 +112,30 @@ export const userService = {
   updateProfile: (data) => api.put('/users/me', data),
 };
 
+// Smart Upload Services
+export const smartUploadService = {
+  upload: (file, metadata = {}) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    Object.keys(metadata).forEach(key => {
+      if (metadata[key]) formData.append(key, metadata[key]);
+    });
+    return api.post('/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  uploadBatch: (files, metadata = {}) => {
+    const formData = new FormData();
+    files.forEach(file => formData.append('files', file));
+    Object.keys(metadata).forEach(key => {
+      if (metadata[key]) formData.append(key, metadata[key]);
+    });
+    return api.post('/upload/batch', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+};
+
 // Bank Statement Services
 export const bankStatementService = {
   upload: (file, data) => {
