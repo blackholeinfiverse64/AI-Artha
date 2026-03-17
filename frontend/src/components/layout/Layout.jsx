@@ -7,37 +7,40 @@ import { useTheme } from '../../hooks/useTheme.jsx';
 const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-  const { isUniverseMode } = useTheme();
+  const { isUniverseMode, isDarkMode } = useTheme();
 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
-      {/* Universe mode star background */}
-      {isUniverseMode && (
-        <div className="stars-bg" aria-hidden="true" />
+      {isDarkMode && (
+        <div className="dark-ambient" aria-hidden="true" />
       )}
-      
-      {/* Mobile sidebar overlay */}
+
+      {isUniverseMode && (
+        <>
+          <div className="universe-nebula" aria-hidden="true" />
+          <div className="stars-bg" aria-hidden="true" />
+        </>
+      )}
+
       {mobileSidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 lg:hidden"
           onClick={() => setMobileSidebarOpen(false)}
         />
       )}
 
-      {/* Sidebar */}
-      <Sidebar 
-        isOpen={sidebarOpen} 
+      <Sidebar
+        isOpen={sidebarOpen}
         mobileOpen={mobileSidebarOpen}
         onMobileClose={() => setMobileSidebarOpen(false)}
       />
 
-      {/* Main content */}
       <div className={`transition-all duration-300 ${sidebarOpen ? 'lg:ml-64' : 'lg:ml-20'}`}>
-        <Navbar 
+        <Navbar
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onMobileMenuClick={() => setMobileSidebarOpen(true)}
         />
-        
+
         <main className="p-4 lg:p-6">
           <div className="max-w-7xl mx-auto">
             <Outlet />

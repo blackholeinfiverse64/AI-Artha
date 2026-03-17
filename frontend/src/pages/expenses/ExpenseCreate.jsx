@@ -121,7 +121,7 @@ const ExpenseCreate = () => {
   const handleFiles = (fileList) => {
     const newFiles = Array.from(fileList).filter((file) => {
       const isValid = file.type.startsWith('image/') || file.type === 'application/pdf';
-      const isSmallEnough = file.size <= 10 * 1024 * 1024; // 10MB
+      const isSmallEnough = file.size <= 10 * 1024 * 1024;
       return isValid && isSmallEnough;
     });
 
@@ -131,6 +131,41 @@ const ExpenseCreate = () => {
     }
 
     setFiles((prev) => [...prev, ...newFiles]);
+
+    const firstImage = newFiles.find((f) => f.type.startsWith('image/'));
+    if (firstImage && files.length === 0) {
+      autoScanReceipt(firstImage);
+    }
+  };
+
+  const autoScanReceipt = async (file) => {
+    setScanning(true);
+    try {
+      const formData = new FormData();
+      formData.append('receipt', file);
+
+      const response = await api.post('/expenses/ocr', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const { vendor, amount, date, gstAmount, taxAmount, description } = response.data.data;
+
+      if (vendor && vendor !== 'Unknown Vendor') setValue('vendor', vendor);
+      if (amount && amount !== '0.00') setValue('amount', parseFloat(amount));
+      if (date) setValue('date', date);
+      if (gstAmount && gstAmount !== '0.00') setValue('gstAmount', parseFloat(gstAmount));
+      else if (taxAmount && taxAmount !== '0.00') setValue('gstAmount', parseFloat(taxAmount));
+      if (description) {
+        const current = watch('description');
+        if (!current) setValue('description', description.substring(0, 200));
+      }
+
+      toast.success('Receipt auto-scanned! Fields filled automatically.');
+    } catch (error) {
+      toast.error('Auto-scan failed. You can try manual scan or enter details.');
+    } finally {
+      setScanning(false);
+    }
   };
 
   const removeFile = (index) => {
@@ -152,12 +187,13 @@ const ExpenseCreate = () => {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
-      const { vendor, amount, date, gstAmount } = response.data.data;
+      const { vendor, amount, date, gstAmount, taxAmount } = response.data.data;
       
-      if (vendor) setValue('vendor', vendor);
-      if (amount) setValue('amount', amount);
+      if (vendor && vendor !== 'Unknown Vendor') setValue('vendor', vendor);
+      if (amount && amount !== '0.00') setValue('amount', parseFloat(amount));
       if (date) setValue('date', date);
-      if (gstAmount) setValue('gstAmount', gstAmount);
+      if (gstAmount && gstAmount !== '0.00') setValue('gstAmount', parseFloat(gstAmount));
+      else if (taxAmount && taxAmount !== '0.00') setValue('gstAmount', parseFloat(taxAmount));
       
       toast.success('Receipt scanned successfully!');
     } catch (error) {
@@ -405,10 +441,11 @@ const ExpenseCreate = () => {
 
             {/* Tips */}
             <Card className="bg-blue-50 border-blue-200">
-              <h3 className="text-sm font-semibold text-blue-900 mb-2">Tips</h3>
+              <h3 className="text-sm font-semibold text-blue-900 mb-2">Auto-Scan</h3>
               <ul className="text-xs text-blue-800 space-y-1">
-                <li>• Upload clear photos of receipts for OCR scanning</li>
-                <li>• Include GST amount for tax credit claims</li>
+                <li>• Upload a receipt image and fields auto-fill via OCR</li>
+                <li>• Vendor, amount, date, and GST are extracted automatically</li>
+                <li>• Use "Scan Receipt" button to re-scan if needed</li>
                 <li>• Add vendor GSTN for compliance</li>
               </ul>
             </Card>

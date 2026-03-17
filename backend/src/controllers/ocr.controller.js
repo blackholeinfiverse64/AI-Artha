@@ -47,6 +47,7 @@ export const processReceiptOCR = async (req, res) => {
       message: 'Receipt processed successfully',
       data: {
         ...result.data,
+        gstAmount: result.data.taxAmount,
         fileName: req.file.filename,
         filePath: req.file.path,
       },

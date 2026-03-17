@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, FileText, CheckCircle, XCircle, Clock, AlertCircle, Trash2, Eye, Download } from 'lucide-react';
+import { Upload, FileText, CheckCircle, XCircle, Clock, AlertCircle, Trash2, Eye, Download, Zap } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { bankStatementService } from '../../services';
 import { PageHeader, Card, Button } from '../../components/common';
@@ -267,6 +267,12 @@ const Statements = () => {
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(statement.status)}`}>
                           {statement.status}
                         </span>
+                        {statement.reconciliation?.reconciledAt && (
+                          <span className="flex items-center gap-0.5 px-1.5 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700" title="Auto-reconciled">
+                            <Zap className="w-3 h-3" />
+                            Reconciled
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">

@@ -42,7 +42,7 @@ const Navbar = ({ onToggleSidebar, onMobileMenuClick }) => {
   ];
 
   return (
-    <header className="sticky top-0 z-30 h-18 backdrop-blur-xl border-b transition-all duration-300 bg-background/80 border-border/50">
+    <header className="sticky top-0 z-30 h-18 backdrop-blur-2xl border-b transition-all duration-300 bg-background/75 border-border/40">
       <div className="flex items-center justify-between h-full px-4">
         {/* Left side */}
         <div className="flex items-center gap-4">

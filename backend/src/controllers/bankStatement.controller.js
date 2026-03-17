@@ -102,12 +102,12 @@ export const getBankStatement = async (req, res) => {
  */
 export const processBankStatement = async (req, res) => {
   try {
-    const statement = await bankStatementService.processStatementFile(req.params.id);
+    const statement = await bankStatementService.processStatementFile(req.params.id, req.user._id);
 
     res.json({
       success: true,
       data: statement,
-      message: 'Bank statement processed successfully',
+      message: 'Bank statement processed and auto-reconciled successfully',
     });
   } catch (error) {
     logger.error('Process bank statement error:', error);

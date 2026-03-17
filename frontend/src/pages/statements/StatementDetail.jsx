@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Clock, ArrowUpRight, ArrowDownRight, FileText, Download } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, ArrowUpRight, ArrowDownRight, FileText, Download, Zap, Link2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { bankStatementService } from '../../services';
 import { PageHeader, Card, Button } from '../../components/common';
@@ -209,6 +209,39 @@ const StatementDetail = () => {
         </div>
       </Card>
 
+      {/* Auto-Reconciliation Summary */}
+      {statement.status === 'completed' && statement.reconciliation?.reconciledAt && (
+        <Card className="p-4 border-green-200 bg-green-50">
+          <div className="flex items-start gap-3">
+            <Zap className="w-6 h-6 text-green-600 flex-shrink-0" />
+            <div className="flex-1">
+              <h3 className="font-semibold text-green-800 mb-2">Auto-Reconciliation Complete</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <span className="text-green-700">Matched Expenses</span>
+                  <p className="text-lg font-bold text-green-900">{statement.reconciliation.matchedExpenses || 0}</p>
+                </div>
+                <div>
+                  <span className="text-green-700">Matched Invoices</span>
+                  <p className="text-lg font-bold text-green-900">{statement.reconciliation.matchedInvoices || 0}</p>
+                </div>
+                <div>
+                  <span className="text-green-700">Auto-Created Expenses</span>
+                  <p className="text-lg font-bold text-green-900">{statement.reconciliation.autoCreatedExpenses || 0}</p>
+                </div>
+                <div>
+                  <span className="text-green-700">Journal Entries</span>
+                  <p className="text-lg font-bold text-green-900">{statement.reconciliation.journalEntriesCreated || 0}</p>
+                </div>
+              </div>
+              <p className="text-xs text-green-600 mt-2">
+                Reconciled at {new Date(statement.reconciliation.reconciledAt).toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Transactions */}
       {statement.status === 'completed' && (
         <Card>
@@ -291,7 +324,21 @@ const StatementDetail = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {transaction.matched ? (
-                        <CheckCircle className="w-5 h-5 text-green-600" />
+                        <div className="flex items-center gap-1">
+                          <CheckCircle className="w-5 h-5 text-green-600" />
+                          {transaction.autoCreated && (
+                            <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">Auto</span>
+                          )}
+                          {transaction.matchedInvoiceId && (
+                            <span className="text-xs bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                              <Link2 className="w-3 h-3" />
+                              Invoice
+                            </span>
+                          )}
+                          {transaction.matchedExpenseId && !transaction.autoCreated && (
+                            <span className="text-xs bg-green-100 text-green-700 px-1.5 py-0.5 rounded">Expense</span>
+                          )}
+                        </div>
                       ) : (
                         <Clock className="w-5 h-5 text-gray-400" />
                       )}

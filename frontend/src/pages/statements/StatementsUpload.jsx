@@ -89,7 +89,7 @@ const StatementsUpload = () => {
     setUploading(true);
     try {
       await bankStatementService.upload(file, data);
-      toast.success('Bank statement uploaded successfully! Processing will start shortly.');
+      toast.success('Bank statement uploaded! Auto-processing & reconciliation started.');
       navigate('/statements');
     } catch (error) {
       console.error('Upload error:', error);
@@ -103,7 +103,7 @@ const StatementsUpload = () => {
     <div className="space-y-6">
       <PageHeader
         title="Upload Bank Statement"
-        description="Upload your bank account statement to automatically extract transactions"
+        description="Upload your statement — transactions are auto-extracted, matched to invoices & expenses, and posted to the ledger"
         actions={
           <Button variant="outline" onClick={() => navigate('/statements')}>
             Back to Statements
@@ -359,12 +359,13 @@ const StatementsUpload = () => {
               </div>
 
               <div className="pt-4 border-t">
-                <h4 className="font-medium text-gray-700 mb-2">Tips</h4>
+                <h4 className="font-medium text-gray-700 mb-2">Auto-Reconciliation</h4>
                 <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
-                  <li>CSV format works best</li>
-                  <li>Ensure dates are in standard format</li>
-                  <li>Check that debits and credits are separate columns</li>
-                  <li>Remove any header/footer rows in the exported file</li>
+                  <li>CSV, Excel (XLS/XLSX), and PDF are all supported</li>
+                  <li>Transactions are automatically matched to existing expenses</li>
+                  <li>Credits are auto-matched to outstanding invoices</li>
+                  <li>Unmatched debits auto-create new expense entries</li>
+                  <li>Journal entries are posted automatically</li>
                 </ul>
               </div>
             </div>

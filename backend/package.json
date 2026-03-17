@@ -19,7 +19,7 @@
     "test:routes-integration": "cross-env NODE_ENV=test jest tests/routes-integration.test.js",
     "test:insightflow": "cross-env NODE_ENV=test jest tests/insightflow.test.js",
     "test:static-files": "cross-env NODE_ENV=test jest tests/static-files.test.js",
-    "test:integration": "cross-env NODE_ENV=test jest tests/system-integration.test.js",
+    "test:integration": "cross-env NODE_ENV=test jest tests/integration.test.js --forceExit",
     "test:final": "cross-env NODE_ENV=test jest tests/final-integration.test.js",
     "test:seed": "cross-env NODE_ENV=test jest tests/seed.test.js",
     "test:cache": "cross-env NODE_ENV=test jest tests/redis-cache.test.js",
@@ -28,7 +28,6 @@
     "test:health": "cross-env NODE_ENV=test jest tests/health-monitoring.test.js",
     "test:ledger-frontend": "cross-env NODE_ENV=test jest tests/ledger-integrity-frontend.test.js",
     "test:gst-frontend": "cross-env NODE_ENV=test jest tests/gst-frontend-integration.test.js",
-    "test:integration": "cross-env NODE_ENV=test jest tests/integration.test.js --forceExit",
     "test:all": "cross-env NODE_ENV=test jest --coverage --forceExit",
     "lint": "eslint src/ --fix",
     "format": "prettier --write src/",
@@ -85,9 +84,11 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.0.0",
     "multer": "^1.4.5-lts.1",
+    "pdf-parse": "^2.4.5",
     "pdfkit": "^0.13.0",
     "redis": "^4.6.11",
-    "winston": "^3.11.0"
+    "winston": "^3.11.0",
+    "xlsx": "^0.18.5"
   },
   "optionalDependencies": {
     "tesseract.js": "^5.0.4"

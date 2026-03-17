@@ -70,6 +70,18 @@ const transactionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Expense',
   },
+  matchedInvoiceId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Invoice',
+  },
+  journalEntryId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'JournalEntry',
+  },
+  autoCreated: {
+    type: Boolean,
+    default: false,
+  },
   notes: String,
 });
 
@@ -150,6 +162,13 @@ const bankStatementSchema = new mongoose.Schema({
   transactionCount: {
     type: Number,
     default: 0,
+  },
+  reconciliation: {
+    matchedExpenses: { type: Number, default: 0 },
+    matchedInvoices: { type: Number, default: 0 },
+    autoCreatedExpenses: { type: Number, default: 0 },
+    journalEntriesCreated: { type: Number, default: 0 },
+    reconciledAt: Date,
   },
   uploadedBy: {
     type: mongoose.Schema.Types.ObjectId,
