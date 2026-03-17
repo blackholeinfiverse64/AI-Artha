@@ -2,7 +2,6 @@ import ocrService from './ocr.service.js';
 import bankStatementService from './bankStatement.service.js';
 import expenseService from './expense.service.js';
 import logger from '../config/logger.js';
-import fs from 'fs/promises';
 import path from 'path';
 
 class SmartUploadService {
@@ -22,10 +21,10 @@ class SmartUploadService {
 
   async refinePdfType(filePath) {
     try {
-      const pdfParse = (await import('pdf-parse')).default;
-      const buf = await fs.readFile(filePath);
-      const pdf = await pdfParse(buf);
-      const text = pdf.text.toLowerCase();
+      const extraction = await ocrService.extractText(filePath);
+      const text = (extraction.text || '').toLowerCase();
+
+      if (text.length < 10) return 'bill';
 
       const keywords = [
         'account statement', 'bank statement', 'transaction history',

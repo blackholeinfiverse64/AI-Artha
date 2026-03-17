@@ -5,8 +5,7 @@ import path from 'path';
 
 class OCRService {
   /**
-   * Extract text from any file — uses pdf-parse for PDFs,
-   * Tesseract for images, never returns hardcoded data.
+   * Extract text from any file — pdf-parse v2 for PDFs, Tesseract for images.
    */
   async extractText(filePath) {
     if (!fs.existsSync(filePath)) {
@@ -19,40 +18,45 @@ class OCRService {
     if (ext === '.pdf') {
       return await this._extractFromPdf(filePath);
     }
-
     return await this._extractFromImage(filePath);
   }
 
   /**
-   * Extract text from a PDF using pdf-parse (reads real content)
+   * Extract text from PDF using pdf-parse v2 (PDFParse class API)
    */
   async _extractFromPdf(filePath) {
     try {
-      const pdfParse = (await import('pdf-parse')).default;
       const buffer = await fsPromises.readFile(filePath);
-      const pdfData = await pdfParse(buffer);
+      const { PDFParse } = await import('pdf-parse');
 
-      const text = pdfData.text || '';
-      logger.info(`PDF extracted: ${pdfData.numpages} pages, ${text.length} chars`);
+      const parser = new PDFParse({ data: buffer });
+      const textResult = await parser.getText();
+      const infoResult = await parser.getInfo();
+      await parser.destroy();
+
+      const text = textResult.text || '';
+      const totalPages = textResult.total || 0;
+
+      logger.info(`PDF extracted: ${totalPages} pages, ${text.length} chars`);
 
       return {
         text,
-        pages: pdfData.numpages || 0,
+        pages: totalPages,
         info: {
-          title: pdfData.info?.Title || null,
-          author: pdfData.info?.Author || null,
-          creator: pdfData.info?.Creator || null,
-          creationDate: pdfData.info?.CreationDate || null,
+          title: infoResult.info?.Title || null,
+          author: infoResult.info?.Author || null,
+          creator: infoResult.info?.Creator || null,
+          creationDate: infoResult.info?.CreationDate || null,
         },
       };
     } catch (err) {
-      logger.error(`PDF extraction failed: ${err.message}`);
+      logger.error(`PDF extraction error: ${err.message}`, err);
       return { text: '', pages: 0, info: {} };
     }
   }
 
   /**
-   * Extract text from an image using Tesseract.js (real OCR)
+   * Extract text from image using Tesseract.js
    */
   async _extractFromImage(filePath) {
     try {
@@ -61,13 +65,13 @@ class OCRService {
       logger.info(`Tesseract OCR done: ${text.length} chars, confidence=${confidence}`);
       return { text, pages: 1, info: {}, ocrConfidence: confidence };
     } catch (err) {
-      logger.warn(`Tesseract unavailable (${err.message}), reading filename metadata only`);
+      logger.warn(`Tesseract unavailable (${err.message}), no text extracted from image`);
       return { text: '', pages: 1, info: {}, ocrConfidence: 0 };
     }
   }
 
   /**
-   * Parse extracted text to structured fields
+   * Parse raw text into structured fields
    */
   parseText(rawText) {
     const vendor = this._extractVendor(rawText);
@@ -90,7 +94,7 @@ class OCRService {
   }
 
   /**
-   * Full pipeline: extract text → parse fields
+   * Full pipeline: extract → parse
    */
   async processReceiptFile(filePath) {
     try {
@@ -99,7 +103,7 @@ class OCRService {
       const rawText = extraction.text;
 
       if (!rawText || rawText.trim().length < 5) {
-        logger.warn('Extracted text is empty or too short');
+        logger.warn(`Extracted text is empty or too short (${rawText.length} chars)`);
         return {
           success: true,
           data: {
@@ -144,7 +148,6 @@ class OCRService {
     const patterns = [
       /(?:from|vendor|merchant|seller|billed by|company|issued by|shop|store)[\s:]+([^\n,;]+)/i,
       /(?:M\/s\.?|Messrs\.?)[\s:]+([^\n,;]+)/i,
-      /^([A-Z][A-Za-z\s&.'-]{2,40})$/m,
     ];
     for (const p of patterns) {
       const m = text.match(p);
@@ -153,9 +156,11 @@ class OCRService {
         if (v.length >= 2 && v.length <= 100 && !/^\d+$/.test(v)) return v;
       }
     }
-    const firstLine = text.trim().split('\n')[0]?.trim();
-    if (firstLine && firstLine.length >= 2 && firstLine.length <= 80 && !/^\d/.test(firstLine)) {
-      return firstLine;
+    const lines = text.trim().split('\n').map(l => l.trim()).filter(l => l.length >= 3);
+    for (const line of lines.slice(0, 5)) {
+      if (line.length >= 3 && line.length <= 80 && /[A-Za-z]/.test(line) && !/^\d/.test(line)) {
+        return line;
+      }
     }
     return 'Unknown Vendor';
   }
@@ -184,54 +189,56 @@ class OCRService {
   }
 
   _extractAmount(text) {
-    const patterns = [
-      /(?:grand\s*total|net\s*total|total\s*amount|total\s*due|total\s*payable|amount\s*due|balance\s*due)[\s:₹$]*([0-9,]+\.?\d{0,2})/i,
-      /(?:total)[\s:₹$]*([0-9,]+\.?\d{0,2})/i,
-      /(?:amount|bill\s*amount|invoice\s*amount)[\s:₹$]*([0-9,]+\.?\d{0,2})/i,
-      /[₹]\s*([0-9,]+\.?\d{0,2})/,
-      /(?:rs\.?|inr)\s*([0-9,]+\.?\d{0,2})/i,
+    const totalPatterns = [
+      /(?:grand\s*total|net\s*total|total\s*amount|total\s*due|total\s*payable|amount\s*due|balance\s*due)[\s:]*(?:rs\.?|₹|inr)?\s*([0-9,]+\.?\d{0,2})/i,
+      /(?:total)[\s:]*(?:rs\.?|₹|inr)?\s*([0-9,]+\.?\d{0,2})/i,
+      /(?:amount|bill\s*amount|invoice\s*amount)[\s:]*(?:rs\.?|₹|inr)?\s*([0-9,]+\.?\d{0,2})/i,
     ];
-    let best = 0;
-    for (const p of patterns) {
+    for (const p of totalPatterns) {
       const m = text.match(p);
       if (m?.[1]) {
         const val = parseFloat(m[1].replace(/,/g, ''));
-        if (!isNaN(val) && val > best) {
-          best = val;
-          break;
-        }
+        if (!isNaN(val) && val > 0) return val.toFixed(2);
       }
     }
-    if (best === 0) {
-      const allAmounts = [...text.matchAll(/[₹$]?\s?([0-9,]+\.\d{2})/g)]
-        .map(m => parseFloat(m[1].replace(/,/g, '')))
-        .filter(v => !isNaN(v) && v > 0);
-      if (allAmounts.length) best = Math.max(...allAmounts);
+    const currencyPatterns = [
+      /(?:rs\.?|₹|inr)\s*([0-9,]+\.?\d{0,2})/gi,
+    ];
+    const amounts = [];
+    for (const p of currencyPatterns) {
+      for (const m of text.matchAll(p)) {
+        const val = parseFloat(m[1].replace(/,/g, ''));
+        if (!isNaN(val) && val > 0) amounts.push(val);
+      }
     }
-    return best.toFixed(2);
+    if (amounts.length) return Math.max(...amounts).toFixed(2);
+    return '0.00';
   }
 
   _extractTax(text) {
-    const patterns = [
-      /(?:cgst|sgst|igst|gst|tax|vat)[\s@\d%]*[\s:₹$]*([0-9,]+\.?\d{0,2})/i,
-      /(?:tax\s*amount|gst\s*amount|vat\s*amount)[\s:₹$]*([0-9,]+\.?\d{0,2})/i,
-    ];
+    const lines = text.split('\n');
     let total = 0;
-    const seen = new Set();
-    for (const p of patterns) {
-      const matches = [...text.matchAll(new RegExp(p.source, 'gi'))];
-      for (const m of matches) {
-        if (m?.[1]) {
-          const val = parseFloat(m[1].replace(/,/g, ''));
-          const key = val.toFixed(2);
-          if (!isNaN(val) && val > 0 && !seen.has(key)) {
-            seen.add(key);
-            total += val;
-          }
+
+    for (const line of lines) {
+      const lower = line.toLowerCase();
+      if (/cgst|sgst|igst|gst|tax|vat/.test(lower)) {
+        const amountMatch = line.match(/(?:rs\.?|₹|inr)\s*([0-9,]+\.\d{2})/i)
+          || line.match(/([0-9,]+\.\d{2})\s*$/);
+        if (amountMatch?.[1]) {
+          const val = parseFloat(amountMatch[1].replace(/,/g, ''));
+          if (!isNaN(val) && val > 0) total += val;
         }
       }
-      if (total > 0) break;
     }
+
+    if (total === 0) {
+      const m = text.match(/(?:tax\s*amount|gst\s*amount|total\s*tax)[\s:]*(?:rs\.?|₹|inr)?\s*([0-9,]+\.?\d{0,2})/i);
+      if (m?.[1]) {
+        const val = parseFloat(m[1].replace(/,/g, ''));
+        if (!isNaN(val) && val > 0) total = val;
+      }
+    }
+
     return total.toFixed(2);
   }
 
