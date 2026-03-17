@@ -184,6 +184,13 @@ class ExpenseService {
     await expense.save();
     
     logger.info(`Expense approved: ${expense.expenseNumber}`);
+
+    try {
+      await this.recordExpense(expenseId, userId);
+      logger.info(`Expense auto-recorded to ledger after approval: ${expense.expenseNumber}`);
+    } catch (err) {
+      logger.warn(`Auto-record after approval failed for ${expense.expenseNumber}: ${err.message}`);
+    }
     
     return expense;
   }

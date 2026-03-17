@@ -211,11 +211,16 @@ class SmartUploadService {
         expenseId: expense._id,
         expenseNumber: expense.expenseNumber,
         vendor: expenseData.vendor,
+        description: expenseData.description,
+        category: expenseData.category,
         amount: expenseData.totalAmount,
         date: expenseData.date,
         taxAmount: expenseData.taxAmount,
+        paymentMethod: expenseData.paymentMethod,
         status: 'created',
         ocrConfidence: ocrData?.confidence || null,
+        ocrItems: ocrData?.items || [],
+        ocrRawText: ocrData?.rawText?.substring(0, 300) || null,
         message: 'Expense auto-created from uploaded document. Pending approval.',
       };
 
