@@ -133,7 +133,12 @@ class SmartUploadService {
           message: 'No readable text found — PDF may be a scanned image or password-protected',
         });
       } else {
-        result.actions.push({ type: 'extraction_failed', message: 'Could not extract text from file' });
+        result.actions.push({
+          type: 'extraction_failed',
+          message: ocrResult.error
+            ? `Extraction error: ${ocrResult.error}`
+            : 'Could not extract text from file',
+        });
       }
 
       if (ocrData?.pages > 0) {

@@ -498,9 +498,10 @@ const SmartUpload = () => {
                           <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-1">Processing Steps</p>
                           {d?.actions?.map((a, ai) => (
                             <div key={ai} className="flex items-start gap-2 text-xs bg-muted/30 rounded-lg p-2.5">
-                              {a.type === 'ocr_completed' ? <Eye className="w-3.5 h-3.5 text-info mt-0.5 flex-shrink-0" />
+                              {a.type === 'ocr_completed' || a.type === 'extraction_completed' ? <Eye className="w-3.5 h-3.5 text-info mt-0.5 flex-shrink-0" />
                                 : a.type === 'pdf_parsed' ? <FileText className="w-3.5 h-3.5 text-blue-500 mt-0.5 flex-shrink-0" />
                                 : a.type === 'expense_created' ? <CheckCircle className="w-3.5 h-3.5 text-success mt-0.5 flex-shrink-0" />
+                                : a.type === 'extraction_failed' || a.type === 'extraction_error' || a.type === 'no_text_found' ? <AlertCircle className="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" />
                                 : <Zap className="w-3.5 h-3.5 text-primary mt-0.5 flex-shrink-0" />}
                               <span className="text-muted-foreground">{a.message}</span>
                             </div>
