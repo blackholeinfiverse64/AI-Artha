@@ -153,11 +153,13 @@ class SmartUploadService {
   async _processReceipt(file, userId, metadata, result) {
     try {
       let ocrData = null;
+      let fullExtractedText = null;
 
       if (file.mimetype.startsWith('image/')) {
         const ocrResult = await ocrService.processReceiptFile(file.path);
         if (ocrResult.success) {
           ocrData = ocrResult.data;
+          fullExtractedText = ocrData.rawText || null;
           result.actions.push({
             type: 'ocr_completed',
             message: `OCR extracted: vendor=${ocrData.vendor}, amount=${ocrData.amount}, date=${ocrData.date}`,
@@ -168,12 +170,32 @@ class SmartUploadService {
 
       if (file.mimetype === 'application/pdf') {
         try {
+          const pdfParse = (await import('pdf-parse')).default;
+          const fileBuffer = await fs.readFile(file.path);
+          const pdfData = await pdfParse(fileBuffer);
+          fullExtractedText = pdfData.text || '';
+          result.pdfInfo = {
+            pages: pdfData.numpages || 0,
+            title: pdfData.info?.Title || null,
+            author: pdfData.info?.Author || null,
+            creator: pdfData.info?.Creator || null,
+          };
+          result.actions.push({
+            type: 'pdf_parsed',
+            message: `PDF parsed: ${pdfData.numpages} page(s), ${fullExtractedText.length} characters extracted`,
+          });
+        } catch (pdfErr) {
+          logger.warn(`PDF text extraction failed: ${pdfErr.message}`);
+        }
+
+        try {
           const pdfOcr = await ocrService.processReceiptFile(file.path);
           if (pdfOcr.success) {
             ocrData = pdfOcr.data;
+            if (!fullExtractedText) fullExtractedText = ocrData.rawText || null;
             result.actions.push({
               type: 'ocr_completed',
-              message: `PDF data extracted: vendor=${ocrData.vendor}, amount=${ocrData.amount}`,
+              message: `Data extracted: vendor=${ocrData.vendor}, amount=₹${ocrData.amount}, tax=₹${ocrData.taxAmount}`,
               confidence: ocrData.confidence,
             });
           }
@@ -207,6 +229,8 @@ class SmartUploadService {
         expenseNumber: expense.expenseNumber,
       });
 
+      result.extractedContent = fullExtractedText || null;
+
       result.summary = {
         expenseId: expense._id,
         expenseNumber: expense.expenseNumber,
@@ -217,10 +241,9 @@ class SmartUploadService {
         date: expenseData.date,
         taxAmount: expenseData.taxAmount,
         paymentMethod: expenseData.paymentMethod,
+        invoiceNumber: ocrData?.invoiceNumber || null,
         status: 'created',
         ocrConfidence: ocrData?.confidence || null,
-        ocrItems: ocrData?.items || [],
-        ocrRawText: ocrData?.rawText?.substring(0, 300) || null,
         message: 'Expense auto-created from uploaded document. Pending approval.',
       };
 
