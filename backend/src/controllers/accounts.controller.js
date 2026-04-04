@@ -90,7 +90,7 @@ export const updateAccount = async (req, res) => {
 // @desc    Deactivate account
 // @route   DELETE /api/v1/accounts/:id
 // @access  Private (admin)
-export const deactivateAccount = async (req, res) => {
+  export const deactivateAccount = async (req, res) => {
   try {
     const account = await chartOfAccountsService.deactivateAccount(req.params.id);
 

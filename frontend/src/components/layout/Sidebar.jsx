@@ -116,7 +116,8 @@ const Sidebar = ({ isOpen, mobileOpen, onMobileClose }) => {
   
   const hasAccess = (item) => {
     if (!item.roles || item.roles.length === 0) return true;
-    return item.roles.includes(user?.role);
+    const userRoles = user?.roles || [user?.role];
+    return item.roles.some(r => userRoles.includes(r));
   };
   
   const filteredMenuItems = menuItems.filter(hasAccess).map(item => {

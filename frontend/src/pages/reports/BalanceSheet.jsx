@@ -120,12 +120,10 @@ const BalanceSheet = () => {
 
   const handleExport = async () => {
     try {
-      const token = localStorage.getItem('token');
       const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/reports/balance-sheet/export?asOfDate=${asOfDate}`;
       
       const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include',
       });
       
       if (!response.ok) throw new Error('Export failed');

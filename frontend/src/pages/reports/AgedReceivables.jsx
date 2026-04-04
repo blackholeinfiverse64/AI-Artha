@@ -104,12 +104,10 @@ const AgedReceivables = () => {
   const handleExport = async () => {
     try {
       const asOfDate = new Date().toISOString().split('T')[0];
-      const token = localStorage.getItem('token');
       const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/reports/aged-receivables/export?asOfDate=${asOfDate}`;
       
       const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include',
       });
       
       if (!response.ok) throw new Error('Export failed');

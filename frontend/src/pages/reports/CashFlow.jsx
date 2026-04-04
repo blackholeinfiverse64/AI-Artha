@@ -141,12 +141,10 @@ const CashFlow = () => {
   const handleExport = async () => {
     try {
       const { startDate, endDate } = getPeriodDates(period);
-      const token = localStorage.getItem('token');
       const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/reports/cash-flow/export?startDate=${startDate}&endDate=${endDate}`;
       
       const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include',
       });
       
       if (!response.ok) throw new Error('Export failed');

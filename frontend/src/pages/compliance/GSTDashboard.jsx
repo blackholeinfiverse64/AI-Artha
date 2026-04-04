@@ -123,12 +123,10 @@ const GSTDashboard = () => {
     try {
       const now = new Date();
       const periodParam = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const token = localStorage.getItem('token');
       const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/gst/filing-packet/export?type=gstr-1&period=${periodParam}`;
       
       const response = await fetch(url, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include',
       });
       
       if (!response.ok) throw new Error('Export failed');

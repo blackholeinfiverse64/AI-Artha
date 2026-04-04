@@ -8,8 +8,6 @@ import AuthLayout from './components/layout/AuthLayout';
 
 // Auth Pages
 import Login from './pages/auth/Login';
-import Register from './pages/auth/Register';
-import ForgotPassword from './pages/auth/ForgotPassword';
 
 // Dashboard
 import Dashboard from './pages/dashboard/Dashboard';
@@ -53,10 +51,9 @@ import SmartUpload from './pages/upload/SmartUpload';
 import CompanySettings from './pages/settings/CompanySettings';
 import UserManagement from './pages/settings/UserManagement';
 
-// Protected Route Component
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuthStore();
-  
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -64,18 +61,17 @@ const ProtectedRoute = ({ children }) => {
       </div>
     );
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
+
   return children;
 };
 
-// Role-based Protected Route Component
 const RoleProtectedRoute = ({ children, allowedRoles }) => {
   const { user, isAuthenticated, isLoading } = useAuthStore();
-  
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -83,12 +79,15 @@ const RoleProtectedRoute = ({ children, allowedRoles }) => {
       </div>
     );
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
-  
-  if (!allowedRoles.includes(user?.role)) {
+
+  const userRoles = user?.roles || [user?.role];
+  const hasAccess = allowedRoles.some(r => userRoles.includes(r));
+
+  if (!hasAccess) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center p-8 bg-card rounded-2xl shadow-xl max-w-md border border-border/30">
@@ -99,11 +98,11 @@ const RoleProtectedRoute = ({ children, allowedRoles }) => {
           </div>
           <h2 className="text-xl font-bold text-foreground font-display mb-2">Access Denied</h2>
           <p className="text-muted-foreground mb-4">
-            You don't have permission to access this page. 
+            You don't have permission to access this page.
             Required role: <span className="font-semibold">{allowedRoles.join(' or ')}</span>
           </p>
-          <button 
-            onClick={() => window.history.back()} 
+          <button
+            onClick={() => window.history.back()}
             className="px-5 py-2.5 bg-primary text-primary-foreground rounded-xl hover:bg-primary/90 transition-all duration-300 font-medium"
           >
             Go Back
@@ -112,18 +111,17 @@ const RoleProtectedRoute = ({ children, allowedRoles }) => {
       </div>
     );
   }
-  
+
   return children;
 };
 
-// Public Route Component (redirect if already logged in)
 const PublicRoute = ({ children }) => {
   const { isAuthenticated } = useAuthStore();
-  
+
   if (isAuthenticated) {
     return <Navigate to="/dashboard" replace />;
   }
-  
+
   return children;
 };
 
@@ -139,55 +137,44 @@ function App() {
       {/* Auth Routes */}
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-        <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
-        <Route path="/forgot-password" element={<PublicRoute><ForgotPassword /></PublicRoute>} />
       </Route>
 
       {/* Protected Routes */}
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        {/* Dashboard */}
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-        {/* Invoices - Admin & Accountant can create/edit */}
         <Route path="/invoices" element={<InvoiceList />} />
         <Route path="/invoices/new" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><InvoiceCreate /></RoleProtectedRoute>} />
         <Route path="/invoices/:id" element={<InvoiceView />} />
         <Route path="/invoices/:id/edit" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><InvoiceCreate /></RoleProtectedRoute>} />
 
-        {/* Expenses - Admin & Accountant can create/edit */}
         <Route path="/expenses" element={<ExpenseList />} />
         <Route path="/expenses/new" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><ExpenseCreate /></RoleProtectedRoute>} />
         <Route path="/expenses/:id/edit" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><ExpenseCreate /></RoleProtectedRoute>} />
         <Route path="/expenses/approval" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><ExpenseApproval /></RoleProtectedRoute>} />
 
-        {/* Accounting - Admin & Accountant only */}
         <Route path="/accounts" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><ChartOfAccounts /></RoleProtectedRoute>} />
         <Route path="/journal-entries" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><JournalEntries /></RoleProtectedRoute>} />
         <Route path="/journal-entries/new" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><JournalEntryCreate /></RoleProtectedRoute>} />
         <Route path="/journal-entries/:id/edit" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><JournalEntryCreate /></RoleProtectedRoute>} />
         <Route path="/ledger-integrity" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><LedgerIntegrity /></RoleProtectedRoute>} />
 
-        {/* Reports */}
         <Route path="/reports/profit-loss" element={<ProfitLoss />} />
         <Route path="/reports/balance-sheet" element={<BalanceSheet />} />
         <Route path="/reports/cash-flow" element={<CashFlow />} />
         <Route path="/reports/trial-balance" element={<TrialBalance />} />
         <Route path="/reports/aged-receivables" element={<AgedReceivables />} />
 
-        {/* Compliance */}
         <Route path="/gst" element={<GSTDashboard />} />
         <Route path="/tds" element={<TDSManagement />} />
 
-        {/* Smart Upload */}
         <Route path="/upload" element={<SmartUpload />} />
 
-        {/* Statements */}
         <Route path="/statements" element={<StatementsList />} />
         <Route path="/statements/upload" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><StatementsUpload /></RoleProtectedRoute>} />
         <Route path="/statements/:id" element={<StatementDetail />} />
 
-        {/* Settings - User Management is Admin only */}
         <Route path="/settings/company" element={<RoleProtectedRoute allowedRoles={['admin']}><CompanySettings /></RoleProtectedRoute>} />
         <Route path="/settings/users" element={<RoleProtectedRoute allowedRoles={['admin']}><UserManagement /></RoleProtectedRoute>} />
       </Route>

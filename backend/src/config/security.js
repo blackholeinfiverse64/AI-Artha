@@ -9,10 +9,4 @@ export default {
       max: parseInt(process.env.RATE_LIMIT_MAX) || 100
     }
   },
-  jwt: {
-    expiresIn: process.env.JWT_EXPIRE || '24h'
-  },
-  bcrypt: {
-    saltRounds: 12
-  }
 };

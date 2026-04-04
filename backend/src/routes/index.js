@@ -1,6 +1,4 @@
 import express from 'express';
-import authRoutes from './auth.js';
-import authRoutesV1 from './auth.routes.js';
 import ledgerRoutes from './ledger.routes.js';
 import accountsRoutes from './accounts.routes.js';
 import reportsRoutes from './reports.routes.js';
@@ -10,7 +8,6 @@ import usersRoutes from './users.routes.js';
 
 const router = express.Router();
 
-// Health check (legacy)
 router.get('/health', (req, res) => {
   res.json({
     success: true,
@@ -24,15 +21,12 @@ router.get('/health', (req, res) => {
   });
 });
 
-// API routes - maintain backward compatibility
-router.use('/auth', authRoutes);
-router.use('/v1/auth', authRoutesV1);
 router.use('/v1/ledger', ledgerRoutes);
 router.use('/v1/accounts', accountsRoutes);
 router.use('/v1/reports', reportsRoutes);
 router.use('/v1/expenses', expenseRoutes);
 router.use('/v1/insightflow', insightflowRoutes);
 router.use('/v1/users', usersRoutes);
-router.use('/users', usersRoutes); // Also support non-versioned path
+router.use('/users', usersRoutes);
 
 export default router;
