@@ -1,4 +1,5 @@
 import logger from './logger.js';
+import { getResolvedUrls } from './urls.js';
 
 const REQUIRED_PROD_VARS = [
   'MONGODB_URI',
@@ -8,8 +9,10 @@ const REQUIRED_PROD_VARS = [
 
 const RECOMMENDED_VARS = [
   'AUTH_SERVER_URL',
+  'API_PUBLIC_URL',
   'REDIS_PASSWORD',
   'FRONTEND_URL',
+  'APP_URL',
   'LOG_LEVEL',
 ];
 
@@ -34,11 +37,32 @@ export const validateEnvironment = () => {
   });
 
   if (process.env.NODE_ENV === 'production') {
-    if (!process.env.FRONTEND_URL || process.env.FRONTEND_URL.includes('localhost')) {
-      warnings.push('FRONTEND_URL should be set to production domain');
+    const hasSpa =
+      (process.env.FRONTEND_URL && !process.env.FRONTEND_URL.includes('localhost')) ||
+      (process.env.APP_URL && !process.env.APP_URL.includes('localhost'));
+    if (!hasSpa) {
+      warnings.push(
+        'Set FRONTEND_URL (legacy) or APP_URL to your production SPA origin (https://…, no trailing slash)',
+      );
     }
     if (!process.env.AUTH_SERVER_URL) {
       warnings.push('AUTH_SERVER_URL should be set for Blackhole Auth integration');
+    }
+    try {
+      const { SPA_URL, API_PUBLIC_URL } = getResolvedUrls();
+      const spaHost = new URL(SPA_URL).hostname;
+      const apiHost = new URL(API_PUBLIC_URL).hostname;
+      if (
+        (apiHost === 'localhost' || apiHost === '127.0.0.1') &&
+        spaHost !== 'localhost' &&
+        spaHost !== '127.0.0.1'
+      ) {
+        warnings.push(
+          'Set API_PUBLIC_URL to your deployed API base URL (magic-link redirect must hit /auth/callback on the API host).',
+        );
+      }
+    } catch {
+      /* ignore invalid URL env */
     }
   }
 

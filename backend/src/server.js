@@ -8,8 +8,19 @@ import logger from './config/logger.js';
 import healthService from './services/health.service.js';
 import { validateEnvironment } from './config/validation.js';
 import { buildAllowedOrigins } from './config/cors.js';
-import { protect, getAuthCallbackUrl } from './middleware/auth.js';
-import { validateLoginEmail } from './controllers/authPublic.controller.js';
+import { getResolvedUrls } from './config/urls.js';
+import {
+  protect,
+  getAuthCallbackUrl,
+  getBlackholeCookieOptions,
+  clearBlackholeCookie,
+} from './middleware/auth.js';
+import {
+  validateLoginEmail,
+  signupWithBlackhole,
+  loginPassword,
+  requestMagicLink,
+} from './controllers/authPublic.controller.js';
 
 import {
   helmetConfig,
@@ -45,6 +56,8 @@ import smartUploadRoutes from './routes/smartUpload.routes.js';
 
 dotenv.config();
 
+const { SPA_URL, API_PUBLIC_URL } = getResolvedUrls();
+
 if (process.env.NODE_ENV === 'production') {
   validateEnvironment();
 }
@@ -63,12 +76,10 @@ connectDB();
 const app = express();
 
 const AUTH_SERVER_URL = (process.env.AUTH_SERVER_URL || 'https://bhiv-auth.onrender.com').replace(/\/$/, '');
-const APP_URL = (process.env.APP_URL || 'http://localhost:5000').replace(/\/$/, '');
-const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
 
 const ALLOWED_ORIGINS = buildAllowedOrigins({
-  frontendUrl: FRONTEND_URL,
-  appUrl: APP_URL,
+  frontendUrl: SPA_URL,
+  appUrl: API_PUBLIC_URL,
   corsOrigin: process.env.CORS_ORIGIN,
   corsAllowedOrigins: process.env.CORS_ALLOWED_ORIGINS,
   authServerUrl: AUTH_SERVER_URL,
@@ -82,7 +93,7 @@ app.use((req, res, next) => {
   if (origin && ALLOWED_ORIGINS.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
   } else if (!origin) {
-    res.header('Access-Control-Allow-Origin', FRONTEND_URL);
+    res.header('Access-Control-Allow-Origin', SPA_URL);
   }
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
@@ -111,10 +122,10 @@ app.use('/uploads', express.static('uploads'));
 
 app.use('/', healthRoutes);
 
-/** Root: send browsers to the SPA (useful when APP_URL is opened directly). */
+/** Root: send browsers to the SPA (when someone opens the API host in a browser). */
 app.get('/', (req, res) => {
   if (req.accepts('html')) {
-    return res.redirect(FRONTEND_URL + '/');
+    return res.redirect(`${SPA_URL}/`);
   }
   res.json({ success: true, service: 'artha-api', docs: 'Use /api/v1/*' });
 });
@@ -144,8 +155,17 @@ app.get('/api/v1/auth/test', (req, res) => {
   res.json({ success: true, message: 'Auth routes working' });
 });
 
-/** Pre-check email before redirecting to Blackhole /continue (optional User DB match). */
+/** Optional local User check before magic link (REQUIRE_LOCAL_EMAIL_FOR_LOGIN). */
 app.post('/api/v1/auth/validate-login-email', authLimiter, validateLoginEmail);
+
+/** Password login — proxies JSON API; sets blackhole_token on this API host. */
+app.post('/api/v1/auth/login', authLimiter, loginPassword);
+
+/** Magic link — proxies {AUTH}/api/magic-link; redirect in email points to /auth/callback. */
+app.post('/api/v1/auth/magic-link', authLimiter, requestMagicLink);
+
+/** Signup: POST {AUTH}/api/signup then local profile (credentials on auth server). */
+app.post('/api/v1/auth/signup', limiter, signupWithBlackhole);
 
 function readTokenFromQuery(req) {
   const raw = req.query.token;
@@ -163,26 +183,19 @@ app.get('/auth/callback', (req, res) => {
 
   if (!token) {
     logger.warn('Auth callback called without token');
-    return res.redirect(`${FRONTEND_URL}/login?error=no_token`);
+    return res.redirect(`${SPA_URL}/login?error=no_token`);
   }
 
   try {
     jwt.verify(token, process.env.JWT_SECRET);
 
-    const isProduction = process.env.NODE_ENV === 'production';
-    res.cookie('blackhole_token', token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('blackhole_token', token, getBlackholeCookieOptions());
 
     logger.info('Auth callback: JWT verified, blackhole_token set, redirecting to SPA');
-    return res.redirect(`${FRONTEND_URL}/dashboard`);
+    return res.redirect(`${SPA_URL}/dashboard`);
   } catch (err) {
     logger.error('Auth callback: invalid token —', err.message);
-    return res.redirect(`${FRONTEND_URL}/login?error=invalid_token`);
+    return res.redirect(`${SPA_URL}/login?error=invalid_token`);
   }
 });
 
@@ -202,11 +215,11 @@ app.get('/api/v1/auth/me', protect, (req, res) => {
 
 /**
  * GET /logout — clear cookie on this app, then central logout on auth server.
- * Auth server redirects back to APP_URL (HTML GET / on API → FRONTEND_URL).
+ * Auth server clears its cookie then redirects to SPA (public APP_URL).
  */
 app.get('/logout', (req, res) => {
-  res.clearCookie('blackhole_token', { path: '/' });
-  const redirectUrl = `${AUTH_SERVER_URL}/logout?redirect=${encodeURIComponent(APP_URL)}`;
+  clearBlackholeCookie(res);
+  const redirectUrl = `${AUTH_SERVER_URL}/logout?redirect=${encodeURIComponent(SPA_URL)}`;
   logger.info('Logout: cookie cleared, redirecting to auth server');
   return res.redirect(redirectUrl);
 });
@@ -245,9 +258,9 @@ if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, () => {
     logger.info(`Server running on port ${PORT}`);
     logger.info(`Auth server: ${AUTH_SERVER_URL}`);
-    logger.info(`APP_URL (callback base): ${APP_URL}`);
+    logger.info(`SPA (public app): ${SPA_URL}`);
+    logger.info(`API public URL (callback base): ${API_PUBLIC_URL}`);
     logger.info(`Auth callback: ${getAuthCallbackUrl()}`);
-    logger.info(`Frontend URL: ${FRONTEND_URL}`);
     const enforcedAppId = process.env.APP_ID || process.env.BHIV_APP_ID;
     if (enforcedAppId) {
       logger.info(`allowedApps enforced for APP_ID: ${enforcedAppId}`);

@@ -1,26 +1,65 @@
 import jwt from 'jsonwebtoken';
 import logger from '../config/logger.js';
+import { getResolvedUrls } from '../config/urls.js';
 
 const COOKIE_NAME = 'blackhole_token';
 
-/** Full callback URL on this API origin (where auth server sends ?token=). */
+/** Full callback URL on this API origin (magic-link / login redirect target). */
 export function getAuthCallbackUrl() {
-  const base = (process.env.APP_URL || '').replace(/\/$/, '');
-  if (!base) {
-    logger.warn('APP_URL is not set; auth callback URLs may be wrong');
+  const { API_PUBLIC_URL } = getResolvedUrls();
+  if (!API_PUBLIC_URL) {
+    logger.warn('API_PUBLIC_URL / APP_URL is not set; auth callback URLs may be wrong');
   }
-  return `${base}/auth/callback`;
+  return `${API_PUBLIC_URL}/auth/callback`;
 }
 
-function buildLoginRedirectPath(authPath = 'login') {
-  const authUrl = (process.env.AUTH_SERVER_URL || 'https://bhiv-auth.onrender.com').replace(/\/$/, '');
-  const callbackUrl = getAuthCallbackUrl();
-  return `${authUrl}/${authPath}?redirect=${encodeURIComponent(callbackUrl)}`;
+/** Where to send users for login (SPA has no hosted pages on auth server). */
+export function getAppLoginUrl() {
+  const explicit = (process.env.APP_LOGIN_URL || '').replace(/\/$/, '');
+  if (explicit) return explicit;
+  const { SPA_URL } = getResolvedUrls();
+  return `${SPA_URL}/login`;
 }
 
 /**
- * Optional: JWT `allowedApps` must include this id (e.g. setu, sampada, niyantran, artha).
- * Set APP_ID or BHIV_APP_ID in env to enforce; leave empty to skip.
+ * HTTP-only session cookie. SameSite=None when SPA and API differ (production).
+ */
+export function getBlackholeCookieOptions() {
+  const isProduction = process.env.NODE_ENV === 'production';
+  const { SPA_URL, API_PUBLIC_URL } = getResolvedUrls();
+  let crossSite = false;
+  try {
+    if (SPA_URL && API_PUBLIC_URL) {
+      crossSite = new URL(SPA_URL).origin !== new URL(API_PUBLIC_URL).origin;
+    }
+  } catch {
+    /* ignore invalid URLs */
+  }
+  if (isProduction && crossSite) {
+    return {
+      httpOnly: true,
+      secure: true,
+      sameSite: 'none',
+      path: '/',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    };
+  }
+  return {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  };
+}
+
+export function clearBlackholeCookie(res) {
+  const o = getBlackholeCookieOptions();
+  res.clearCookie(COOKIE_NAME, { path: '/', sameSite: o.sameSite, secure: o.secure });
+}
+
+/**
+ * Optional: JWT `allowedApps` must include this id (e.g. artha).
  */
 export function requireAllowedApp(appId) {
   const id = appId || process.env.APP_ID || process.env.BHIV_APP_ID;
@@ -43,12 +82,11 @@ export function requireAllowedApp(appId) {
 
 /**
  * Protect routes — reads `blackhole_token` HTTP-only cookie.
- * JSON requests: 401/403 JSON; browser navigations: redirect to auth server.
  */
 export const protect = (req, res, next) => {
   try {
     const token = req.cookies?.[COOKIE_NAME];
-    const loginUrl = buildLoginRedirectPath('login');
+    const loginUrl = getAppLoginUrl();
 
     if (!token) {
       if (req.accepts('json') === 'json') {
@@ -84,13 +122,13 @@ export const protect = (req, res, next) => {
             code: 'app_not_allowed',
           });
         }
-        return res.redirect(`${process.env.FRONTEND_URL || ''}/login?error=app_not_allowed`);
+        return res.redirect(`${getResolvedUrls().SPA_URL}/login?error=app_not_allowed`);
       }
 
       next();
     } catch (err) {
       logger.error('JWT verification failed:', err.message);
-      res.clearCookie(COOKIE_NAME, { path: '/' });
+      clearBlackholeCookie(res);
       if (req.accepts('json') === 'json') {
         return res.status(401).json({
           success: false,

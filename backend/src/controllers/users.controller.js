@@ -57,7 +57,7 @@ export const getUser = async (req, res) => {
 export const createUser = async (req, res) => {
   res.status(400).json({
     success: false,
-    message: 'Users are managed by Blackhole Auth. Register at the auth portal.',
+    message: 'Use POST /api/v1/auth/signup or the signup page in the app.',
   });
 };
 

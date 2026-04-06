@@ -16,6 +16,14 @@ export const BHIV_AUTH_MESSAGE_ORIGIN =
 const AUTH_CALLBACK_URL =
   import.meta.env.VITE_AUTH_CALLBACK_URL || `${API_ORIGIN}/auth/callback`;
 
+/** Public SPA origin (no trailing slash). Used for signup_url and popup URLs. */
+export function getSpaPublicUrl() {
+  const v = import.meta.env.VITE_APP_URL;
+  if (v && typeof v === 'string') return v.replace(/\/$/, '');
+  if (typeof window !== 'undefined') return window.location.origin;
+  return 'http://localhost:5173';
+}
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
@@ -35,7 +43,10 @@ api.interceptors.response.use(
     const message = error.response?.data?.message || error.response?.data?.error || 'An error occurred';
 
     if (error.response?.status === 401) {
-      if (!error.config?.url?.includes('/auth/me')) {
+      const url = error.config?.url || '';
+      if (url.includes('/auth/login')) {
+        toast.error(message);
+      } else if (!url.includes('/auth/me')) {
         toast.error('Session expired. Please login again.');
         window.location.href = '/login';
       }
@@ -47,6 +58,8 @@ api.interceptors.response.use(
       } else {
         toast.error('You do not have permission to perform this action');
       }
+    } else if (error.response?.status === 409) {
+      toast.error(message);
     } else if (error.response?.status === 400) {
       const errors = error.response?.data?.errors;
       if (errors && Array.isArray(errors)) {

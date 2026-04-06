@@ -21,6 +21,11 @@ const userSchema = new mongoose.Schema({
     required: [true, 'Name is required'],
     trim: true,
   },
+  phone: {
+    type: String,
+    trim: true,
+    default: '',
+  },
   role: {
     type: String,
     enum: ['admin', 'accountant', 'viewer'],
