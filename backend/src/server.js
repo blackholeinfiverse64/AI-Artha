@@ -7,6 +7,7 @@ import { connectRedis } from './config/redis.js';
 import logger from './config/logger.js';
 import healthService from './services/health.service.js';
 import { validateEnvironment } from './config/validation.js';
+import { buildAllowedOrigins } from './config/cors.js';
 import { protect, getAuthCallbackUrl } from './middleware/auth.js';
 import { validateLoginEmail } from './controllers/authPublic.controller.js';
 
@@ -65,12 +66,16 @@ const AUTH_SERVER_URL = (process.env.AUTH_SERVER_URL || 'https://bhiv-auth.onren
 const APP_URL = (process.env.APP_URL || 'http://localhost:5000').replace(/\/$/, '');
 const FRONTEND_URL = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '');
 
-const ALLOWED_ORIGINS = [
-  FRONTEND_URL,
-  APP_URL,
-  process.env.CORS_ORIGIN,
-  AUTH_SERVER_URL,
-].filter(Boolean);
+const ALLOWED_ORIGINS = buildAllowedOrigins({
+  frontendUrl: FRONTEND_URL,
+  appUrl: APP_URL,
+  corsOrigin: process.env.CORS_ORIGIN,
+  corsAllowedOrigins: process.env.CORS_ALLOWED_ORIGINS,
+  authServerUrl: AUTH_SERVER_URL,
+  // Default on: local Vite (localhost:5173) can call prod API without extra Render env.
+  // Set ALLOW_LOCALHOST_CORS=false to disable.
+  allowLocalhostCors: process.env.ALLOW_LOCALHOST_CORS !== 'false',
+});
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
