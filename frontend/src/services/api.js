@@ -35,7 +35,10 @@ api.interceptors.response.use(
   (error) => {
     const reqUrl = error.config?.url || '';
     const silent401Me = error.response?.status === 401 && reqUrl.includes('/auth/me');
-    if (!silent401Me) {
+    const silent429AuthFlow =
+      error.response?.status === 429 &&
+      (reqUrl.includes('/auth/magic-link') || reqUrl.includes('/auth/validate-login-email'));
+    if (!silent401Me && !silent429AuthFlow) {
       console.error('API Error:', {
         status: error.response?.status,
         data: error.response?.data,

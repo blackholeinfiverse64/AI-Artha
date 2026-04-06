@@ -115,7 +115,7 @@ const Login = () => {
         const w = window.open('about:blank', 'bhiv-magic', 'width=480,height=640,scrollbars=yes');
         popupRef.current = w;
       }
-      await api.post('/auth/validate-login-email', { email: trimmed });
+      // Single request: magic-link handler validates email (+ optional local User check).
       const { data } = await api.post('/auth/magic-link', {
         email: trimmed,
         ...(magicPopupMode ? { mode: 'popup' } : {}),

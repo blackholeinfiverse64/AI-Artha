@@ -50,7 +50,7 @@ export const authPasswordLimiter = rateLimit({
 // Magic link + validate-email (two requests per user action; 5/15m was too easy to hit)
 export const authFlowLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: parseInt(process.env.AUTH_MAGIC_RATE_LIMIT_MAX, 10) || 40,
+  max: parseInt(process.env.AUTH_MAGIC_RATE_LIMIT_MAX, 10) || 100,
   message: 'Too many sign-in email requests from this IP. Try again in a few minutes.',
   standardHeaders: true,
   legacyHeaders: false,

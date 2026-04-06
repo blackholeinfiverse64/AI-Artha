@@ -76,6 +76,10 @@ connectDB();
 
 const app = express();
 
+// Render / reverse proxies: required so rate limits and req.ip use the real client (X-Forwarded-For).
+// Without this, every user can share one limit bucket → immediate 429 on /auth/magic-link.
+app.set('trust proxy', process.env.TRUST_PROXY === '0' || process.env.TRUST_PROXY === 'false' ? false : 1);
+
 const AUTH_SERVER_URL = (process.env.AUTH_SERVER_URL || 'https://bhiv-auth.onrender.com').replace(/\/$/, '');
 
 const ALLOWED_ORIGINS = buildAllowedOrigins({
