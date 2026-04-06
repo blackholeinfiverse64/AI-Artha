@@ -27,7 +27,8 @@ import {
   limiter,
   sanitizeInput,
   watermark,
-  authLimiter,
+  authPasswordLimiter,
+  authFlowLimiter,
 } from './middleware/security.js';
 
 import {
@@ -156,13 +157,13 @@ app.get('/api/v1/auth/test', (req, res) => {
 });
 
 /** Optional local User check before magic link (REQUIRE_LOCAL_EMAIL_FOR_LOGIN). */
-app.post('/api/v1/auth/validate-login-email', authLimiter, validateLoginEmail);
+app.post('/api/v1/auth/validate-login-email', authFlowLimiter, validateLoginEmail);
 
 /** Password login — proxies JSON API; sets blackhole_token on this API host. */
-app.post('/api/v1/auth/login', authLimiter, loginPassword);
+app.post('/api/v1/auth/login', authPasswordLimiter, loginPassword);
 
 /** Magic link — proxies {AUTH}/api/magic-link; redirect in email points to /auth/callback. */
-app.post('/api/v1/auth/magic-link', authLimiter, requestMagicLink);
+app.post('/api/v1/auth/magic-link', authFlowLimiter, requestMagicLink);
 
 /** Signup: POST {AUTH}/api/signup then local profile (credentials on auth server). */
 app.post('/api/v1/auth/signup', limiter, signupWithBlackhole);

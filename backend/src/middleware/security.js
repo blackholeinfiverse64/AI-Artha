@@ -37,12 +37,28 @@ export const limiter = rateLimit({
   skip: (req) => process.env.NODE_ENV === 'development', // Skip in development
 });
 
-// Strict rate limit for auth endpoints
-export const authLimiter = rateLimit({
+// Password login — tighter cap (brute-force protection)
+export const authPasswordLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
-  message: 'Too many authentication attempts, please try again later',
+  max: parseInt(process.env.AUTH_PASSWORD_RATE_LIMIT_MAX, 10) || 10,
+  message: 'Too many login attempts from this IP. Try again in a few minutes.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV === 'development',
 });
+
+// Magic link + validate-email (two requests per user action; 5/15m was too easy to hit)
+export const authFlowLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.AUTH_MAGIC_RATE_LIMIT_MAX, 10) || 40,
+  message: 'Too many sign-in email requests from this IP. Try again in a few minutes.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => process.env.NODE_ENV === 'development',
+});
+
+/** @deprecated use authPasswordLimiter */
+export const authLimiter = authPasswordLimiter;
 
 // Legacy exports for backward compatibility
 export const apiLimiter = limiter;

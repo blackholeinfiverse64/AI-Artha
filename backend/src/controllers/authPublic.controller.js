@@ -132,9 +132,14 @@ export const requestMagicLink = async (req, res) => {
 
     if (authRes.status < 200 || authRes.status >= 300) {
       const status = authRes.status >= 400 && authRes.status < 600 ? authRes.status : 502;
+      const message =
+        authRes.data?.message ||
+        (status === 503
+          ? 'Auth service unavailable (503). Check auth deploy, cold start, or email/SMTP config.'
+          : 'Could not send magic link');
       return res.status(status).json({
         success: false,
-        message: authRes.data?.message || 'Could not send magic link',
+        message,
       });
     }
 
@@ -145,6 +150,18 @@ export const requestMagicLink = async (req, res) => {
     });
   } catch (err) {
     logger.error('requestMagicLink:', err.message);
+    if (err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT') {
+      return res.status(504).json({
+        success: false,
+        message: 'Auth server did not respond in time. Try again or check AUTH_SERVER_URL.',
+      });
+    }
+    if (!err.response) {
+      return res.status(502).json({
+        success: false,
+        message: 'Cannot reach auth server. Verify AUTH_SERVER_URL and that the auth service is up.',
+      });
+    }
     return res.status(500).json({ success: false, message: 'Could not request magic link' });
   }
 };

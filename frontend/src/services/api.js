@@ -33,17 +33,21 @@ const api = axios.create({
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('API Error:', {
-      status: error.response?.status,
-      data: error.response?.data,
-      url: error.config?.url,
-      method: error.config?.method,
-    });
+    const reqUrl = error.config?.url || '';
+    const silent401Me = error.response?.status === 401 && reqUrl.includes('/auth/me');
+    if (!silent401Me) {
+      console.error('API Error:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        url: reqUrl,
+        method: error.config?.method,
+      });
+    }
 
     const message = error.response?.data?.message || error.response?.data?.error || 'An error occurred';
 
     if (error.response?.status === 401) {
-      const url = error.config?.url || '';
+      const url = reqUrl;
       if (url.includes('/auth/login')) {
         toast.error(message);
       } else if (!url.includes('/auth/me')) {
@@ -60,6 +64,10 @@ api.interceptors.response.use(
       }
     } else if (error.response?.status === 409) {
       toast.error(message);
+    } else if (error.response?.status === 429) {
+      toast.error(message);
+    } else if (error.response?.status === 503) {
+      toast.error(message || 'Service temporarily unavailable. Try again in a moment.');
     } else if (error.response?.status === 400) {
       const errors = error.response?.data?.errors;
       if (errors && Array.isArray(errors)) {
