@@ -7,6 +7,7 @@ import {
   getTrialBalance,
   getAgedReceivables,
   getDashboardSummary,
+  getReportPeriodContext,
   getKPIs,
   exportProfitLossPDF,
   exportBalanceSheetPDF,
@@ -34,6 +35,7 @@ router.route('/trial-balance').get(getTrialBalance);
 router.route('/trial-balance/export').get(exportTrialBalancePDF);
 router.route('/aged-receivables').get(getAgedReceivables);
 router.route('/dashboard').get(getDashboardSummary);
+router.route('/period-context').get(getReportPeriodContext);
 router.route('/kpis').get(getKPIs);
 router.route('/revenue-expenses-chart').get(getRevenueExpensesChart);
 router.route('/expense-breakdown').get(getExpenseBreakdown);

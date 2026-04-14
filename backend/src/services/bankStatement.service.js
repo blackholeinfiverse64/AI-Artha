@@ -6,6 +6,7 @@ import Invoice from '../models/Invoice.js';
 import ChartOfAccounts from '../models/ChartOfAccounts.js';
 import ledgerService from './ledger.service.js';
 import cacheService from './cache.service.js';
+import ocrService from './ocr.service.js';
 import logger from '../config/logger.js';
 import fs from 'fs/promises';
 
@@ -533,53 +534,125 @@ class BankStatementService {
 
   async parsePDF(filePath) {
     try {
-      const pdfParse = (await import('pdf-parse')).default;
-      const fileBuffer = await fs.readFile(filePath);
-      const pdfData = await pdfParse(fileBuffer);
-      const text = pdfData.text;
+      const extraction = await ocrService.extractText(filePath);
+      if (extraction.error === 'password_required') {
+        throw new Error('PDF is password-protected. Provide password and retry upload.');
+      }
+      if (extraction.error) {
+        throw new Error(extraction.errorMessage || 'Unable to read PDF content');
+      }
 
-      const lines = text.split('\n').filter(line => line.trim().length > 0);
-      const transactions = [];
+      const text = extraction.text || '';
+      const lines = text
+        .split(/\r?\n/)
+        .map(line => line.trim())
+        .filter(Boolean);
 
-      const datePattern = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/;
-      const amountPattern = /[\d,]+\.\d{2}/g;
+      const transactionStartPattern =
+        /^(\d+)\s+(\d{1,2}\s+[A-Za-z]{3}\s+\d{4}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}|\d{4}[\/\-]\d{1,2}[\/\-]\d{1,2})\b/i;
+      const amountPattern = /-?\d[\d,]*\.\d{2}/g;
+
+      const openingBalanceMatch = text.match(/opening\s+balance[^\d-]*(-?\d[\d,]*\.\d{2})/i);
+      let previousBalance = openingBalanceMatch ? this._parseAmount(openingBalanceMatch[1]) : null;
+
+      const blocks = [];
+      let currentBlock = [];
 
       for (const line of lines) {
-        const dateMatch = line.match(datePattern);
-        if (!dateMatch) continue;
+        if (
+          /statement\s+generated/i.test(line) ||
+          /current\s+account\s+transactions/i.test(line) ||
+          /withdrawal\s*\(dr\)/i.test(line) ||
+          /deposit\s*\(cr\)/i.test(line) ||
+          /^#\s*date/i.test(line) ||
+          /^--\s*\d+\s*of\s*\d+\s*--$/i.test(line)
+        ) {
+          continue;
+        }
 
-        const date = this.parseDate(dateMatch[1]);
+        if (transactionStartPattern.test(line)) {
+          if (currentBlock.length) {
+            blocks.push(currentBlock.join(' '));
+          }
+          currentBlock = [line];
+          continue;
+        }
+
+        if (currentBlock.length) {
+          currentBlock.push(line);
+        }
+      }
+
+      if (currentBlock.length) {
+        blocks.push(currentBlock.join(' '));
+      }
+
+      const transactions = [];
+
+      for (const block of blocks) {
+        const startMatch = block.match(transactionStartPattern);
+        if (!startMatch) continue;
+
+        const date = this.parseDate(startMatch[2]);
         if (!date) continue;
 
-        const amounts = line.match(amountPattern);
-        if (!amounts || amounts.length === 0) continue;
+        const amounts = (block.match(amountPattern) || [])
+          .map(raw => this._parseAmount(raw))
+          .filter(v => Number.isFinite(v));
 
-        const parsedAmounts = amounts.map(a => parseFloat(a.replace(/,/g, '')));
+        if (!amounts.length) continue;
 
         let debit = 0;
         let credit = 0;
-        let balance = 0;
+        let balance = amounts.length >= 2 ? amounts[amounts.length - 1] : null;
+        let transactionAmount = amounts.length >= 2 ? amounts[amounts.length - 2] : amounts[0];
 
-        if (parsedAmounts.length >= 3) {
-          debit = parsedAmounts[0];
-          credit = parsedAmounts[1];
-          balance = parsedAmounts[2];
-        } else if (parsedAmounts.length === 2) {
-          const descLower = line.toLowerCase();
-          if (descLower.includes('cr') || descLower.includes('credit') || descLower.includes('deposit')) {
-            credit = parsedAmounts[0];
-            balance = parsedAmounts[1];
-          } else {
-            debit = parsedAmounts[0];
-            balance = parsedAmounts[1];
+        if (amounts.length >= 3) {
+          const withdrawal = amounts[amounts.length - 3];
+          const deposit = amounts[amounts.length - 2];
+          balance = amounts[amounts.length - 1];
+
+          if (withdrawal > 0 && deposit === 0) {
+            debit = withdrawal;
+            transactionAmount = withdrawal;
+          } else if (deposit > 0 && withdrawal === 0) {
+            credit = deposit;
+            transactionAmount = deposit;
+          } else if (withdrawal > 0 && deposit > 0) {
+            const inferredType = this._inferPdfTransactionType(
+              block,
+              Math.max(withdrawal, deposit),
+              balance,
+              previousBalance,
+            );
+            if (inferredType === 'credit') {
+              credit = Math.max(withdrawal, deposit);
+              transactionAmount = credit;
+            } else {
+              debit = Math.max(withdrawal, deposit);
+              transactionAmount = debit;
+            }
           }
-        } else if (parsedAmounts.length === 1) {
-          debit = parsedAmounts[0];
         }
 
-        const description = line
-          .replace(dateMatch[0], '')
-          .replace(amountPattern, '')
+        if (debit === 0 && credit === 0) {
+          const inferredType = this._inferPdfTransactionType(
+            block,
+            transactionAmount,
+            balance,
+            previousBalance,
+          );
+          if (inferredType === 'credit') {
+            credit = Math.abs(transactionAmount);
+          } else {
+            debit = Math.abs(transactionAmount);
+          }
+        }
+
+        const description = block
+          .replace(startMatch[0], ' ')
+          .replace(amountPattern, ' ')
+          .replace(/\b(?:dr|cr|debit|credit)\b/gi, ' ')
           .replace(/\s+/g, ' ')
           .trim();
 
@@ -591,13 +664,17 @@ class BankStatementService {
           date,
           description,
           reference: '',
-          debit: debit > 0 ? debit.toFixed(2) : '0',
-          credit: credit > 0 ? credit.toFixed(2) : '0',
-          balance: balance > 0 ? balance.toFixed(2) : undefined,
+          debit: debit > 0 ? Math.abs(debit).toFixed(2) : '0',
+          credit: credit > 0 ? Math.abs(credit).toFixed(2) : '0',
+          balance: Number.isFinite(balance) ? balance.toFixed(2) : undefined,
           type,
           category: this.categorizeTransaction(description, type),
           payee: this.extractPayee(description),
         });
+
+        if (Number.isFinite(balance)) {
+          previousBalance = balance;
+        }
       }
 
       logger.info(`Parsed ${transactions.length} transactions from PDF file`);
@@ -614,6 +691,67 @@ class BankStatementService {
     }
   }
 
+  _parseAmount(raw) {
+    const value = parseFloat(String(raw).replace(/,/g, ''));
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  _inferPdfTransactionType(rawText, transactionAmount, currentBalance, previousBalance) {
+    const text = String(rawText || '').toLowerCase();
+
+    const creditHints = [
+      'received',
+      'deposit',
+      'salary',
+      'refund',
+      'interest',
+      'reversal',
+      'credit',
+      'cash deposit',
+      'inward',
+      'by transfer',
+    ];
+
+    const debitHints = [
+      'sent',
+      'withdrawal',
+      'debit',
+      'payment',
+      'charge',
+      'fee',
+      'emi',
+      'purchase',
+      'atm',
+      'imps',
+      'neft',
+      'rtgs',
+      'upi',
+      'to ',
+    ];
+
+    const hasCreditHint = creditHints.some(hint => text.includes(hint));
+    const hasDebitHint = debitHints.some(hint => text.includes(hint));
+
+    if (hasCreditHint && !hasDebitHint) return 'credit';
+    if (hasDebitHint && !hasCreditHint) return 'debit';
+
+    if (Number.isFinite(currentBalance) && Number.isFinite(previousBalance)) {
+      const delta = currentBalance - previousBalance;
+      const absTxn = Math.abs(transactionAmount || 0);
+      if (absTxn > 0 && Math.abs(Math.abs(delta) - absTxn) <= 1) {
+        return delta >= 0 ? 'credit' : 'debit';
+      }
+      if (Math.abs(delta) > 0) {
+        return delta >= 0 ? 'credit' : 'debit';
+      }
+    }
+
+    if (/\bcr\b/.test(text) && !/\bdr\b/.test(text)) return 'credit';
+    if (/\bdr\b/.test(text) && !/\bcr\b/.test(text)) return 'debit';
+
+    return 'debit';
+  }
+
   // ===== UTILITY METHODS =====
 
   parseDate(dateStr) {
@@ -625,21 +763,59 @@ class BankStatementService {
 
     dateStr = String(dateStr).trim();
 
-    const formats = [
-      /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/,
-      /^(\d{1,2})-(\d{1,2})-(\d{4})$/,
-      /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/,
-      /^(\d{4})-(\d{1,2})-(\d{1,2})$/,
-      /^(\d{1,2}) (\w{3}) (\d{4})$/,
-    ];
+    const dmy = dateStr.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
+    if (dmy) {
+      let p1 = parseInt(dmy[1], 10);
+      let p2 = parseInt(dmy[2], 10);
+      let year = parseInt(dmy[3], 10);
+      if (year < 100) year += 2000;
 
-    for (const format of formats) {
-      const match = dateStr.match(format);
-      if (match) {
-        const date = new Date(dateStr);
-        if (!isNaN(date.getTime())) {
-          return date;
-        }
+      let day = p1;
+      let month = p2;
+      if (p1 <= 12 && p2 > 12) {
+        day = p2;
+        month = p1;
+      }
+
+      const date = new Date(year, month - 1, day);
+      return isNaN(date.getTime()) ? null : date;
+    }
+
+    const ymd = dateStr.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+    if (ymd) {
+      const date = new Date(
+        parseInt(ymd[1], 10),
+        parseInt(ymd[2], 10) - 1,
+        parseInt(ymd[3], 10),
+      );
+      return isNaN(date.getTime()) ? null : date;
+    }
+
+    const dMonY = dateStr.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{2,4})$/);
+    if (dMonY) {
+      const monthMap = {
+        jan: 0,
+        feb: 1,
+        mar: 2,
+        apr: 3,
+        may: 4,
+        jun: 5,
+        jul: 6,
+        aug: 7,
+        sep: 8,
+        oct: 9,
+        nov: 10,
+        dec: 11,
+      };
+      const day = parseInt(dMonY[1], 10);
+      const monthKey = dMonY[2].toLowerCase().slice(0, 3);
+      let year = parseInt(dMonY[3], 10);
+      if (year < 100) year += 2000;
+
+      const month = monthMap[monthKey];
+      if (month !== undefined) {
+        const date = new Date(year, month, day);
+        return isNaN(date.getTime()) ? null : date;
       }
     }
 

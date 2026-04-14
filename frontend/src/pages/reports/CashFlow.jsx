@@ -7,6 +7,7 @@ import {
   TrendingUp,
   Building2,
   Banknote,
+  Landmark,
 } from 'lucide-react';
 import {
   BarChart,
@@ -30,7 +31,21 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { formatCurrency, getFinancialYear } from '../../utils/formatters';
 
-const getPeriodDates = (period) => {
+const getPeriodDates = (period, reportContext, statementMonth) => {
+  if (period === 'statement_month' && statementMonth && reportContext?.availableMonths?.length) {
+    const selectedMonth = reportContext.availableMonths.find(month => month.value === statementMonth);
+    if (selectedMonth) {
+      return {
+        startDate: selectedMonth.startDate,
+        endDate: selectedMonth.endDate,
+      };
+    }
+  }
+
+  if (reportContext?.presets?.[period]) {
+    return reportContext.presets[period];
+  }
+
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth();
@@ -71,16 +86,41 @@ const getPeriodDates = (period) => {
 const CashFlow = () => {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('current_fy');
+  const [reportContext, setReportContext] = useState(null);
+  const [statementMonth, setStatementMonth] = useState('');
   const [data, setData] = useState(null);
 
   useEffect(() => {
+    fetchReportContext();
+  }, []);
+
+  useEffect(() => {
     fetchCashFlow();
-  }, [period]);
+  }, [period, reportContext, statementMonth]);
+
+  const fetchReportContext = async () => {
+    try {
+      const response = await api.get('/reports/period-context');
+      const context = response.data?.data || null;
+
+      setReportContext(context);
+
+      if (context?.availableMonths?.length > 0) {
+        setStatementMonth(context.availableMonths[0].value);
+      }
+    } catch (error) {
+      console.error('Failed to fetch report context:', error);
+    }
+  };
 
   const fetchCashFlow = async () => {
+    if (period === 'statement_month' && !statementMonth && reportContext?.availableMonths?.length) {
+      return;
+    }
+
     setLoading(true);
     try {
-      const { startDate, endDate } = getPeriodDates(period);
+      const { startDate, endDate } = getPeriodDates(period, reportContext, statementMonth);
       const response = await api.get(`/reports/cash-flow?startDate=${startDate}&endDate=${endDate}`);
       const rawData = response.data.data;
       
@@ -88,6 +128,9 @@ const CashFlow = () => {
       const operatingTotal = parseFloat(rawData.operating?.netCashFlow || 0);
       const investingTotal = parseFloat(rawData.investing?.netCashFlow || 0);
       const financingTotal = parseFloat(rawData.financing?.netCashFlow || 0);
+      const bankInflow = parseFloat(rawData.bankFlow?.totalCredits || 0);
+      const bankOutflow = parseFloat(rawData.bankFlow?.totalDebits || 0);
+      const bankNetFlow = parseFloat(rawData.bankFlow?.netCashFlow || 0);
       const netChange = parseFloat(rawData.netCashChange || 0);
       
       setData({
@@ -95,6 +138,7 @@ const CashFlow = () => {
         openingBalance: 0, // Backend doesn't provide this yet
         closingBalance: netChange,
         netChange,
+        ledgerNetChange: parseFloat(rawData.ledgerNetCashChange || 0),
         operations: {
           total: operatingTotal,
           items: (rawData.operating?.activities || []).map(act => ({
@@ -119,6 +163,16 @@ const CashFlow = () => {
             type: parseFloat(act.amount || 0) >= 0 ? 'inflow' : 'outflow'
           }))
         },
+        bankFlow: {
+          total: bankNetFlow,
+          inflow: bankInflow,
+          outflow: bankOutflow,
+          statementCount: rawData.bankFlow?.statementCount || 0,
+          items: [
+            { name: 'Fetched Credits', amount: bankInflow, type: 'inflow' },
+            { name: 'Fetched Debits', amount: -bankOutflow, type: 'outflow' },
+          ],
+        },
         monthlyData: [] // Backend doesn't provide monthly breakdown yet
       });
     } catch (error) {
@@ -128,9 +182,11 @@ const CashFlow = () => {
         openingBalance: 0,
         closingBalance: 0,
         netChange: 0,
+        ledgerNetChange: 0,
         operations: { total: 0, items: [] },
         investing: { total: 0, items: [] },
         financing: { total: 0, items: [] },
+        bankFlow: { total: 0, inflow: 0, outflow: 0, statementCount: 0, items: [] },
         monthlyData: []
       });
     } finally {
@@ -140,7 +196,7 @@ const CashFlow = () => {
 
   const handleExport = async () => {
     try {
-      const { startDate, endDate } = getPeriodDates(period);
+      const { startDate, endDate } = getPeriodDates(period, reportContext, statementMonth);
       const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/reports/cash-flow/export?startDate=${startDate}&endDate=${endDate}`;
       
       const response = await fetch(url, {
@@ -166,11 +222,22 @@ const CashFlow = () => {
   };
 
   const periodOptions = [
-    { value: 'current_fy', label: `Current FY (${getFinancialYear()})` },
+    ...(reportContext?.availableMonths?.length
+      ? [{ value: 'statement_month', label: 'Statement Month' }]
+      : []),
+    { value: 'current_fy', label: `Current FY (${reportContext?.defaultFinancialYear || getFinancialYear()})` },
     { value: 'previous_fy', label: 'Previous FY' },
     { value: 'current_quarter', label: 'Current Quarter' },
     { value: 'ytd', label: 'Year to Date' },
+    ...(reportContext?.presets?.latest_statement_month
+      ? [{ value: 'latest_statement_month', label: 'Latest Statement Month' }]
+      : []),
   ];
+
+  const statementMonthOptions = (reportContext?.availableMonths || []).map(month => ({
+    value: month.value,
+    label: month.label,
+  }));
 
   if (loading) {
     return <Loading.Page />;
@@ -180,6 +247,7 @@ const CashFlow = () => {
     { key: 'operations', label: 'Operating Activities', icon: Building2, data: data?.operations, color: 'blue' },
     { key: 'investing', label: 'Investing Activities', icon: TrendingUp, data: data?.investing, color: 'purple' },
     { key: 'financing', label: 'Financing Activities', icon: Banknote, data: data?.financing, color: 'orange' },
+    { key: 'bankFlow', label: 'Bank Statement Flow', icon: Landmark, data: data?.bankFlow, color: 'green' },
   ];
 
   return (
@@ -195,6 +263,14 @@ const CashFlow = () => {
               onChange={(e) => setPeriod(e.target.value)}
               className="w-48"
             />
+            {period === 'statement_month' && statementMonthOptions.length > 0 && (
+              <Select
+                options={statementMonthOptions}
+                value={statementMonth}
+                onChange={(e) => setStatementMonth(e.target.value)}
+                className="w-56"
+              />
+            )}
             <Button variant="secondary" icon={Download} onClick={handleExport}>
               Export PDF
             </Button>
@@ -293,7 +369,7 @@ const CashFlow = () => {
       )}
 
       {/* Activity Categories */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         {categories.map((category) => (
           <Card key={category.key} className="p-6">
             <div className={`flex items-center gap-3 mb-4 pb-4 border-b border-border`}>

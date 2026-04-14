@@ -69,6 +69,7 @@ export const tdsService = {
 
 // Report Services
 export const reportService = {
+  getPeriodContext: () => api.get('/reports/period-context'),
   getProfitLoss: (params) => api.get('/reports/profit-loss', { params }),
   getBalanceSheet: (params) => api.get('/reports/balance-sheet', { params }),
   getCashFlow: (params) => api.get('/reports/cash-flow', { params }),

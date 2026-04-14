@@ -1,5 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
 import connectDB from './config/database.js';
@@ -55,7 +57,9 @@ import usersRoutes from './routes/users.routes.js';
 import bankStatementRoutes from './routes/bankStatement.routes.js';
 import smartUploadRoutes from './routes/smartUpload.routes.js';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const { SPA_URL, API_PUBLIC_URL } = getResolvedUrls();
 
@@ -179,6 +183,17 @@ function readTokenFromQuery(req) {
   return null;
 }
 
+function buildUserPayload(decoded) {
+  return {
+    id: decoded.user_id,
+    email: decoded.email,
+    name: decoded.name || decoded.email?.split('@')[0] || 'User',
+    role: decoded.roles?.[0] || 'user',
+    roles: decoded.roles || [],
+    allowedApps: decoded.allowedApps || [],
+  };
+}
+
 /**
  * GET /auth/callback?token=<JWT> (or &token= if other query params exist)
  * Validates JWT, sets HTTP-only blackhole_token, redirects to dashboard (no token in URL).
@@ -201,6 +216,38 @@ app.get('/auth/callback', (req, res) => {
   } catch (err) {
     logger.error('Auth callback: invalid token —', err.message);
     return res.redirect(`${SPA_URL}/login?error=invalid_token`);
+  }
+});
+
+/**
+ * Lightweight session check for SPA bootstrapping.
+ * Returns 200 with authenticated=false when no/invalid cookie to avoid noisy 401s on first load.
+ */
+app.get('/api/v1/auth/session', (req, res) => {
+  const token = req.cookies?.blackhole_token;
+  if (!token) {
+    return res.json({ success: true, authenticated: false, data: null });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = buildUserPayload(decoded);
+    const appId = process.env.APP_ID || process.env.BHIV_APP_ID;
+
+    if (appId && !(user.allowedApps || []).includes(appId)) {
+      clearBlackholeCookie(res);
+      return res.json({
+        success: true,
+        authenticated: false,
+        data: null,
+        code: 'app_not_allowed',
+      });
+    }
+
+    return res.json({ success: true, authenticated: true, data: user });
+  } catch {
+    clearBlackholeCookie(res);
+    return res.json({ success: true, authenticated: false, data: null });
   }
 });
 

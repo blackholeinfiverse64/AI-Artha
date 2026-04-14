@@ -10,10 +10,11 @@ export const useAuthStore = create((set) => ({
 
   checkAuth: async () => {
     try {
-      const response = await api.get('/auth/me');
+      const response = await api.get('/auth/session');
+      const authenticated = Boolean(response.data?.authenticated);
       set({
-        user: response.data.data,
-        isAuthenticated: true,
+        user: authenticated ? response.data?.data || null : null,
+        isAuthenticated: authenticated,
         isLoading: false,
       });
     } catch {

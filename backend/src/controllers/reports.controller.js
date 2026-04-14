@@ -166,6 +166,26 @@ export const getDashboardSummary = async (req, res) => {
   }
 };
 
+// @desc    Get statement-driven report period context
+// @route   GET /api/v1/reports/period-context
+// @access  Private
+export const getReportPeriodContext = async (req, res) => {
+  try {
+    const context = await financialReportsService.getReportPeriodContext();
+
+    res.json({
+      success: true,
+      data: context,
+    });
+  } catch (error) {
+    logger.error('Get report period context error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 // @desc    Get Revenue vs Expenses Chart
 // @route   GET /api/v1/reports/revenue-expenses-chart
 // @access  Private
