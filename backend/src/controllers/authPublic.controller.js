@@ -1,9 +1,12 @@
 import crypto from 'node:crypto';
-import jwt from 'jsonwebtoken';
 import axios from 'axios';
 import User from '../models/User.js';
 import logger from '../config/logger.js';
-import { getAuthCallbackUrl, getBlackholeCookieOptions } from '../middleware/auth.js';
+import {
+  getAuthCallbackUrl,
+  getBlackholeCookieOptions,
+  verifyBlackholeToken,
+} from '../middleware/auth.js';
 
 /**
  * POST /api/v1/auth/validate-login-email
@@ -66,10 +69,24 @@ export const loginPassword = async (req, res) => {
       });
     }
 
+    if (authRes.status === 429) {
+      return res.status(429).json({
+        success: false,
+        message: authRes.data?.message || 'Too many login attempts. Please try again shortly.',
+      });
+    }
+
+    if (authRes.status === 400 || authRes.status === 404 || authRes.status === 422) {
+      return res.status(400).json({
+        success: false,
+        message: authRes.data?.message || 'Login request was rejected by auth server',
+      });
+    }
+
     if (authRes.status < 200 || authRes.status >= 300) {
       return res.status(502).json({
         success: false,
-        message: authRes.data?.message || 'Auth server error',
+        message: authRes.data?.message || `Auth server error (${authRes.status})`,
       });
     }
 
@@ -78,14 +95,20 @@ export const loginPassword = async (req, res) => {
       return res.status(502).json({ success: false, message: 'No token from auth server' });
     }
 
-    jwt.verify(token, process.env.JWT_SECRET);
+    verifyBlackholeToken(token);
     res.cookie('blackhole_token', token, getBlackholeCookieOptions());
     return res.json({ success: true });
   } catch (err) {
-    if (err.name === 'JsonWebTokenError' || err.name === 'TokenExpiredError') {
+    if (
+      err.name === 'JsonWebTokenError' ||
+      err.name === 'TokenExpiredError' ||
+      err.code === 'JWT_SECRET_MISSING'
+    ) {
+      logger.error('loginPassword token verification failed:', err.message);
       return res.status(502).json({
         success: false,
-        message: 'Token from auth server could not be verified',
+        message:
+          'Token from auth server could not be verified. Ensure API JWT_SECRET matches auth server signing secret.',
       });
     }
     logger.error('loginPassword:', err.message);
@@ -235,7 +258,7 @@ export const signupWithBlackhole = async (req, res) => {
     const token = authRes.data?.token;
     if (token && typeof token === 'string') {
       try {
-        jwt.verify(token, process.env.JWT_SECRET);
+        verifyBlackholeToken(token);
         res.cookie('blackhole_token', token, getBlackholeCookieOptions());
         return res.status(201).json({
           success: true,

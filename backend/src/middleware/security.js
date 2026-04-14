@@ -37,10 +37,18 @@ export const limiter = rateLimit({
   skip: (req) => process.env.NODE_ENV === 'development', // Skip in development
 });
 
+function authRateLimitKey(req) {
+  const email = String(req.body?.email || '')
+    .trim()
+    .toLowerCase();
+  return email ? `${req.ip}:${email}` : req.ip;
+}
+
 // Password login — tighter cap (brute-force protection)
 export const authPasswordLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: parseInt(process.env.AUTH_PASSWORD_RATE_LIMIT_MAX, 10) || 10,
+  keyGenerator: authRateLimitKey,
   message: 'Too many login attempts from this IP. Try again in a few minutes.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -51,6 +59,7 @@ export const authPasswordLimiter = rateLimit({
 export const authFlowLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: parseInt(process.env.AUTH_MAGIC_RATE_LIMIT_MAX, 10) || 100,
+  keyGenerator: authRateLimitKey,
   message: 'Too many sign-in email requests from this IP. Try again in a few minutes.',
   standardHeaders: true,
   legacyHeaders: false,
