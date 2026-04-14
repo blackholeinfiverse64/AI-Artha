@@ -47,11 +47,12 @@ function authRateLimitKey(req) {
 // Password login — tighter cap (brute-force protection)
 export const authPasswordLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: parseInt(process.env.AUTH_PASSWORD_RATE_LIMIT_MAX, 10) || 10,
+  max: parseInt(process.env.AUTH_PASSWORD_RATE_LIMIT_MAX, 10) || 30,
   keyGenerator: authRateLimitKey,
   message: 'Too many login attempts from this IP. Try again in a few minutes.',
   standardHeaders: true,
   legacyHeaders: false,
+  skipSuccessfulRequests: true,
   skip: (req) => process.env.NODE_ENV === 'development',
 });
 

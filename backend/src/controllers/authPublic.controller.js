@@ -8,6 +8,19 @@ import {
   verifyBlackholeToken,
 } from '../middleware/auth.js';
 
+function getRequestCallbackUrl(req) {
+  const forwardedProto = req.get('x-forwarded-proto');
+  const forwardedHost = req.get('x-forwarded-host');
+  const host = (forwardedHost || req.get('host') || '').split(',')[0].trim();
+  const proto = (forwardedProto || req.protocol || 'https').split(',')[0].trim();
+
+  if (host && proto) {
+    return `${proto}://${host}/auth/callback`;
+  }
+
+  return getAuthCallbackUrl();
+}
+
 /**
  * POST /api/v1/auth/validate-login-email
  * Validates format; optionally ensures email exists in local User collection
@@ -51,10 +64,11 @@ export const loginPassword = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Email and password are required' });
     }
 
+    const callbackUrl = getRequestCallbackUrl(req);
     const authBase = (process.env.AUTH_SERVER_URL || 'https://bhiv-auth.onrender.com').replace(/\/$/, '');
     const authRes = await axios.post(
       `${authBase}/api/login`,
-      { email, password, redirect: getAuthCallbackUrl() },
+      { email, password, redirect: callbackUrl },
       {
         headers: { 'Content-Type': 'application/json' },
         timeout: 20000,
@@ -140,10 +154,11 @@ export const requestMagicLink = async (req, res) => {
       }
     }
 
+    const callbackUrl = getRequestCallbackUrl(req);
     const authBase = (process.env.AUTH_SERVER_URL || 'https://bhiv-auth.onrender.com').replace(/\/$/, '');
     const payload = {
       email,
-      redirect: getAuthCallbackUrl(),
+      redirect: callbackUrl,
     };
     if (mode === 'popup') payload.mode = 'popup';
 
@@ -209,12 +224,13 @@ export const signupWithBlackhole = async (req, res) => {
       return res.status(400).json({ success: false, message: 'Name is required' });
     }
 
+    const callbackUrl = getRequestCallbackUrl(req);
     const authBase = (process.env.AUTH_SERVER_URL || 'https://bhiv-auth.onrender.com').replace(/\/$/, '');
     const signupUrl = `${authBase}/api/signup`;
 
     const authRes = await axios.post(
       signupUrl,
-      { email, password, redirect: getAuthCallbackUrl() },
+      { email, password, redirect: callbackUrl },
       {
         headers: { 'Content-Type': 'application/json' },
         timeout: 20000,
@@ -226,6 +242,20 @@ export const signupWithBlackhole = async (req, res) => {
       return res.status(409).json({
         success: false,
         message: authRes.data?.message || 'An account with this email already exists',
+      });
+    }
+
+    if (authRes.status === 429) {
+      return res.status(429).json({
+        success: false,
+        message: authRes.data?.message || 'Too many sign-up attempts. Please try again shortly.',
+      });
+    }
+
+    if ([400, 401, 403, 404, 422].includes(authRes.status)) {
+      return res.status(400).json({
+        success: false,
+        message: authRes.data?.message || 'Registration request was rejected by auth server',
       });
     }
 
@@ -278,6 +308,18 @@ export const signupWithBlackhole = async (req, res) => {
   } catch (err) {
     if (err.code === 11000) {
       return res.status(409).json({ success: false, message: 'This email is already registered in Artha' });
+    }
+    if (err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT') {
+      return res.status(504).json({
+        success: false,
+        message: 'Auth server did not respond in time. Please try again.',
+      });
+    }
+    if (!err.response) {
+      return res.status(502).json({
+        success: false,
+        message: 'Cannot reach auth server. Verify AUTH_SERVER_URL and auth service status.',
+      });
     }
     logger.error('signupWithBlackhole:', err.message);
     return res.status(500).json({ success: false, message: 'Registration failed' });
