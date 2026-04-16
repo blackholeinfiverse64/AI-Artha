@@ -67,6 +67,18 @@ export const authFlowLimiter = rateLimit({
   skip: (req) => process.env.NODE_ENV === 'development',
 });
 
+// Signup should not share the global API limiter bucket in multi-user production traffic.
+export const authSignupLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: parseInt(process.env.AUTH_SIGNUP_RATE_LIMIT_MAX, 10) || 20,
+  keyGenerator: authRateLimitKey,
+  message: 'Too many signup attempts from this IP. Try again in a few minutes.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  skip: (req) => process.env.NODE_ENV === 'development',
+});
+
 /** @deprecated use authPasswordLimiter */
 export const authLimiter = authPasswordLimiter;
 

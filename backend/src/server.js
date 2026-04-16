@@ -31,6 +31,7 @@ import {
   watermark,
   authPasswordLimiter,
   authFlowLimiter,
+  authSignupLimiter,
 } from './middleware/security.js';
 
 import {
@@ -192,7 +193,7 @@ app.post('/api/v1/auth/login', authPasswordLimiter, loginPassword);
 app.post('/api/v1/auth/magic-link', authFlowLimiter, requestMagicLink);
 
 /** Signup: POST {AUTH}/api/signup then local profile (credentials on auth server). */
-app.post('/api/v1/auth/signup', limiter, signupWithBlackhole);
+app.post('/api/v1/auth/signup', authSignupLimiter, signupWithBlackhole);
 
 function readTokenFromQuery(req) {
   const raw = req.query.token;
