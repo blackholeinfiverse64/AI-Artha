@@ -172,3 +172,31 @@ export const createExpensesFromTransactions = async (req, res) => {
     });
   }
 };
+
+/**
+ * Permanently delete bank statement
+ */
+export const deleteBankStatement = async (req, res) => {
+  try {
+    const result = await bankStatementService.deleteBankStatement(req.params.id, req.user);
+
+    res.json({
+      success: true,
+      data: result,
+      message: 'Bank statement deleted permanently',
+    });
+  } catch (error) {
+    logger.error('Delete bank statement error:', error);
+    const statusCode =
+      error.message === 'Bank statement not found'
+        ? 404
+        : error.message === 'Not authorized to delete this bank statement'
+          ? 403
+          : 400;
+
+    res.status(statusCode).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

@@ -125,8 +125,29 @@ export const loginPassword = async (req, res) => {
           'Token from auth server could not be verified. Ensure API JWT_SECRET matches auth server signing secret.',
       });
     }
-    logger.error('loginPassword:', err.message);
-    return res.status(500).json({ success: false, message: 'Login failed' });
+
+    logger.error('loginPassword:', {
+      message: err.message,
+      code: err.code,
+      name: err.name,
+      hasResponse: Boolean(err.response),
+    });
+
+    if (err.code === 'ECONNABORTED' || err.code === 'ETIMEDOUT') {
+      return res.status(504).json({
+        success: false,
+        message: 'Auth server did not respond in time. Try again in a moment.',
+      });
+    }
+
+    if (!err.response) {
+      return res.status(502).json({
+        success: false,
+        message: 'Cannot reach auth server. Verify AUTH_SERVER_URL and auth service availability.',
+      });
+    }
+
+    return res.status(500).json({ success: false, message: 'Login failed due to an unexpected server error' });
   }
 };
 

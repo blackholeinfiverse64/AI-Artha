@@ -236,6 +236,27 @@ export const getExpenseBreakdown = async (req, res) => {
   }
 };
 
+// @desc    Get Bank Transaction Timeline
+// @route   GET /api/v1/reports/bank-transaction-timeline
+// @access  Private
+export const getBankTransactionTimeline = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const timeline = await financialReportsService.generateBankTransactionTimeline(startDate, endDate);
+
+    res.json({
+      success: true,
+      data: timeline,
+    });
+  } catch (error) {
+    logger.error('Get bank transaction timeline error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 // @desc    Generate KPIs
 // @route   GET /api/v1/reports/kpis
 // @access  Private

@@ -903,6 +903,54 @@ class BankStatementService {
   }
 
   /**
+   * Permanently delete a bank statement and its uploaded source file.
+   */
+  async deleteBankStatement(statementId, actor = {}) {
+    const statement = await BankStatement.findById(statementId);
+    if (!statement) {
+      throw new Error('Bank statement not found');
+    }
+
+    const actorId = actor?._id ? String(actor._id) : '';
+    const actorRole = String(actor?.role || '').toLowerCase();
+    const actorRoles = Array.isArray(actor?.roles)
+      ? actor.roles.map(r => String(r).toLowerCase())
+      : [];
+    const isPrivileged =
+      actorRole === 'admin' ||
+      actorRole === 'accountant' ||
+      actorRoles.includes('admin') ||
+      actorRoles.includes('accountant');
+
+    const ownerId = statement.uploadedBy ? String(statement.uploadedBy) : '';
+    const isOwner = Boolean(actorId) && ownerId === actorId;
+
+    if (!isPrivileged && !isOwner) {
+      throw new Error('Not authorized to delete this bank statement');
+    }
+
+    const filePath = statement.file?.path;
+    await BankStatement.findByIdAndDelete(statementId);
+
+    if (filePath) {
+      try {
+        await fs.unlink(filePath);
+      } catch (error) {
+        // Missing file should not block database deletion.
+        if (error.code !== 'ENOENT') {
+          logger.warn(`Failed to delete statement file at ${filePath}: ${error.message}`);
+        }
+      }
+    }
+
+    return {
+      deletedId: statementId,
+      statementNumber: statement.statementNumber,
+      fileDeleted: Boolean(filePath),
+    };
+  }
+
+  /**
    * Manual match trigger (re-runs matching on already-processed statement)
    */
   async matchTransactions(statementId) {

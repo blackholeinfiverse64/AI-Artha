@@ -1,5 +1,5 @@
 import express from 'express';
-import { protect, authorize } from '../middleware/auth.js';
+import { protect } from '../middleware/auth.js';
 import { uploadFile, handleUploadError } from '../middleware/upload.js';
 import {
   uploadBankStatement,
@@ -8,6 +8,7 @@ import {
   processBankStatement,
   matchTransactions,
   createExpensesFromTransactions,
+  deleteBankStatement,
 } from '../controllers/bankStatement.controller.js';
 
 const router = express.Router();
@@ -28,6 +29,9 @@ router.get('/', getBankStatements);
 
 // Get single statement
 router.get('/:id', getBankStatement);
+
+// Permanently delete statement
+router.delete('/:id', deleteBankStatement);
 
 // Process statement manually
 router.post('/:id/process', processBankStatement);

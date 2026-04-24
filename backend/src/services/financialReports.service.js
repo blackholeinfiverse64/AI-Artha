@@ -962,6 +962,99 @@ class FinancialReportsService {
   }
 
   /**
+   * Generate bank transaction timeline from uploaded bank statement transactions.
+   */
+  async generateBankTransactionTimeline(startDate, endDate) {
+    try {
+      const today = new Date();
+      const rangeEnd = endDate ? new Date(endDate) : today;
+      const rangeStart = startDate
+        ? new Date(startDate)
+        : new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate() - 29);
+
+      // Normalize to full-day boundaries to avoid dropping transactions near midnight.
+      rangeStart.setHours(0, 0, 0, 0);
+      rangeEnd.setHours(23, 59, 59, 999);
+
+      const timeline = await BankStatement.aggregate([
+        {
+          $match: {
+            status: 'completed',
+            transactions: { $exists: true, $ne: [] },
+          },
+        },
+        { $unwind: '$transactions' },
+        {
+          $match: {
+            'transactions.date': {
+              $gte: rangeStart,
+              $lte: rangeEnd,
+            },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: '%Y-%m-%d',
+                date: '$transactions.date',
+                timezone: 'Asia/Kolkata',
+              },
+            },
+            credits: { $sum: { $toDouble: '$transactions.credit' } },
+            debits: { $sum: { $toDouble: '$transactions.debit' } },
+            transactionCount: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]);
+
+      const byDate = new Map(
+        timeline.map(item => [item._id, {
+          credits: Number((item.credits || 0).toFixed(2)),
+          debits: Number((item.debits || 0).toFixed(2)),
+          transactionCount: item.transactionCount || 0,
+        }]),
+      );
+
+      const points = [];
+      const cursor = new Date(rangeStart);
+      cursor.setHours(0, 0, 0, 0);
+
+      while (cursor <= rangeEnd) {
+        const dateKey = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+        const day = byDate.get(dateKey) || { credits: 0, debits: 0, transactionCount: 0 };
+        const pointDate = new Date(cursor);
+
+        points.push({
+          date: dateKey,
+          label: pointDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+          credits: day.credits,
+          debits: day.debits,
+          netFlow: Number((day.credits - day.debits).toFixed(2)),
+          transactionCount: day.transactionCount,
+        });
+
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      return points.map(item => {
+        return {
+          date: item.date,
+          label: item.label,
+          credits: item.credits,
+          debits: item.debits,
+          netFlow: item.netFlow,
+          transactionCount: item.transactionCount,
+        };
+      });
+    } catch (error) {
+      logger.error('Generate bank transaction timeline error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Generate Dashboard Summary
    */
   async generateDashboardSummary() {

@@ -86,6 +86,7 @@ export const dashboardService = {
   getExpenseStats: () => api.get('/expenses/stats'),
   getRecentInvoices: () => api.get('/invoices', { params: { limit: 5, sortBy: 'invoiceDate', sortOrder: 'desc' } }),
   getRecentExpenses: () => api.get('/expenses', { params: { limit: 5, sortBy: 'date', sortOrder: 'desc' } }),
+  getBankTransactionTimeline: (params) => api.get('/reports/bank-transaction-timeline', { params }),
 };
 
 // Settings Services
@@ -154,5 +155,6 @@ export const bankStatementService = {
   process: (id) => api.post(`/statements/${id}/process`),
   matchTransactions: (id) => api.post(`/statements/${id}/match`),
   createExpenses: (id, transactionIds) => api.post(`/statements/${id}/create-expenses`, { transactionIds }),
+  delete: (id) => api.delete(`/statements/${id}`),
 };
 
