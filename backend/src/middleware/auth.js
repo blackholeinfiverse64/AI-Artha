@@ -4,16 +4,7 @@ import { getResolvedUrls } from '../config/urls.js';
 
 const COOKIE_NAME = 'blackhole_token';
 
-/** Full callback URL on this API origin (magic-link / login redirect target). */
-export function getAuthCallbackUrl() {
-  const { API_PUBLIC_URL } = getResolvedUrls();
-  if (!API_PUBLIC_URL) {
-    logger.warn('API_PUBLIC_URL / APP_URL is not set; auth callback URLs may be wrong');
-  }
-  return `${API_PUBLIC_URL}/auth/callback`;
-}
-
-/** Where to send users for login (SPA has no hosted pages on auth server). */
+/** Where to send browsers when not authenticated (SPA login). */
 export function getAppLoginUrl() {
   const explicit = (process.env.APP_LOGIN_URL || '').replace(/\/$/, '');
   if (explicit) return explicit;
@@ -22,7 +13,7 @@ export function getAppLoginUrl() {
 }
 
 /**
- * HTTP-only session cookie. SameSite=None when SPA and API differ (production).
+ * Legacy HTTP-only cookie options (cleared on logout). Prefer `Authorization: Bearer <jwt>`.
  */
 export function getBlackholeCookieOptions() {
   const isProduction = process.env.NODE_ENV === 'production';
@@ -58,6 +49,15 @@ export function clearBlackholeCookie(res) {
   res.clearCookie(COOKIE_NAME, { path: '/', sameSite: o.sameSite, secure: o.secure });
 }
 
+function extractAccessToken(req) {
+  const auth = req.headers.authorization;
+  if (auth && typeof auth === 'string' && auth.startsWith('Bearer ')) {
+    const t = auth.slice(7).trim();
+    if (t) return t;
+  }
+  return req.cookies?.[COOKIE_NAME] || null;
+}
+
 /**
  * Optional: JWT `allowedApps` must include this id (e.g. artha).
  */
@@ -81,11 +81,11 @@ export function requireAllowedApp(appId) {
 }
 
 /**
- * Protect routes — reads `blackhole_token` HTTP-only cookie.
+ * Protect routes — `Authorization: Bearer <jwt>` (preferred) or legacy `blackhole_token` cookie.
  */
 export const protect = (req, res, next) => {
   try {
-    const token = req.cookies?.[COOKIE_NAME];
+    const token = extractAccessToken(req);
     const loginUrl = getAppLoginUrl();
 
     if (!token) {

@@ -8,7 +8,6 @@ const REQUIRED_PROD_VARS = [
 ];
 
 const RECOMMENDED_VARS = [
-  'AUTH_SERVER_URL',
   'API_PUBLIC_URL',
   'REDIS_PASSWORD',
   'FRONTEND_URL',
@@ -45,9 +44,6 @@ export const validateEnvironment = () => {
         'Set FRONTEND_URL (legacy) or APP_URL to your production SPA origin (https://…, no trailing slash)',
       );
     }
-    if (!process.env.AUTH_SERVER_URL) {
-      warnings.push('AUTH_SERVER_URL should be set for Blackhole Auth integration');
-    }
     try {
       const { SPA_URL, API_PUBLIC_URL } = getResolvedUrls();
       const spaHost = new URL(SPA_URL).hostname;
@@ -58,7 +54,7 @@ export const validateEnvironment = () => {
         spaHost !== '127.0.0.1'
       ) {
         warnings.push(
-          'Set API_PUBLIC_URL to your deployed API base URL (magic-link redirect must hit /auth/callback on the API host).',
+          'Set API_PUBLIC_URL to your deployed API base URL when the SPA is not on localhost.',
         );
       }
     } catch {
@@ -93,7 +89,7 @@ export const validateDatabaseConfig = () => {
 export const validateJWTConfig = () => {
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret) {
-    throw new Error('JWT_SECRET is required for Blackhole Auth verification');
+    throw new Error('JWT_SECRET is required for API token signing and verification');
   }
   if (jwtSecret.length < 32) {
     throw new Error('JWT_SECRET must be at least 32 characters long');
