@@ -69,6 +69,7 @@ export const tdsService = {
 
 // Report Services
 export const reportService = {
+  getPeriodContext: () => api.get('/reports/period-context'),
   getProfitLoss: (params) => api.get('/reports/profit-loss', { params }),
   getBalanceSheet: (params) => api.get('/reports/balance-sheet', { params }),
   getCashFlow: (params) => api.get('/reports/cash-flow', { params }),
@@ -85,6 +86,7 @@ export const dashboardService = {
   getExpenseStats: () => api.get('/expenses/stats'),
   getRecentInvoices: () => api.get('/invoices', { params: { limit: 5, sortBy: 'invoiceDate', sortOrder: 'desc' } }),
   getRecentExpenses: () => api.get('/expenses', { params: { limit: 5, sortBy: 'date', sortOrder: 'desc' } }),
+  getBankTransactionTimeline: (params) => api.get('/reports/bank-transaction-timeline', { params }),
 };
 
 // Settings Services
@@ -153,5 +155,6 @@ export const bankStatementService = {
   process: (id) => api.post(`/statements/${id}/process`),
   matchTransactions: (id) => api.post(`/statements/${id}/match`),
   createExpenses: (id, transactionIds) => api.post(`/statements/${id}/create-expenses`, { transactionIds }),
+  delete: (id) => api.delete(`/statements/${id}`),
 };
 

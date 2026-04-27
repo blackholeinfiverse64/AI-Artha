@@ -1,5 +1,6 @@
 import Decimal from 'decimal.js';
 import mongoose from 'mongoose';
+import { randomUUID } from 'crypto';
 import TDSEntry from '../models/TDSEntry.js';
 import ChartOfAccounts from '../models/ChartOfAccounts.js';
 import ledgerService from './ledger.service.js';
@@ -135,6 +136,7 @@ class TDSService {
       }
       
       // Create journal entry
+      const traceId = randomUUID();
       const journalEntry = await ledgerService.createJournalEntry(
         {
           date: tdsEntry.transactionDate,
@@ -161,11 +163,17 @@ class TDSService {
           ],
           reference: tdsEntry.entryNumber,
           tags: ['tds', tdsEntry.section],
+          source: 'SYSTEM',
+          trace_id: traceId,
+          auditTrace: {
+            steps: ['tds computed', 'draft saved'],
+          },
         },
         userId
       );
       
-      // Post the journal entry
+      // Validate before posting to enforce draft -> validate -> post workflow
+      await ledgerService.validateJournalEntry(journalEntry._id, userId);
       await ledgerService.postJournalEntry(journalEntry._id, userId);
       
       // Update TDS entry

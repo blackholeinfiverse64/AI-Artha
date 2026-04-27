@@ -84,6 +84,7 @@ const seedDatabase = async () => {
       },
       admin._id
     );
+    await ledgerService.validateJournalEntry(entry1._id, admin._id);
     await ledgerService.postJournalEntry(entry1._id, admin._id);
     logger.info('Sample entry 1 created and posted');
 
@@ -106,6 +107,7 @@ const seedDatabase = async () => {
       },
       accountant._id
     );
+    await ledgerService.validateJournalEntry(entry2._id, accountant._id);
     await ledgerService.postJournalEntry(entry2._id, accountant._id);
     logger.info('Sample entry 2 created and posted');
 
@@ -128,6 +130,7 @@ const seedDatabase = async () => {
       },
       accountant._id
     );
+    await ledgerService.validateJournalEntry(entry3._id, accountant._id);
     await ledgerService.postJournalEntry(entry3._id, accountant._id);
     logger.info('Sample entry 3 created and posted');
 
@@ -150,6 +153,7 @@ const seedDatabase = async () => {
       },
       accountant._id
     );
+    await ledgerService.validateJournalEntry(entry4._id, accountant._id);
     await ledgerService.postJournalEntry(entry4._id, accountant._id);
     logger.info('Sample entry 4 created and posted');
 

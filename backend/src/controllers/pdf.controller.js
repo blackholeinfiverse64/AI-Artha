@@ -7,7 +7,7 @@ import logger from '../config/logger.js';
 export const exportGeneralLedger = async (req, res) => {
   try {
     const filters = {
-      status: 'posted', // Only posted entries
+      status: 'POSTED', // Only posted entries
       dateFrom: req.query.dateFrom,
       dateTo: req.query.dateTo,
       account: req.query.account,

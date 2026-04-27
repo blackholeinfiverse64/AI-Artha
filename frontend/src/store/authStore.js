@@ -20,7 +20,7 @@ export const useAuthStore = create((set) => ({
       }
       const response = await api.get('/auth/me');
       set({
-        user: response.data.data,
+        user: response.data?.data || null,
         isAuthenticated: true,
         isLoading: false,
       });

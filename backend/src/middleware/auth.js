@@ -3,6 +3,50 @@ import logger from '../config/logger.js';
 import { getResolvedUrls } from '../config/urls.js';
 
 const COOKIE_NAME = 'blackhole_token';
+const JWT_SECRET_ENV_CANDIDATES = [
+  'JWT_SECRET',
+  'BHIV_JWT_SECRET',
+  'AUTH_JWT_SECRET',
+  'BLACKHOLE_JWT_SECRET',
+];
+
+function getJwtVerificationSecrets() {
+  const unique = new Set();
+  const secrets = [];
+
+  for (const envName of JWT_SECRET_ENV_CANDIDATES) {
+    const value = process.env[envName];
+    if (!value || typeof value !== 'string') continue;
+    const secret = value.trim();
+    if (!secret || unique.has(secret)) continue;
+    unique.add(secret);
+    secrets.push(secret);
+  }
+
+  return secrets;
+}
+
+export function verifyBlackholeToken(token) {
+  const secrets = getJwtVerificationSecrets();
+  if (!secrets.length) {
+    const err = new Error(
+      `Missing JWT verification secret. Set one of: ${JWT_SECRET_ENV_CANDIDATES.join(', ')}`
+    );
+    err.code = 'JWT_SECRET_MISSING';
+    throw err;
+  }
+
+  let lastError = null;
+  for (const secret of secrets) {
+    try {
+      return jwt.verify(token, secret);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error('Token verification failed');
+}
 
 /** Where to send browsers when not authenticated (SPA login). */
 export function getAppLoginUrl() {
@@ -100,7 +144,7 @@ export const protect = (req, res, next) => {
     }
 
     try {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      const decoded = verifyBlackholeToken(token);
 
       req.user = {
         _id: decoded.user_id,

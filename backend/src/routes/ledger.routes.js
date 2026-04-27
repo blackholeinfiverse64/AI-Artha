@@ -2,6 +2,7 @@ import express from 'express';
 import { body } from 'express-validator';
 import {
   createEntry,
+  validateEntry,
   postEntry,
   getEntries,
   getEntry,
@@ -54,6 +55,14 @@ router
 router
   .route('/entries/:id')
   .get(getEntry);
+
+router
+  .route('/entries/:id/validate')
+  .post(
+    authorize('accountant', 'admin'),
+    auditLogger('journal_entry.validated', 'JournalEntry'),
+    validateEntry
+  );
 
 router
   .route('/entries/:id/post')

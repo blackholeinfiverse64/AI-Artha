@@ -1,5 +1,6 @@
 import Decimal from 'decimal.js';
 import JournalEntry from '../models/JournalEntry.js';
+import LedgerEntry from '../models/LedgerEntry.js';
 import AccountBalance from '../models/AccountBalance.js';
 import ChartOfAccounts from '../models/ChartOfAccounts.js';
 import AuditLog from '../models/AuditLog.js';
@@ -8,25 +9,59 @@ import mongoose from 'mongoose';
 import cacheService from './cache.service.js';
 import { withTransaction, areTransactionsAvailable } from '../config/database.js';
 
+const JOURNAL_STATUS = {
+  DRAFT: 'DRAFT',
+  VALIDATED: 'VALIDATED',
+  POSTED: 'POSTED',
+  VOIDED: 'VOIDED',
+};
+
+const POSTED_STATUSES = ['POSTED', 'posted'];
+const VOIDED_STATUSES = ['VOIDED', 'voided'];
+const VALIDATED_STATUSES = ['VALIDATED', 'validated'];
+const DRAFT_STATUSES = ['DRAFT', 'draft'];
+const GST_RATE = new Decimal('0.18');
+const ROUNDING_TOLERANCE = new Decimal('0.01');
+
 class LedgerService {
+  normalizeStatusFilter(status) {
+    if (!status) return null;
+
+    const normalized = String(status).toUpperCase();
+    if (normalized === JOURNAL_STATUS.POSTED) return { $in: POSTED_STATUSES };
+    if (normalized === JOURNAL_STATUS.DRAFT) return { $in: DRAFT_STATUSES };
+    if (normalized === JOURNAL_STATUS.VALIDATED) return { $in: VALIDATED_STATUSES };
+    if (normalized === JOURNAL_STATUS.VOIDED) return { $in: VOIDED_STATUSES };
+
+    return status;
+  }
+
+  validateJournal(journalLines) {
+    const totalDebit = journalLines.reduce(
+      (sum, line) => sum.plus(new Decimal(line.debit || 0)),
+      new Decimal(0)
+    );
+    const totalCredit = journalLines.reduce(
+      (sum, line) => sum.plus(new Decimal(line.credit || 0)),
+      new Decimal(0)
+    );
+
+    if (!totalDebit.equals(totalCredit)) {
+      throw new Error('Journal not balanced');
+    }
+
+    return {
+      balanced: true,
+      totalDebit: totalDebit.toString(),
+      totalCredit: totalCredit.toString(),
+    };
+  }
+
   /**
    * Validate double-entry: debits must equal credits
    */
   validateDoubleEntry(lines) {
-    let totalDebits = new Decimal(0);
-    let totalCredits = new Decimal(0);
-
-    lines.forEach(line => {
-      totalDebits = totalDebits.plus(new Decimal(line.debit || 0));
-      totalCredits = totalCredits.plus(new Decimal(line.credit || 0));
-    });
-
-    if (!totalDebits.equals(totalCredits)) {
-      throw new Error(
-        `Double-entry validation failed: Debits (${totalDebits.toString()}) != Credits (${totalCredits.toString()})`
-      );
-    }
-
+    this.validateJournal(lines);
     return true;
   }
 
@@ -71,11 +106,230 @@ class LedgerService {
     return accounts;
   }
 
+  validateGST(total, cgst, sgst) {
+    const totalDecimal = new Decimal(total || 0);
+    const cgstDecimal = new Decimal(cgst || 0);
+    const sgstDecimal = new Decimal(sgst || 0);
+
+    const expectedTax = totalDecimal.times(GST_RATE);
+    const actualTax = cgstDecimal.plus(sgstDecimal);
+
+    if (actualTax.minus(expectedTax).abs().greaterThan(ROUNDING_TOLERANCE)) {
+      throw new Error('Invalid GST split');
+    }
+
+    if (cgstDecimal.minus(sgstDecimal).abs().greaterThan(ROUNDING_TOLERANCE)) {
+      throw new Error('Invalid GST split');
+    }
+
+    return true;
+  }
+
+  validateTDS(tds, expense) {
+    const tdsDecimal = new Decimal(tds || 0);
+    const expenseDecimal = new Decimal(expense || 0);
+
+    if (tdsDecimal.greaterThan(expenseDecimal)) {
+      throw new Error('Invalid TDS');
+    }
+
+    return true;
+  }
+
+  validateComplianceRules(entry, accountsById) {
+    let outputCGST = new Decimal(0);
+    let outputSGST = new Decimal(0);
+    let inputCGST = new Decimal(0);
+    let inputSGST = new Decimal(0);
+    let taxableRevenue = new Decimal(0);
+    let taxableExpense = new Decimal(0);
+    let tdsPayable = new Decimal(0);
+    let tdsExpense = new Decimal(0);
+    let hasGST = false;
+    let hasTDS = false;
+
+    entry.lines.forEach((line) => {
+      const account = accountsById.get(String(line.account));
+      const accountName = (account?.name || '').toLowerCase();
+      const accountType = (account?.type || '').toLowerCase();
+      const debit = new Decimal(line.debit || 0);
+      const credit = new Decimal(line.credit || 0);
+
+      if (accountName.includes('output cgst')) {
+        hasGST = true;
+        outputCGST = outputCGST.plus(credit);
+      }
+
+      if (accountName.includes('output sgst')) {
+        hasGST = true;
+        outputSGST = outputSGST.plus(credit);
+      }
+
+      if (accountName.includes('input cgst')) {
+        hasGST = true;
+        inputCGST = inputCGST.plus(debit);
+      }
+
+      if (accountName.includes('input sgst')) {
+        hasGST = true;
+        inputSGST = inputSGST.plus(debit);
+      }
+
+      if (accountType === 'income') {
+        taxableRevenue = taxableRevenue.plus(credit);
+      }
+
+      if (accountType === 'expense') {
+        taxableExpense = taxableExpense.plus(debit);
+      }
+
+      if (accountName.includes('tds payable')) {
+        hasTDS = true;
+        tdsPayable = tdsPayable.plus(credit);
+      }
+
+      if (accountType === 'expense') {
+        tdsExpense = tdsExpense.plus(debit);
+      }
+    });
+
+    if (hasGST && (!outputCGST.isZero() || !outputSGST.isZero())) {
+      this.validateGST(taxableRevenue, outputCGST, outputSGST);
+    }
+
+    if (hasGST && (!inputCGST.isZero() || !inputSGST.isZero())) {
+      this.validateGST(taxableExpense, inputCGST, inputSGST);
+    }
+
+    if (hasTDS) {
+      this.validateTDS(tdsPayable, tdsExpense);
+    }
+
+    return {
+      gst_valid: true,
+      tds_valid: true,
+      hasGST,
+      hasTDS,
+    };
+  }
+
+  async ensureComplianceAccounts(session = null) {
+    const requiredAccounts = [
+      {
+        code: '2301',
+        name: 'Input CGST',
+        type: 'Asset',
+        subtype: 'Current Asset',
+        normalBalance: 'debit',
+      },
+      {
+        code: '2302',
+        name: 'Input SGST',
+        type: 'Asset',
+        subtype: 'Current Asset',
+        normalBalance: 'debit',
+      },
+      {
+        code: '2311',
+        name: 'Output CGST',
+        type: 'Liability',
+        subtype: 'Current Liability',
+        normalBalance: 'credit',
+      },
+      {
+        code: '2312',
+        name: 'Output SGST',
+        type: 'Liability',
+        subtype: 'Current Liability',
+        normalBalance: 'credit',
+      },
+      {
+        code: '2400',
+        name: 'TDS Payable',
+        type: 'Liability',
+        subtype: 'Current Liability',
+        normalBalance: 'credit',
+      },
+    ];
+
+    for (const accountData of requiredAccounts) {
+      const existingQuery = ChartOfAccounts.findOne({ code: accountData.code });
+      const existingAccount = session ? await existingQuery.session(session) : await existingQuery;
+
+      if (!existingAccount) {
+        const account = new ChartOfAccounts(accountData);
+        await account.save(session ? { session } : {});
+      }
+    }
+  }
+
+  async validateJournalEntry(entryId, userId) {
+    return await withTransaction(async (session) => {
+      await this.ensureComplianceAccounts(session);
+
+      const entry = await JournalEntry.findById(entryId).session(session);
+
+      if (!entry) {
+        throw new Error('Entry not found');
+      }
+
+      if (POSTED_STATUSES.includes(entry.status)) {
+        throw new Error('Journal entry is already posted');
+      }
+
+      if (VOIDED_STATUSES.includes(entry.status)) {
+        throw new Error('Cannot validate a voided entry');
+      }
+
+      if (!entry.description || !entry.lines || entry.lines.length < 2) {
+        entry.status = JOURNAL_STATUS.DRAFT;
+        await entry.save({ session });
+        throw new Error('incomplete_data');
+      }
+
+      this.validateLineIntegrity(entry.lines);
+      const journalValidation = this.validateJournal(entry.lines);
+      const accounts = await this.validateAccounts(entry.lines);
+      const accountsById = new Map(accounts.map((account) => [String(account._id), account]));
+      const complianceValidation = this.validateComplianceRules(entry, accountsById);
+
+      if (!entry.trace_id || !entry.source) {
+        throw new Error('Audit trace metadata is required');
+      }
+
+      if (!entry.auditTrace || !Array.isArray(entry.auditTrace.steps)) {
+        throw new Error('Audit trace steps are required');
+      }
+
+      entry.status = JOURNAL_STATUS.VALIDATED;
+      entry.auditTrace.trace_id = entry.trace_id;
+      entry.auditTrace.source = entry.source;
+      entry.auditTrace.timestamp = new Date();
+      if (!entry.auditTrace.steps.includes('validated')) {
+        entry.auditTrace.steps.push('validated');
+      }
+
+      if (!entry.auditTrail) entry.auditTrail = [];
+      entry.auditTrail.push({
+        action: 'VALIDATED',
+        performedBy: userId,
+        timestamp: new Date(),
+        details: {
+          ...journalValidation,
+          ...complianceValidation,
+        },
+      });
+
+      await entry.save({ session });
+      return entry;
+    });
+  }
+
   /**
    * Get the previous hash for chain continuity
    */
   async getPreviousHash() {
-    const lastEntry = await JournalEntry.findOne({ status: 'posted' })
+    const lastEntry = await JournalEntry.findOne({ status: { $in: POSTED_STATUSES } })
       .sort({ createdAt: -1 })
       .select('immutable_hash');
 
@@ -87,15 +341,25 @@ class LedgerService {
    */
   async createJournalEntry(entryData, userId) {
     return await withTransaction(async (session) => {
-      const { date, description, lines, reference, tags } = entryData;
+      await this.ensureComplianceAccounts(session);
 
-      // Validations
-      this.validateLineIntegrity(lines);
-      this.validateDoubleEntry(lines);
-      await this.validateAccounts(lines);
+      const {
+        date,
+        description,
+        lines,
+        reference,
+        tags,
+        source,
+        trace_id,
+        auditTrace,
+      } = entryData;
+
+      if (!lines || !Array.isArray(lines) || lines.length < 2) {
+        throw new Error('Journal entry must contain at least 2 lines');
+      }
 
       // Get the latest entry to find prevHash and chainPosition
-      const lastEntry = await JournalEntry.findOne({ status: 'posted' })
+      const lastEntry = await JournalEntry.findOne({ status: { $in: POSTED_STATUSES } })
         .sort({ chainPosition: -1 })
         .session(session);
 
@@ -109,7 +373,7 @@ class LedgerService {
         description,
         lines,
         reference,
-        status: 'draft',
+        status: JOURNAL_STATUS.DRAFT,
       };
       const hash = JournalEntry.computeHash(tempEntry, prevHash);
 
@@ -120,7 +384,18 @@ class LedgerService {
         lines,
         reference,
         tags,
-        status: 'draft',
+        status: JOURNAL_STATUS.DRAFT,
+        source: source || 'MANUAL',
+        trace_id,
+        created_at: new Date(),
+        auditTrace: {
+          trace_id: trace_id || undefined,
+          source: source || 'MANUAL',
+          steps: Array.isArray(auditTrace?.steps)
+            ? auditTrace.steps
+            : ['entry created', 'draft saved'],
+          timestamp: new Date(),
+        },
         prevHash,
         hash,
         chainPosition,
@@ -133,6 +408,7 @@ class LedgerService {
       logger.info(`Journal entry created: ${journalEntry.entryNumber}`, {
         hash: journalEntry.hash,
         chainPosition: journalEntry.chainPosition,
+        status: journalEntry.status,
         transactionMode: session ? 'with-transaction' : 'without-transaction',
       });
 
@@ -151,12 +427,16 @@ class LedgerService {
         throw new Error('Entry not found');
       }
 
-      if (entry.status === 'posted') {
+      if (POSTED_STATUSES.includes(entry.status)) {
         throw new Error('Journal entry is already posted');
       }
 
-      if (entry.status === 'voided') {
+      if (VOIDED_STATUSES.includes(entry.status)) {
         throw new Error('Cannot post a voided entry');
+      }
+
+      if (!VALIDATED_STATUSES.includes(entry.status)) {
+        throw new Error('Cannot post unvalidated entry');
       }
 
       // Verify hash before posting (tamper detection)
@@ -164,12 +444,10 @@ class LedgerService {
         throw new Error('Entry hash verification failed - possible tampering');
       }
 
-      // Re-validate before posting
-      this.validateLineIntegrity(entry.lines);
-      this.validateDoubleEntry(entry.lines);
+      const ledgerEntries = await this.writeLedgerEntries(entry, session);
 
       // Update entry status
-      entry.status = 'posted';
+      entry.status = JOURNAL_STATUS.POSTED;
       entry.postedBy = userId;
       entry.postedAt = new Date();
 
@@ -181,7 +459,8 @@ class LedgerService {
         timestamp: new Date(),
         details: { 
           prevHash: entry.prevHash || entry.prev_hash, 
-          hash: entry.hash || entry.immutable_hash 
+          hash: entry.hash || entry.immutable_hash,
+          ledgerEntriesCreated: ledgerEntries.length,
         },
       });
       
@@ -198,6 +477,7 @@ class LedgerService {
         hash: entry.hash,
         chainPosition: entry.chainPosition,
         postedBy: userId,
+        ledgerEntries: ledgerEntries.length,
         transactionMode: session ? 'with-transaction' : 'without-transaction',
       });
 
@@ -245,6 +525,71 @@ class LedgerService {
     }
   }
 
+  async writeLedgerEntries(entry, session = null) {
+    const query = LedgerEntry.findOne({}).sort({ timestamp: -1, _id: -1 }).select('hash');
+    const lastLedgerEntry = session ? await query.session(session) : await query;
+
+    let prevHash = lastLedgerEntry ? lastLedgerEntry.hash : '0';
+    const ledgerDocs = [];
+
+    for (const line of entry.lines) {
+      const accountId = String(line.account);
+      const debit = new Decimal(line.debit || 0);
+      const credit = new Decimal(line.credit || 0);
+
+      if (debit.greaterThan(0)) {
+        const amount = debit.toString();
+        const hash = LedgerEntry.computeHash({
+          journalId: String(entry._id),
+          accountId,
+          amount,
+          prevHash,
+        });
+
+        ledgerDocs.push({
+          journal_id: String(entry._id),
+          account_id: accountId,
+          type: 'DEBIT',
+          amount,
+          prev_hash: prevHash,
+          hash,
+          timestamp: new Date(),
+        });
+
+        prevHash = hash;
+      }
+
+      if (credit.greaterThan(0)) {
+        const amount = credit.toString();
+        const hash = LedgerEntry.computeHash({
+          journalId: String(entry._id),
+          accountId,
+          amount,
+          prevHash,
+        });
+
+        ledgerDocs.push({
+          journal_id: String(entry._id),
+          account_id: accountId,
+          type: 'CREDIT',
+          amount,
+          prev_hash: prevHash,
+          hash,
+          timestamp: new Date(),
+        });
+
+        prevHash = hash;
+      }
+    }
+
+    if (!ledgerDocs.length) {
+      throw new Error('No ledger lines generated from journal entry');
+    }
+
+    await LedgerEntry.insertMany(ledgerDocs, session ? { session } : {});
+    return ledgerDocs;
+  }
+
   /**
    * Get journal entries with pagination and filters
    */
@@ -267,7 +612,7 @@ class LedgerService {
     const query = {};
 
     if (status) {
-      query.status = status;
+      query.status = this.normalizeStatusFilter(status);
     }
 
     if (dateFrom || dateTo) {
@@ -332,8 +677,8 @@ class LedgerService {
    */
   async verifyLedgerChain() {
     try {
-      const entries = await JournalEntry.find({ status: 'posted' })
-        .sort({ chainPosition: 1 })
+      const entries = await LedgerEntry.find({})
+        .sort({ timestamp: 1, _id: 1 })
         .exec();
 
       if (entries.length === 0) {
@@ -350,14 +695,20 @@ class LedgerService {
 
       for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
-        const entryPrevHash = entry.prevHash || entry.prev_hash;
-        const entryHash = entry.hash || entry.immutable_hash;
+        const entryPrevHash = entry.prev_hash;
+        const entryHash = entry.hash;
+        const computedHash = LedgerEntry.computeHash({
+          journalId: entry.journal_id,
+          accountId: entry.account_id,
+          amount: entry.amount,
+          prevHash: entryPrevHash,
+        });
 
         // Check prevHash linkage
         if (entryPrevHash !== expectedPrevHash) {
           errors.push({
             position: i,
-            entryNumber: entry.entryNumber,
+            journalId: entry.journal_id,
             issue: 'Chain linkage broken',
             expectedPrevHash,
             actualPrevHash: entryPrevHash,
@@ -365,12 +716,12 @@ class LedgerService {
         }
 
         // Verify entry hash
-        if (entry.verifyHash && !entry.verifyHash()) {
+        if (computedHash !== entryHash) {
           errors.push({
             position: i,
-            entryNumber: entry.entryNumber,
+            journalId: entry.journal_id,
             issue: 'Hash mismatch (possible tampering)',
-            expectedHash: JournalEntry.computeHash(entry.toObject(), entryPrevHash),
+            expectedHash: computedHash,
             actualHash: entryHash,
           });
         }
@@ -390,7 +741,7 @@ class LedgerService {
         isValid,
         totalEntries: entries.length,
         errors,
-        lastHash: entries[entries.length - 1]?.hash || entries[entries.length - 1]?.immutable_hash,
+        lastHash: entries[entries.length - 1]?.hash,
         chainLength: entries.length,
         message: isValid
           ? 'Ledger chain is valid and tamper-proof'
@@ -406,34 +757,51 @@ class LedgerService {
    * Verify chain from specific entry (Enhanced)
    */
   async verifyChainFromEntry(entryId) {
-    const entry = await JournalEntry.findById(entryId);
-    
-    if (!entry) {
-      throw new Error('Journal entry not found');
+    const entries = await LedgerEntry.find({ journal_id: String(entryId) })
+      .sort({ timestamp: 1, _id: 1 })
+      .exec();
+
+    if (!entries.length) {
+      throw new Error('Ledger entries not found for journal entry');
     }
 
-    if (entry.verifyChainFromEntry) {
-      return await entry.verifyChainFromEntry();
+    const errors = [];
+    let expectedPrevHash = entries[0].prev_hash;
+
+    for (let i = 0; i < entries.length; i++) {
+      const entry = entries[i];
+      const computedHash = LedgerEntry.computeHash({
+        journalId: entry.journal_id,
+        accountId: entry.account_id,
+        amount: entry.amount,
+        prevHash: entry.prev_hash,
+      });
+
+      if (entry.prev_hash !== expectedPrevHash) {
+        errors.push({
+          position: i,
+          issue: 'Chain linkage broken',
+          expectedPrevHash,
+          actualPrevHash: entry.prev_hash,
+        });
+      }
+
+      if (computedHash !== entry.hash) {
+        errors.push({
+          position: i,
+          issue: 'Hash mismatch (possible tampering)',
+          expectedHash: computedHash,
+          actualHash: entry.hash,
+        });
+      }
+
+      expectedPrevHash = entry.hash;
     }
 
-    // SECURITY FIX: Never default to true for hash verification
-    if (!entry.verifyHash || typeof entry.verifyHash !== 'function') {
-      logger.error('Hash verification method missing for entry:', entry.entryNumber);
-      return {
-        isValid: false,
-        totalEntriesVerified: 0,
-        errors: [{
-          position: 0,
-          entryNumber: entry.entryNumber,
-          issue: 'Hash verification method not available - data integrity error'
-        }],
-      };
-    }
-    
     return {
-      isValid: entry.verifyHash(),
-      totalEntriesVerified: 1,
-      errors: [],
+      isValid: errors.length === 0,
+      totalEntriesVerified: entries.length,
+      errors,
     };
   }
 
@@ -441,34 +809,30 @@ class LedgerService {
    * Get chain statistics
    */
   async getChainStatistics() {
-    const stats = await JournalEntry.aggregate([
+    const stats = await LedgerEntry.aggregate([
       {
-        $match: { status: 'posted' }
+        $match: {}
       },
       {
         $group: {
           _id: null,
           totalEntries: { $sum: 1 },
-          maxPosition: { $max: '$chainPosition' },
-          minPosition: { $min: '$chainPosition' },
-          oldestEntry: { $min: '$createdAt' },
-          newestEntry: { $max: '$createdAt' },
+          oldestEntry: { $min: '$timestamp' },
+          newestEntry: { $max: '$timestamp' },
         }
       }
     ]);
 
     const result = stats[0] || {
       totalEntries: 0,
-      maxPosition: 0,
-      minPosition: 0,
     };
 
     return {
       totalPostedEntries: result.totalEntries,
-      chainLength: result.maxPosition + 1,
+      chainLength: result.totalEntries,
       oldestEntry: result.oldestEntry,
       newestEntry: result.newestEntry,
-      hasGaps: result.maxPosition !== result.totalEntries - 1,
+      hasGaps: false,
     };
   }
 
@@ -627,16 +991,16 @@ class LedgerService {
         throw new Error('Entry not found');
       }
 
-      if (entry.status === 'voided') {
+      if (VOIDED_STATUSES.includes(entry.status)) {
         throw new Error('Entry is already voided');
       }
 
-      if (entry.status !== 'posted') {
+      if (!POSTED_STATUSES.includes(entry.status)) {
         throw new Error('Only posted entries can be voided');
       }
 
       // Create void audit trail but keep chain intact
-      entry.status = 'voided';
+      entry.status = JOURNAL_STATUS.VOIDED;
       entry.voidedBy = userId;
       entry.voidReason = reason;
 
@@ -664,7 +1028,9 @@ class LedgerService {
         description: `VOID: ${entry.description} (Reason: ${reason})`,
         lines: reversingLines,
         reference: `VOID-${entry.entryNumber}`,
-        status: 'posted',
+        status: JOURNAL_STATUS.VALIDATED,
+        source: 'SYSTEM',
+        trace_id: entry.trace_id,
         postedBy: userId,
         postedAt: new Date(),
         prev_hash: await this.getPreviousHash(),
@@ -673,12 +1039,18 @@ class LedgerService {
 
       await reversingEntry.save({ session });
 
+      const ledgerLines = await this.writeLedgerEntries(reversingEntry, session);
+
+      reversingEntry.status = JOURNAL_STATUS.POSTED;
+      await reversingEntry.save({ session });
+
       // Update account balances with reversing entry
       await this.updateAccountBalances(reversingLines, session);
 
       logger.info(`Journal entry voided: ${entry.entryNumber}`, {
         reason,
         hash: entry.hash,
+        reversingLedgerLines: ledgerLines.length,
         voidedBy: userId,
         transactionMode: session ? 'with-transaction' : 'without-transaction',
       });
@@ -707,12 +1079,12 @@ class LedgerService {
    */
   async getChainSegment(startPosition, endPosition) {
     try {
-      const entries = await JournalEntry.find({
-        chainPosition: { $gte: startPosition, $lte: endPosition },
-        status: 'posted',
-      })
-        .sort({ chainPosition: 1 })
-        .select('entryNumber chainPosition hash prevHash date description status')
+      const size = Math.max(endPosition - startPosition + 1, 0);
+      const entries = await LedgerEntry.find({})
+        .sort({ timestamp: 1, _id: 1 })
+        .skip(startPosition)
+        .limit(size)
+        .select('journal_id account_id type amount hash prev_hash timestamp')
         .exec();
 
       return entries;

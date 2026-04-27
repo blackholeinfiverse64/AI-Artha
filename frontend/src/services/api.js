@@ -70,7 +70,11 @@ api.interceptors.response.use(
         toast.error(message);
       }
     } else if (error.response?.status >= 500) {
-      toast.error('Server error. Please try again later.');
+      const isAuthFlowUrl =
+        reqUrl.includes('/auth/login') ||
+        reqUrl.includes('/auth/magic-link') ||
+        reqUrl.includes('/auth/signup');
+      toast.error(isAuthFlowUrl ? message : 'Server error. Please try again later.');
     }
 
     return Promise.reject(error);

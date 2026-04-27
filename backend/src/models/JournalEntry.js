@@ -1,8 +1,13 @@
 import mongoose from 'mongoose';
 import crypto from 'crypto';
 import Decimal from 'decimal.js';
+import { randomUUID } from 'crypto';
 
 const journalLineSchema = new mongoose.Schema({
+  id: {
+    type: String,
+    default: randomUUID,
+  },
   account: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'ChartOfAccounts',
@@ -42,6 +47,12 @@ const journalLineSchema = new mongoose.Schema({
 }, { _id: false });
 
 const journalEntrySchema = new mongoose.Schema({
+  id: {
+    type: String,
+    default: randomUUID,
+    unique: true,
+    index: true,
+  },
   entryNumber: {
     type: String,
     unique: true,
@@ -71,9 +82,43 @@ const journalEntrySchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['draft', 'posted', 'voided'],
-    default: 'draft',
+    enum: ['DRAFT', 'VALIDATED', 'POSTED', 'VOIDED', 'draft', 'posted', 'voided'],
+    default: 'DRAFT',
     index: true,
+  },
+  source: {
+    type: String,
+    enum: ['OCR', 'MANUAL', 'SYSTEM'],
+    default: 'MANUAL',
+    index: true,
+  },
+  trace_id: {
+    type: String,
+    default: randomUUID,
+    index: true,
+  },
+  created_at: {
+    type: Date,
+    default: Date.now,
+  },
+  auditTrace: {
+    trace_id: {
+      type: String,
+      default: randomUUID,
+    },
+    source: {
+      type: String,
+      enum: ['OCR', 'MANUAL', 'SYSTEM'],
+      default: 'MANUAL',
+    },
+    steps: {
+      type: [String],
+      default: [],
+    },
+    timestamp: {
+      type: Date,
+      default: Date.now,
+    },
   },
   postedBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -272,7 +317,7 @@ journalEntrySchema.pre('save', async function(next) {
   // Set chain position for new entries
   if (this.isNew) {
     const lastEntry = await mongoose.model('JournalEntry')
-      .findOne({ status: 'posted' })
+      .findOne({ status: { $in: ['POSTED', 'posted'] } })
       .sort({ chainPosition: -1 })
       .select('chainPosition hash');
     

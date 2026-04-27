@@ -22,6 +22,26 @@ export const createEntry = async (req, res) => {
   }
 };
 
+// @desc    Validate journal entry
+// @route   POST /api/v1/ledger/entries/:id/validate
+// @access  Private (accountant, admin)
+export const validateEntry = async (req, res) => {
+  try {
+    const entry = await ledgerService.validateJournalEntry(req.params.id, req.user._id);
+
+    res.json({
+      success: true,
+      data: entry,
+    });
+  } catch (error) {
+    logger.error('Validate entry error:', error);
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 // @desc    Post journal entry
 // @route   POST /api/v1/ledger/entries/:id/post
 // @access  Private (accountant, admin)

@@ -26,8 +26,25 @@ const BalanceSheet = () => {
   const [expandedSections, setExpandedSections] = useState(['assets', 'liabilities', 'equity']);
 
   useEffect(() => {
+    loadDefaultAsOfDate();
+  }, []);
+
+  useEffect(() => {
     fetchBalanceSheet();
   }, [asOfDate]);
+
+  const loadDefaultAsOfDate = async () => {
+    try {
+      const response = await api.get('/reports/period-context');
+      const latestStatementDate = response.data?.data?.latestStatementDate;
+
+      if (latestStatementDate) {
+        setAsOfDate(latestStatementDate);
+      }
+    } catch (error) {
+      console.error('Failed to fetch report context:', error);
+    }
+  };
 
   const fetchBalanceSheet = async () => {
     setLoading(true);

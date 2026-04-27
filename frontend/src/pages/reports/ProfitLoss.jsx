@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import {
   Download,
-  Calendar,
   TrendingUp,
   TrendingDown,
   DollarSign,
@@ -32,7 +31,21 @@ import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { formatCurrency, getFinancialYear } from '../../utils/formatters';
 
-const getPeriodDates = (period) => {
+const getPeriodDates = (period, reportContext, statementMonth) => {
+  if (period === 'statement_month' && statementMonth && reportContext?.availableMonths?.length) {
+    const selectedMonth = reportContext.availableMonths.find(month => month.value === statementMonth);
+    if (selectedMonth) {
+      return {
+        startDate: selectedMonth.startDate,
+        endDate: selectedMonth.endDate,
+      };
+    }
+  }
+
+  if (reportContext?.presets?.[period]) {
+    return reportContext.presets[period];
+  }
+
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth();
@@ -73,20 +86,45 @@ const getPeriodDates = (period) => {
 const ProfitLoss = () => {
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState('current_fy');
+  const [reportContext, setReportContext] = useState(null);
+  const [statementMonth, setStatementMonth] = useState('');
   const [data, setData] = useState(null);
   const [expandedSections, setExpandedSections] = useState(['income', 'expenses']);
 
   useEffect(() => {
+    fetchReportContext();
+  }, []);
+
+  useEffect(() => {
     fetchProfitLoss();
-  }, [period]);
+  }, [period, reportContext, statementMonth]);
+
+  const fetchReportContext = async () => {
+    try {
+      const response = await api.get('/reports/period-context');
+      const context = response.data?.data || null;
+
+      setReportContext(context);
+
+      if (context?.availableMonths?.length > 0) {
+        setStatementMonth(context.availableMonths[0].value);
+      }
+    } catch (error) {
+      console.error('Failed to fetch report context:', error);
+    }
+  };
 
   const fetchProfitLoss = async () => {
+    if (period === 'statement_month' && !statementMonth && reportContext?.availableMonths?.length) {
+      return;
+    }
+
     setLoading(true);
     try {
-      const { startDate, endDate } = getPeriodDates(period);
+      const { startDate, endDate } = getPeriodDates(period, reportContext, statementMonth);
       const [plResponse, chartResponse] = await Promise.all([
         api.get(`/reports/profit-loss?startDate=${startDate}&endDate=${endDate}`),
-        api.get(`/reports/revenue-expenses-chart?year=${new Date(startDate).getFullYear()}`)
+        api.get(`/reports/revenue-expenses-chart?year=${new Date(endDate).getFullYear()}`)
       ]);
       
       const rawData = plResponse.data.data;
@@ -95,6 +133,10 @@ const ProfitLoss = () => {
       // Transform backend data to frontend format
       const totalIncome = parseFloat(rawData.income?.total || 0);
       const totalExpenses = parseFloat(rawData.expenses?.total || 0);
+      const ledgerIncome = parseFloat(rawData.income?.ledgerTotal || 0);
+      const ledgerExpenses = parseFloat(rawData.expenses?.ledgerTotal || 0);
+      const fetchedCredits = parseFloat(rawData.income?.fetchedCredits || 0);
+      const fetchedDebits = parseFloat(rawData.expenses?.fetchedDebits || 0);
       const netProfit = parseFloat(rawData.netIncome || 0);
       const profitMargin = totalIncome > 0 ? (netProfit / totalIncome) * 100 : 0;
       
@@ -102,6 +144,8 @@ const ProfitLoss = () => {
         period: `${startDate} to ${endDate}`,
         income: {
           total: totalIncome,
+          ledgerTotal: ledgerIncome,
+          fetchedCredits,
           items: (rawData.income?.accounts || []).map(acc => ({
             name: acc.name,
             amount: parseFloat(acc.amount || 0)
@@ -109,10 +153,17 @@ const ProfitLoss = () => {
         },
         expenses: {
           total: totalExpenses,
+          ledgerTotal: ledgerExpenses,
+          fetchedDebits,
           items: (rawData.expenses?.accounts || []).map(acc => ({
             name: acc.name,
             amount: parseFloat(acc.amount || 0)
           }))
+        },
+        bankFlow: {
+          credits: parseFloat(rawData.bankFlow?.totalCredits || 0),
+          debits: parseFloat(rawData.bankFlow?.totalDebits || 0),
+          net: parseFloat(rawData.bankFlow?.netFlow || 0),
         },
         netProfit,
         profitMargin,
@@ -128,6 +179,7 @@ const ProfitLoss = () => {
       setData({
         income: { total: 0, items: [] },
         expenses: { total: 0, items: [] },
+        bankFlow: { credits: 0, debits: 0, net: 0 },
         netProfit: 0,
         profitMargin: 0,
         monthlyData: []
@@ -139,7 +191,7 @@ const ProfitLoss = () => {
 
   const handleExport = async () => {
     try {
-      const { startDate, endDate } = getPeriodDates(period);
+      const { startDate, endDate } = getPeriodDates(period, reportContext, statementMonth);
       const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/reports/profit-loss/export?startDate=${startDate}&endDate=${endDate}`;
       
       const response = await fetch(url, {
@@ -167,11 +219,22 @@ const ProfitLoss = () => {
   };
 
   const periodOptions = [
-    { value: 'current_fy', label: `Current FY (${getFinancialYear()})` },
+    ...(reportContext?.availableMonths?.length
+      ? [{ value: 'statement_month', label: 'Statement Month' }]
+      : []),
+    { value: 'current_fy', label: `Current FY (${reportContext?.defaultFinancialYear || getFinancialYear()})` },
     { value: 'previous_fy', label: 'Previous FY' },
     { value: 'current_quarter', label: 'Current Quarter' },
     { value: 'ytd', label: 'Year to Date' },
+    ...(reportContext?.presets?.latest_statement_month
+      ? [{ value: 'latest_statement_month', label: 'Latest Statement Month' }]
+      : []),
   ];
+
+  const statementMonthOptions = (reportContext?.availableMonths || []).map(month => ({
+    value: month.value,
+    label: month.label,
+  }));
 
   const toggleSection = (section) => {
     setExpandedSections((prev) =>
@@ -198,6 +261,14 @@ const ProfitLoss = () => {
               onChange={(e) => setPeriod(e.target.value)}
               className="w-48"
             />
+            {period === 'statement_month' && statementMonthOptions.length > 0 && (
+              <Select
+                options={statementMonthOptions}
+                value={statementMonth}
+                onChange={(e) => setStatementMonth(e.target.value)}
+                className="w-56"
+              />
+            )}
             <Button variant="secondary" icon={Download} onClick={handleExport}>
               Export PDF
             </Button>
@@ -217,6 +288,9 @@ const ProfitLoss = () => {
               <p className="text-xl font-bold text-foreground">
                 {formatCurrency(data?.income?.total || 0)}
               </p>
+              <p className="text-xs text-muted-foreground">
+                Fetched credits: {formatCurrency(data?.income?.fetchedCredits || 0)}
+              </p>
             </div>
           </div>
         </Card>
@@ -230,6 +304,9 @@ const ProfitLoss = () => {
               <p className="text-sm text-muted-foreground">Total Expenses</p>
               <p className="text-xl font-bold text-foreground">
                 {formatCurrency(data?.expenses?.total || 0)}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Fetched debits: {formatCurrency(data?.expenses?.fetchedDebits || 0)}
               </p>
             </div>
           </div>

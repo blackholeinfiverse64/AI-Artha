@@ -1,5 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import cookieParser from 'cookie-parser';
 import connectDB from './config/database.js';
 import { connectRedis } from './config/redis.js';
@@ -45,8 +47,11 @@ import healthRoutes from './routes/health.routes.js';
 import usersRoutes from './routes/users.routes.js';
 import bankStatementRoutes from './routes/bankStatement.routes.js';
 import smartUploadRoutes from './routes/smartUpload.routes.js';
+import signalRoutes from './routes/signal.routes.js';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 const { SPA_URL, API_PUBLIC_URL } = getResolvedUrls();
 
@@ -123,6 +128,24 @@ app.get('/', (req, res) => {
   res.json({ success: true, service: 'artha-api', docs: 'Use /api/v1/*' });
 });
 
+function redirectToSpaPath(req, res, pathName) {
+  try {
+    const target = new URL(`${SPA_URL}${pathName}`);
+    const requestOrigin = `${req.protocol}://${req.get('host')}`;
+    // Prevent accidental redirect loops when API and SPA are configured to the same origin+path.
+    if (target.origin === requestOrigin && target.pathname === req.path) {
+      return res.status(404).json({ success: false, message: 'Route not found' });
+    }
+    return res.redirect(target.toString());
+  } catch {
+    return res.redirect(`${SPA_URL}${pathName}`);
+  }
+}
+
+app.get(['/login', '/dashboard'], (req, res) => {
+  return redirectToSpaPath(req, res, req.path);
+});
+
 app.get('/api/health', async (req, res) => {
   try {
     const health = await healthService.getSystemHealth();
@@ -185,6 +208,7 @@ app.use('/api/v1/database', databaseRoutes);
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/statements', bankStatementRoutes);
 app.use('/api/v1/upload', smartUploadRoutes);
+app.use('/api/v1/signals', signalRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });

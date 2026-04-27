@@ -93,6 +93,21 @@ const Statements = () => {
     navigate(`/statements/${id}`);
   };
 
+  const handleDeleteStatement = async (id, statementNumber) => {
+    const confirmed = window.confirm(
+      `Delete statement ${statementNumber} permanently? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      await bankStatementService.delete(id);
+      toast.success('Statement deleted permanently');
+      loadStatements();
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to delete statement');
+    }
+  };
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -302,6 +317,15 @@ const Statements = () => {
                             Match
                           </Button>
                         )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleDeleteStatement(statement._id, statement.statementNumber)}
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                          title="Delete permanently"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </td>
                   </tr>

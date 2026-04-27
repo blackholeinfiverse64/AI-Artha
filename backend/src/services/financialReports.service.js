@@ -4,9 +4,235 @@ import AccountBalance from '../models/AccountBalance.js';
 import ChartOfAccounts from '../models/ChartOfAccounts.js';
 import Invoice from '../models/Invoice.js';
 import Expense from '../models/Expense.js';
+import BankStatement from '../models/BankStatement.js';
 import logger from '../config/logger.js';
 
 class FinancialReportsService {
+  formatDate(date) {
+    return new Date(date).toISOString().split('T')[0];
+  }
+
+  getFinancialYearStartYear(date) {
+    const targetDate = new Date(date);
+    return targetDate.getMonth() >= 3 ? targetDate.getFullYear() : targetDate.getFullYear() - 1;
+  }
+
+  formatFinancialYear(startYear) {
+    return `${startYear}-${String(startYear + 1).slice(-2)}`;
+  }
+
+  getFinancialYearBounds(startYear) {
+    return {
+      startDate: new Date(startYear, 3, 1),
+      endDate: new Date(startYear + 1, 2, 31),
+    };
+  }
+
+  getQuarterBounds(date) {
+    const targetDate = new Date(date);
+    const quarterStartMonth = Math.floor(targetDate.getMonth() / 3) * 3;
+
+    return {
+      startDate: new Date(targetDate.getFullYear(), quarterStartMonth, 1),
+      endDate: new Date(targetDate.getFullYear(), quarterStartMonth + 3, 0),
+    };
+  }
+
+  async getBankStatementFlow(startDate, endDate) {
+    const rangeStart = new Date(startDate);
+    const rangeEnd = new Date(endDate);
+
+    const match = {
+      status: 'completed',
+      endDate: { $gte: rangeStart, $lte: rangeEnd },
+    };
+
+    const [summaryStats, monthlyStats] = await Promise.all([
+      BankStatement.aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: null,
+            totalCredits: { $sum: { $toDouble: '$totalCredits' } },
+            totalDebits: { $sum: { $toDouble: '$totalDebits' } },
+            statementCount: { $sum: 1 },
+            transactionCount: { $sum: '$transactionCount' },
+          },
+        },
+      ]),
+      BankStatement.aggregate([
+        { $match: match },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$endDate' },
+              month: { $month: '$endDate' },
+            },
+            totalCredits: { $sum: { $toDouble: '$totalCredits' } },
+            totalDebits: { $sum: { $toDouble: '$totalDebits' } },
+            statementCount: { $sum: 1 },
+            transactionCount: { $sum: '$transactionCount' },
+          },
+        },
+        { $sort: { '_id.year': 1, '_id.month': 1 } },
+      ]),
+    ]);
+
+    const totalCredits = new Decimal(summaryStats?.[0]?.totalCredits || 0);
+    const totalDebits = new Decimal(summaryStats?.[0]?.totalDebits || 0);
+
+    return {
+      totalCredits,
+      totalDebits,
+      netFlow: totalCredits.minus(totalDebits),
+      statementCount: summaryStats?.[0]?.statementCount || 0,
+      transactionCount: summaryStats?.[0]?.transactionCount || 0,
+      monthly: monthlyStats.map(item => {
+        const year = item._id.year;
+        const month = item._id.month;
+        const monthDate = new Date(year, month - 1, 1);
+
+        return {
+          month: `${year}-${String(month).padStart(2, '0')}`,
+          label: monthDate.toLocaleString('default', { month: 'short', year: 'numeric' }),
+          totalCredits: String(item.totalCredits || 0),
+          totalDebits: String(item.totalDebits || 0),
+          netFlow: String((item.totalCredits || 0) - (item.totalDebits || 0)),
+          statementCount: item.statementCount || 0,
+          transactionCount: item.transactionCount || 0,
+        };
+      }),
+    };
+  }
+
+  async getReportPeriodContext() {
+    const [latestStatement, earliestStatement, monthlyStats] = await Promise.all([
+      BankStatement.findOne({ status: 'completed' })
+        .sort({ endDate: -1 })
+        .select('startDate endDate'),
+      BankStatement.findOne({ status: 'completed' })
+        .sort({ startDate: 1 })
+        .select('startDate'),
+      BankStatement.aggregate([
+        { $match: { status: 'completed' } },
+        {
+          $group: {
+            _id: {
+              year: { $year: '$endDate' },
+              month: { $month: '$endDate' },
+            },
+            totalCredits: { $sum: { $toDouble: '$totalCredits' } },
+            totalDebits: { $sum: { $toDouble: '$totalDebits' } },
+            statementCount: { $sum: 1 },
+            transactionCount: { $sum: '$transactionCount' },
+          },
+        },
+        { $sort: { '_id.year': -1, '_id.month': -1 } },
+      ]),
+    ]);
+
+    const anchorDate = latestStatement?.endDate ? new Date(latestStatement.endDate) : new Date();
+    const anchorYear = anchorDate.getFullYear();
+    const anchorFyStartYear = this.getFinancialYearStartYear(anchorDate);
+    const currentFyBounds = this.getFinancialYearBounds(anchorFyStartYear);
+    const previousFyBounds = this.getFinancialYearBounds(anchorFyStartYear - 1);
+    const quarterBounds = this.getQuarterBounds(anchorDate);
+    const latestMonthBounds = {
+      startDate: new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1),
+      endDate: new Date(anchorDate.getFullYear(), anchorDate.getMonth() + 1, 0),
+    };
+
+    const availableMonths = monthlyStats.map(item => {
+      const year = item._id.year;
+      const month = item._id.month;
+      const monthStartDate = new Date(year, month - 1, 1);
+      const monthEndDate = new Date(year, month, 0);
+
+      return {
+        value: `${year}-${String(month).padStart(2, '0')}`,
+        label: monthStartDate.toLocaleString('default', { month: 'long', year: 'numeric' }),
+        year,
+        month,
+        startDate: this.formatDate(monthStartDate),
+        endDate: this.formatDate(monthEndDate),
+        totalCredits: String(item.totalCredits || 0),
+        totalDebits: String(item.totalDebits || 0),
+        netFlow: String((item.totalCredits || 0) - (item.totalDebits || 0)),
+        statementCount: item.statementCount || 0,
+        transactionCount: item.transactionCount || 0,
+      };
+    });
+
+    const financialYearMap = new Map();
+    availableMonths.forEach(monthInfo => {
+      const monthIndex = monthInfo.month - 1;
+      const fyStartYear = monthIndex >= 3 ? monthInfo.year : monthInfo.year - 1;
+      const fyKey = this.formatFinancialYear(fyStartYear);
+
+      if (!financialYearMap.has(fyKey)) {
+        const bounds = this.getFinancialYearBounds(fyStartYear);
+        financialYearMap.set(fyKey, {
+          value: fyKey,
+          label: `FY ${fyKey}`,
+          startDate: this.formatDate(bounds.startDate),
+          endDate: this.formatDate(bounds.endDate),
+          statementCount: 0,
+          totalCredits: new Decimal(0),
+          totalDebits: new Decimal(0),
+        });
+      }
+
+      const entry = financialYearMap.get(fyKey);
+      entry.statementCount += monthInfo.statementCount;
+      entry.totalCredits = entry.totalCredits.plus(monthInfo.totalCredits || 0);
+      entry.totalDebits = entry.totalDebits.plus(monthInfo.totalDebits || 0);
+    });
+
+    const financialYears = Array.from(financialYearMap.values())
+      .map(item => ({
+        ...item,
+        totalCredits: item.totalCredits.toString(),
+        totalDebits: item.totalDebits.toString(),
+      }))
+      .sort((a, b) => b.value.localeCompare(a.value));
+
+    return {
+      source: latestStatement ? 'bank-statements' : 'system-date',
+      anchorDate: this.formatDate(anchorDate),
+      latestStatementDate: latestStatement?.endDate
+        ? this.formatDate(latestStatement.endDate)
+        : null,
+      earliestStatementDate: earliestStatement?.startDate
+        ? this.formatDate(earliestStatement.startDate)
+        : null,
+      defaultFinancialYear: this.formatFinancialYear(anchorFyStartYear),
+      availableMonths,
+      financialYears,
+      presets: {
+        current_fy: {
+          startDate: this.formatDate(currentFyBounds.startDate),
+          endDate: this.formatDate(currentFyBounds.endDate),
+        },
+        previous_fy: {
+          startDate: this.formatDate(previousFyBounds.startDate),
+          endDate: this.formatDate(previousFyBounds.endDate),
+        },
+        current_quarter: {
+          startDate: this.formatDate(quarterBounds.startDate),
+          endDate: this.formatDate(quarterBounds.endDate),
+        },
+        ytd: {
+          startDate: this.formatDate(new Date(anchorYear, 0, 1)),
+          endDate: this.formatDate(anchorDate),
+        },
+        latest_statement_month: {
+          startDate: this.formatDate(latestMonthBounds.startDate),
+          endDate: this.formatDate(latestMonthBounds.endDate),
+        },
+      },
+    };
+  }
+
   /**
    * Generate Profit & Loss Statement
    */
@@ -14,7 +240,7 @@ class FinancialReportsService {
     try {
       // Get all posted journal entries in date range
       const entries = await JournalEntry.find({
-        status: 'posted',
+        status: { $in: ['POSTED', 'posted'] },
         date: { $gte: new Date(startDate), $lte: new Date(endDate) },
       }).populate('lines.account', 'code name type');
 
@@ -84,17 +310,21 @@ class FinancialReportsService {
       incomeAccounts.sort((a, b) => a.code.localeCompare(b.code));
       expenseAccounts.sort((a, b) => a.code.localeCompare(b.code));
 
-      // Calculate totals
-      const totalIncome = incomeAccounts.reduce(
+      // Calculate ledger totals
+      const ledgerIncome = incomeAccounts.reduce(
         (sum, item) => sum.plus(item.amount),
         new Decimal(0)
       );
 
-      const totalExpenses = expenseAccounts.reduce(
+      const ledgerExpenses = expenseAccounts.reduce(
         (sum, item) => sum.plus(item.amount),
         new Decimal(0)
       );
 
+      // Include fetched bank statement flow in report totals for period reporting.
+      const bankFlow = await this.getBankStatementFlow(startDate, endDate);
+      const totalIncome = ledgerIncome.plus(bankFlow.totalCredits);
+      const totalExpenses = ledgerExpenses.plus(bankFlow.totalDebits);
       const netIncome = totalIncome.minus(totalExpenses);
 
       return {
@@ -105,10 +335,22 @@ class FinancialReportsService {
         income: {
           accounts: incomeAccounts,
           total: totalIncome.toString(),
+          ledgerTotal: ledgerIncome.toString(),
+          fetchedCredits: bankFlow.totalCredits.toString(),
         },
         expenses: {
           accounts: expenseAccounts,
           total: totalExpenses.toString(),
+          ledgerTotal: ledgerExpenses.toString(),
+          fetchedDebits: bankFlow.totalDebits.toString(),
+        },
+        bankFlow: {
+          totalCredits: bankFlow.totalCredits.toString(),
+          totalDebits: bankFlow.totalDebits.toString(),
+          netFlow: bankFlow.netFlow.toString(),
+          statementCount: bankFlow.statementCount,
+          transactionCount: bankFlow.transactionCount,
+          monthly: bankFlow.monthly,
         },
         netIncome: netIncome.toString(),
       };
@@ -125,7 +367,7 @@ class FinancialReportsService {
     try {
       // Get account balances as of date
       const entries = await JournalEntry.find({
-        status: 'posted',
+        status: { $in: ['POSTED', 'posted'] },
         date: { $lte: new Date(asOfDate) },
       }).populate('lines.account', 'code name type normalBalance');
 
@@ -282,7 +524,7 @@ class FinancialReportsService {
     try {
       // Get all posted journal entries in date range
       const entries = await JournalEntry.find({
-        status: 'posted',
+        status: { $in: ['POSTED', 'posted'] },
         date: { $gte: new Date(startDate), $lte: new Date(endDate) },
       }).populate('lines.account', 'code name type');
 
@@ -353,9 +595,12 @@ class FinancialReportsService {
         }
       });
 
-      const netCashChange = operatingCashFlow
+      const ledgerNetCashChange = operatingCashFlow
         .plus(investingCashFlow)
         .plus(financingCashFlow);
+
+      const bankFlow = await this.getBankStatementFlow(startDate, endDate);
+      const netCashChange = ledgerNetCashChange.plus(bankFlow.netFlow);
 
       return {
         period: {
@@ -374,6 +619,15 @@ class FinancialReportsService {
           activities: financingActivities,
           netCashFlow: financingCashFlow.toString(),
         },
+        bankFlow: {
+          totalCredits: bankFlow.totalCredits.toString(),
+          totalDebits: bankFlow.totalDebits.toString(),
+          netCashFlow: bankFlow.netFlow.toString(),
+          statementCount: bankFlow.statementCount,
+          transactionCount: bankFlow.transactionCount,
+          monthly: bankFlow.monthly,
+        },
+        ledgerNetCashChange: ledgerNetCashChange.toString(),
         netCashChange: netCashChange.toString(),
       };
     } catch (error) {
@@ -388,7 +642,7 @@ class FinancialReportsService {
   async generateTrialBalance(asOfDate) {
     try {
       const entries = await JournalEntry.find({
-        status: 'posted',
+        status: { $in: ['POSTED', 'posted'] },
         date: { $lte: new Date(asOfDate) },
       }).populate('lines.account', 'code name type normalBalance');
 
@@ -708,6 +962,99 @@ class FinancialReportsService {
   }
 
   /**
+   * Generate bank transaction timeline from uploaded bank statement transactions.
+   */
+  async generateBankTransactionTimeline(startDate, endDate) {
+    try {
+      const today = new Date();
+      const rangeEnd = endDate ? new Date(endDate) : today;
+      const rangeStart = startDate
+        ? new Date(startDate)
+        : new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate() - 29);
+
+      // Normalize to full-day boundaries to avoid dropping transactions near midnight.
+      rangeStart.setHours(0, 0, 0, 0);
+      rangeEnd.setHours(23, 59, 59, 999);
+
+      const timeline = await BankStatement.aggregate([
+        {
+          $match: {
+            status: 'completed',
+            transactions: { $exists: true, $ne: [] },
+          },
+        },
+        { $unwind: '$transactions' },
+        {
+          $match: {
+            'transactions.date': {
+              $gte: rangeStart,
+              $lte: rangeEnd,
+            },
+          },
+        },
+        {
+          $group: {
+            _id: {
+              $dateToString: {
+                format: '%Y-%m-%d',
+                date: '$transactions.date',
+                timezone: 'Asia/Kolkata',
+              },
+            },
+            credits: { $sum: { $toDouble: '$transactions.credit' } },
+            debits: { $sum: { $toDouble: '$transactions.debit' } },
+            transactionCount: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]);
+
+      const byDate = new Map(
+        timeline.map(item => [item._id, {
+          credits: Number((item.credits || 0).toFixed(2)),
+          debits: Number((item.debits || 0).toFixed(2)),
+          transactionCount: item.transactionCount || 0,
+        }]),
+      );
+
+      const points = [];
+      const cursor = new Date(rangeStart);
+      cursor.setHours(0, 0, 0, 0);
+
+      while (cursor <= rangeEnd) {
+        const dateKey = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
+        const day = byDate.get(dateKey) || { credits: 0, debits: 0, transactionCount: 0 };
+        const pointDate = new Date(cursor);
+
+        points.push({
+          date: dateKey,
+          label: pointDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }),
+          credits: day.credits,
+          debits: day.debits,
+          netFlow: Number((day.credits - day.debits).toFixed(2)),
+          transactionCount: day.transactionCount,
+        });
+
+        cursor.setDate(cursor.getDate() + 1);
+      }
+
+      return points.map(item => {
+        return {
+          date: item.date,
+          label: item.label,
+          credits: item.credits,
+          debits: item.debits,
+          netFlow: item.netFlow,
+          transactionCount: item.transactionCount,
+        };
+      });
+    } catch (error) {
+      logger.error('Generate bank transaction timeline error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * Generate Dashboard Summary
    */
   async generateDashboardSummary() {
@@ -733,11 +1080,53 @@ class FinancialReportsService {
 
       // Get current balance sheet
       const bs = await this.generateBalanceSheet(today).catch(() => ({
-        totals: { assets: '0' },
+        totals: { assets: '0', isBalanced: true },
         liabilities: { total: '0' },
         equity: { total: '0' },
-        totals: { isBalanced: true },
       }));
+
+      // Bank statement fetched flow (credits/debits) — included in dashboard totals.
+      const [bankMonthStats, bankYearStats] = await Promise.all([
+        BankStatement.aggregate([
+          {
+            $match: {
+              status: 'completed',
+              endDate: { $gte: firstDayOfMonth, $lte: lastDayOfMonth },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalCredits: { $sum: { $toDouble: '$totalCredits' } },
+              totalDebits: { $sum: { $toDouble: '$totalDebits' } },
+              statementCount: { $sum: 1 },
+              transactionCount: { $sum: '$transactionCount' },
+            },
+          },
+        ]),
+        BankStatement.aggregate([
+          {
+            $match: {
+              status: 'completed',
+              endDate: { $gte: firstDayOfYear, $lte: today },
+            },
+          },
+          {
+            $group: {
+              _id: null,
+              totalCredits: { $sum: { $toDouble: '$totalCredits' } },
+              totalDebits: { $sum: { $toDouble: '$totalDebits' } },
+              statementCount: { $sum: 1 },
+              transactionCount: { $sum: '$transactionCount' },
+            },
+          },
+        ]),
+      ]);
+
+      const bankMonthCredits = new Decimal(bankMonthStats?.[0]?.totalCredits || 0);
+      const bankMonthDebits = new Decimal(bankMonthStats?.[0]?.totalDebits || 0);
+      const bankYearCredits = new Decimal(bankYearStats?.[0]?.totalCredits || 0);
+      const bankYearDebits = new Decimal(bankYearStats?.[0]?.totalDebits || 0);
 
       // Get invoice stats (all time)
       const invoiceStats = await Invoice.aggregate([
@@ -812,28 +1201,60 @@ class FinancialReportsService {
       });
 
       // Get recent journal entries
-      const recentEntries = await JournalEntry.find({ status: 'posted' })
+      const recentEntries = await JournalEntry.find({ status: { $in: ['POSTED', 'posted'] } })
         .sort({ createdAt: -1 })
         .limit(10)
         .populate('postedBy', 'name');
 
-      // Calculate totals
-      const totalRevenue = new Decimal(plYear.income.total);
-      const totalExpenses = new Decimal(plYear.expenses.total);
+      // Profit/loss totals now already include fetched bank values.
+      const ledgerMonthIncome = new Decimal(plMonth.income.ledgerTotal || plMonth.income.total || 0);
+      const ledgerMonthExpenses = new Decimal(plMonth.expenses.ledgerTotal || plMonth.expenses.total || 0);
+      const ledgerYearIncome = new Decimal(plYear.income.ledgerTotal || plYear.income.total || 0);
+      const ledgerYearExpenses = new Decimal(plYear.expenses.ledgerTotal || plYear.expenses.total || 0);
+
+      const fetchedMonthCredits = new Decimal(plMonth.income.fetchedCredits || 0);
+      const fetchedMonthDebits = new Decimal(plMonth.expenses.fetchedDebits || 0);
+      const fetchedYearCredits = new Decimal(plYear.income.fetchedCredits || 0);
+      const fetchedYearDebits = new Decimal(plYear.expenses.fetchedDebits || 0);
+
+      const monthIncome = new Decimal(plMonth.income.total || 0);
+      const monthExpenses = new Decimal(plMonth.expenses.total || 0);
+      const totalRevenue = new Decimal(plYear.income.total || 0);
+      const totalExpenses = new Decimal(plYear.expenses.total || 0);
       const totalOutstanding = new Decimal(invoiceSummary.sent.totalDue || 0)
         .plus(invoiceSummary.partial.totalDue || 0)
         .plus(invoiceSummary.overdue.totalDue || 0);
 
       return {
         profitLoss: {
-          income: plMonth.income.total,
-          expenses: plMonth.expenses.total,
-          netIncome: plMonth.netIncome,
+          income: monthIncome.toString(),
+          expenses: monthExpenses.toString(),
+          netIncome: monthIncome.minus(monthExpenses).toString(),
+          ledgerIncome: ledgerMonthIncome.toString(),
+          ledgerExpenses: ledgerMonthExpenses.toString(),
+          fetchedCredits: fetchedMonthCredits.toString(),
+          fetchedDebits: fetchedMonthDebits.toString(),
         },
         yearToDate: {
-          income: plYear.income.total,
-          expenses: plYear.expenses.total,
-          netIncome: plYear.netIncome,
+          income: totalRevenue.toString(),
+          expenses: totalExpenses.toString(),
+          netIncome: totalRevenue.minus(totalExpenses).toString(),
+          ledgerIncome: ledgerYearIncome.toString(),
+          ledgerExpenses: ledgerYearExpenses.toString(),
+          fetchedCredits: fetchedYearCredits.toString(),
+          fetchedDebits: fetchedYearDebits.toString(),
+        },
+        bankFlow: {
+          monthCredits: bankMonthCredits.toString(),
+          monthDebits: bankMonthDebits.toString(),
+          monthNetFlow: bankMonthCredits.minus(bankMonthDebits).toString(),
+          yearCredits: bankYearCredits.toString(),
+          yearDebits: bankYearDebits.toString(),
+          yearNetFlow: bankYearCredits.minus(bankYearDebits).toString(),
+          monthStatements: bankMonthStats?.[0]?.statementCount || 0,
+          yearStatements: bankYearStats?.[0]?.statementCount || 0,
+          monthTransactions: bankMonthStats?.[0]?.transactionCount || 0,
+          yearTransactions: bankYearStats?.[0]?.transactionCount || 0,
         },
         balanceSheet: {
           assets: bs.totals?.assets || '0',

@@ -1,5 +1,6 @@
 import Decimal from 'decimal.js';
 import mongoose from 'mongoose';
+import { randomUUID } from 'crypto';
 import Invoice from '../models/Invoice.js';
 import ledgerService from './ledger.service.js';
 import ChartOfAccounts from '../models/ChartOfAccounts.js';
@@ -167,6 +168,7 @@ class InvoiceService {
       }
       
       // Create journal entry for payment
+      const traceId = randomUUID();
       const journalEntry = await ledgerService.createJournalEntry(
         {
           date: paymentData.paymentDate || new Date(),
@@ -187,11 +189,17 @@ class InvoiceService {
           ],
           reference: invoice.invoiceNumber,
           tags: ['invoice-payment', invoice.invoiceNumber],
+          source: 'SYSTEM',
+          trace_id: traceId,
+          auditTrace: {
+            steps: ['payment input received', 'draft saved'],
+          },
         },
         userId
       );
       
-      // Post the journal entry
+      // Validate before posting to enforce draft -> validate -> post workflow
+      await ledgerService.validateJournalEntry(journalEntry._id, userId);
       await ledgerService.postJournalEntry(journalEntry._id, userId);
       
       // Add payment to invoice
@@ -240,10 +248,44 @@ class InvoiceService {
       // Create journal entry to record AR
       const arAccount = await ChartOfAccounts.findOne({ code: '1100' }).session(session);
       const revenueAccount = await ChartOfAccounts.findOne({ code: '4000' }).session(session);
+      let outputCGST = await ChartOfAccounts.findOne({ code: '2311' }).session(session);
+      let outputSGST = await ChartOfAccounts.findOne({ code: '2312' }).session(session);
+
+      if (!outputCGST) {
+        outputCGST = await ChartOfAccounts.create([
+          {
+            code: '2311',
+            name: 'Output CGST',
+            type: 'Liability',
+            subtype: 'Current Liability',
+            normalBalance: 'credit',
+          },
+        ], { session });
+        outputCGST = outputCGST[0];
+      }
+
+      if (!outputSGST) {
+        outputSGST = await ChartOfAccounts.create([
+          {
+            code: '2312',
+            name: 'Output SGST',
+            type: 'Liability',
+            subtype: 'Current Liability',
+            normalBalance: 'credit',
+          },
+        ], { session });
+        outputSGST = outputSGST[0];
+      }
       
-      if (!arAccount || !revenueAccount) {
+      if (!arAccount || !revenueAccount || !outputCGST || !outputSGST) {
         throw new Error('Required accounts not found');
       }
+
+      const traceId = randomUUID();
+      const taxableAmount = new Decimal(invoice.subtotal || invoice.totalAmount);
+      const taxAmount = new Decimal(invoice.taxAmount || 0);
+      const splitTax = taxAmount.dividedBy(2).toDecimalPlaces(2);
+      const taxRemainder = taxAmount.minus(splitTax);
       
       const journalEntry = await ledgerService.createJournalEntry(
         {
@@ -259,17 +301,35 @@ class InvoiceService {
             {
               account: revenueAccount._id,
               debit: '0',
-              credit: invoice.totalAmount,
+              credit: taxableAmount.toString(),
               description: 'Sales Revenue',
+            },
+            {
+              account: outputCGST._id,
+              debit: '0',
+              credit: splitTax.toString(),
+              description: 'Output CGST',
+            },
+            {
+              account: outputSGST._id,
+              debit: '0',
+              credit: taxRemainder.toString(),
+              description: 'Output SGST',
             },
           ],
           reference: invoice.invoiceNumber,
           tags: ['invoice', invoice.invoiceNumber],
+          source: 'SYSTEM',
+          trace_id: traceId,
+          auditTrace: {
+            steps: ['invoice prepared', 'gst extracted', 'draft saved'],
+          },
         },
         userId
       );
       
-      // Post the journal entry
+      // Validate before posting to enforce draft -> validate -> post workflow
+      await ledgerService.validateJournalEntry(journalEntry._id, userId);
       await ledgerService.postJournalEntry(journalEntry._id, userId);
       
       // Update invoice status

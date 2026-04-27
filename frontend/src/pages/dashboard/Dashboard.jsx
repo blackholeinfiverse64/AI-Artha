@@ -72,6 +72,7 @@ const Dashboard = () => {
     recentExpenses: [],
     revenueExpensesChart: [],
     expenseBreakdown: [],
+    bankTimelineChart: [],
   });
 
   const userRole = user?.role || 'viewer';
@@ -88,7 +89,8 @@ const Dashboard = () => {
       const firstDayOfYear = new Date(today.getFullYear(), 0, 1);
       const lastDayOfYear = new Date(today.getFullYear(), 11, 31);
 
-      const [stats, invoiceStats, expenseStats, recentInvoices, recentExpenses, revenueExpensesChart, expenseBreakdown] = await Promise.allSettled([
+      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const [stats, invoiceStats, expenseStats, recentInvoices, recentExpenses, revenueExpensesChart, expenseBreakdown, bankTimeline] = await Promise.allSettled([
         dashboardService.getStats(),
         dashboardService.getInvoiceStats(),
         dashboardService.getExpenseStats(),
@@ -96,6 +98,10 @@ const Dashboard = () => {
         dashboardService.getRecentExpenses(),
         api.get(`/reports/revenue-expenses-chart?year=${today.getFullYear()}`),
         api.get(`/reports/expense-breakdown?startDate=${firstDayOfYear.toISOString().split('T')[0]}&endDate=${lastDayOfYear.toISOString().split('T')[0]}`),
+        dashboardService.getBankTransactionTimeline({
+          startDate: firstDayOfMonth.toISOString().split('T')[0],
+          endDate: today.toISOString().split('T')[0],
+        }),
       ]);
 
       setDashboardData({
@@ -106,6 +112,7 @@ const Dashboard = () => {
         recentExpenses: recentExpenses.status === 'fulfilled' ? recentExpenses.value.data.data : [],
         revenueExpensesChart: revenueExpensesChart.status === 'fulfilled' ? revenueExpensesChart.value.data.data : [],
         expenseBreakdown: expenseBreakdown.status === 'fulfilled' ? expenseBreakdown.value.data.data : [],
+        bankTimelineChart: bankTimeline.status === 'fulfilled' ? bankTimeline.value.data.data : [],
       });
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error);
@@ -254,6 +261,27 @@ const Dashboard = () => {
               <Bar dataKey="revenue" fill="#10b981" name="Revenue" />
               <Bar dataKey="expenses" fill="#ef4444" name="Expenses" />
             </BarChart>
+          </ResponsiveContainer>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
+        <Card>
+          <Card.Title>Bank Transaction Timeline</Card.Title>
+          <p className="text-sm text-muted-foreground mb-4">Daily credits and debits from uploaded bank statements</p>
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={dashboardData.bankTimelineChart}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="label" />
+              <YAxis tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}k`} />
+              <Tooltip
+                formatter={(value, name) => [formatCurrency(value), name]}
+                labelFormatter={(_, payload) => payload?.[0]?.payload?.date || ''}
+              />
+              <Legend />
+              <Area type="monotone" dataKey="credits" stroke="#10b981" fill="#10b981" fillOpacity={0.25} name="Credits" />
+              <Area type="monotone" dataKey="debits" stroke="#ef4444" fill="#ef4444" fillOpacity={0.2} name="Debits" />
+            </AreaChart>
           </ResponsiveContainer>
         </Card>
 

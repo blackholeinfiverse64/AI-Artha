@@ -1,5 +1,6 @@
 import Decimal from 'decimal.js';
 import mongoose from 'mongoose';
+import { randomUUID } from 'crypto';
 import Expense from '../models/Expense.js';
 import ledgerService from './ledger.service.js';
 import ChartOfAccounts from '../models/ChartOfAccounts.js';
@@ -263,37 +264,98 @@ class ExpenseService {
       }
       
       const cashAccount = await ChartOfAccounts.findOne({ code: '1010' }).session(session);
-      
-      if (!expenseAccount || !cashAccount) {
-        throw new Error('Required accounts not found');
+      let inputCGST = await ChartOfAccounts.findOne({ code: '2301' }).session(session);
+      let inputSGST = await ChartOfAccounts.findOne({ code: '2302' }).session(session);
+
+      if (!inputCGST) {
+        inputCGST = await ChartOfAccounts.create([
+          {
+            code: '2301',
+            name: 'Input CGST',
+            type: 'Asset',
+            subtype: 'Current Asset',
+            normalBalance: 'debit',
+          },
+        ], { session });
+        inputCGST = inputCGST[0];
+      }
+
+      if (!inputSGST) {
+        inputSGST = await ChartOfAccounts.create([
+          {
+            code: '2302',
+            name: 'Input SGST',
+            type: 'Asset',
+            subtype: 'Current Asset',
+            normalBalance: 'debit',
+          },
+        ], { session });
+        inputSGST = inputSGST[0];
       }
       
+      if (!expenseAccount || !cashAccount || !inputCGST || !inputSGST) {
+        throw new Error('Required accounts not found');
+      }
+
+      const totalAmount = new Decimal(expense.totalAmount || 0);
+      const taxAmount = new Decimal(expense.taxAmount || 0);
+      const taxableAmount = totalAmount.minus(taxAmount);
+      const splitTax = taxAmount.dividedBy(2).toDecimalPlaces(2);
+      const taxRemainder = taxAmount.minus(splitTax);
+
+      const lines = [
+        {
+          account: expenseAccount._id,
+          debit: taxableAmount.toString(),
+          credit: '0',
+          description: `${expense.category} expense`,
+        },
+      ];
+
+      if (taxAmount.greaterThan(0)) {
+        lines.push(
+          {
+            account: inputCGST._id,
+            debit: splitTax.toString(),
+            credit: '0',
+            description: 'Input CGST',
+          },
+          {
+            account: inputSGST._id,
+            debit: taxRemainder.toString(),
+            credit: '0',
+            description: 'Input SGST',
+          }
+        );
+      }
+
+      lines.push({
+        account: cashAccount._id,
+        debit: '0',
+        credit: totalAmount.toString(),
+        description: `Payment via ${expense.paymentMethod}`,
+      });
+      
       // Create journal entry
+      const traceId = randomUUID();
       const journalEntry = await ledgerService.createJournalEntry(
         {
           date: expense.date,
           description: `Expense: ${expense.description} - ${expense.vendor}`,
-          lines: [
-            {
-              account: expenseAccount._id,
-              debit: expense.totalAmount,
-              credit: '0',
-              description: `${expense.category} expense`,
-            },
-            {
-              account: cashAccount._id,
-              debit: '0',
-              credit: expense.totalAmount,
-              description: `Payment via ${expense.paymentMethod}`,
-            },
-          ],
+          lines,
           reference: expense.expenseNumber,
           tags: ['expense', expense.category],
+          source: 'MANUAL',
+          trace_id: traceId,
+          auditTrace: {
+            steps: ['expense captured', 'gst extracted', 'draft saved'],
+          },
         },
         userId
       );
       
-      // Post the journal entry
+      // Validate before posting to enforce draft -> validate -> post workflow
+      await ledgerService.validateJournalEntry(journalEntry._id, userId);
       await ledgerService.postJournalEntry(journalEntry._id, userId);
       
       // Update expense

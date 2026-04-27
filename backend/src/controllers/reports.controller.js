@@ -166,6 +166,26 @@ export const getDashboardSummary = async (req, res) => {
   }
 };
 
+// @desc    Get statement-driven report period context
+// @route   GET /api/v1/reports/period-context
+// @access  Private
+export const getReportPeriodContext = async (req, res) => {
+  try {
+    const context = await financialReportsService.getReportPeriodContext();
+
+    res.json({
+      success: true,
+      data: context,
+    });
+  } catch (error) {
+    logger.error('Get report period context error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 // @desc    Get Revenue vs Expenses Chart
 // @route   GET /api/v1/reports/revenue-expenses-chart
 // @access  Private
@@ -209,6 +229,27 @@ export const getExpenseBreakdown = async (req, res) => {
     });
   } catch (error) {
     logger.error('Get expense breakdown error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Get Bank Transaction Timeline
+// @route   GET /api/v1/reports/bank-transaction-timeline
+// @access  Private
+export const getBankTransactionTimeline = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const timeline = await financialReportsService.generateBankTransactionTimeline(startDate, endDate);
+
+    res.json({
+      success: true,
+      data: timeline,
+    });
+  } catch (error) {
+    logger.error('Get bank transaction timeline error:', error);
     res.status(500).json({
       success: false,
       message: error.message,

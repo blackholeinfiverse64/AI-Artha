@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, XCircle, Clock, ArrowUpRight, ArrowDownRight, FileText, Download, Zap, Link2 } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, ArrowUpRight, ArrowDownRight, FileText, Download, Zap, Link2, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { bankStatementService } from '../../services';
 import { PageHeader, Card, Button } from '../../components/common';
@@ -78,6 +78,21 @@ const StatementDetail = () => {
     setSelectedTransactions([]);
   };
 
+  const handleDeleteStatement = async () => {
+    const confirmed = window.confirm(
+      `Delete statement ${statement.statementNumber} permanently? This cannot be undone.`,
+    );
+    if (!confirmed) return;
+
+    try {
+      await bankStatementService.delete(id);
+      toast.success('Statement deleted permanently');
+      navigate('/statements');
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to delete statement');
+    }
+  };
+
   const getStatusIcon = (status) => {
     switch (status) {
       case 'completed':
@@ -123,6 +138,14 @@ const StatementDetail = () => {
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => navigate('/statements')}>
               Back to Statements
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleDeleteStatement}
+              className="text-red-600 border-red-200 hover:bg-red-50"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              Delete Permanently
             </Button>
             {statement.status === 'completed' && (
               <>

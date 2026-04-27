@@ -144,7 +144,6 @@ tdsEntrySchema.pre('save', async function(next) {
 });
 
 // Additional indexes for performance
-tdsEntrySchema.index({ entryNumber: 1 }); // Already unique, but explicit
 tdsEntrySchema.index({ 'deductee.pan': 1 });
 tdsEntrySchema.index({ status: 1 });
 tdsEntrySchema.index({ quarter: 1, financialYear: 1 });
