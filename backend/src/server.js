@@ -57,6 +57,7 @@ import healthRoutes from './routes/health.routes.js';
 import usersRoutes from './routes/users.routes.js';
 import bankStatementRoutes from './routes/bankStatement.routes.js';
 import smartUploadRoutes from './routes/smartUpload.routes.js';
+import signalRoutes from './routes/signal.routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -309,6 +310,7 @@ app.use('/api/v1/database', databaseRoutes);
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/statements', bankStatementRoutes);
 app.use('/api/v1/upload', smartUploadRoutes);
+app.use('/api/v1/signals', signalRoutes);
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });

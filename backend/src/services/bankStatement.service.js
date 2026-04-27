@@ -1,5 +1,6 @@
 import { parse } from 'csv-parse/sync';
 import mongoose from 'mongoose';
+import { randomUUID } from 'crypto';
 import BankStatement from '../models/BankStatement.js';
 import Expense from '../models/Expense.js';
 import Invoice from '../models/Invoice.js';
@@ -277,10 +278,16 @@ class BankStatementService {
         ],
         reference: `${invoice.invoiceNumber}-AUTO`,
         tags: ['invoice-payment', 'auto-reconciled', invoice.invoiceNumber],
+        source: 'SYSTEM',
+        trace_id: randomUUID(),
+        auditTrace: {
+          steps: ['bank statement uploaded', 'auto-match completed', 'draft saved'],
+        },
       },
       userId
     );
 
+    await ledgerService.validateJournalEntry(journalEntry._id, userId);
     await ledgerService.postJournalEntry(journalEntry._id, userId);
 
     invoice.payments.push({
@@ -356,10 +363,16 @@ class BankStatementService {
           lines,
           reference: transaction.reference || statement.statementNumber,
           tags: ['bank-statement', 'auto-reconciled'],
+          source: 'SYSTEM',
+          trace_id: randomUUID(),
+          auditTrace: {
+            steps: ['bank statement uploaded', 'transaction classified', 'draft saved'],
+          },
         },
         userId
       );
 
+      await ledgerService.validateJournalEntry(journalEntry._id, userId);
       await ledgerService.postJournalEntry(journalEntry._id, userId);
       return journalEntry;
     } catch (err) {

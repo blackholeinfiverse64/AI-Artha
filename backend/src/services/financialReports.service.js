@@ -240,7 +240,7 @@ class FinancialReportsService {
     try {
       // Get all posted journal entries in date range
       const entries = await JournalEntry.find({
-        status: 'posted',
+        status: { $in: ['POSTED', 'posted'] },
         date: { $gte: new Date(startDate), $lte: new Date(endDate) },
       }).populate('lines.account', 'code name type');
 
@@ -367,7 +367,7 @@ class FinancialReportsService {
     try {
       // Get account balances as of date
       const entries = await JournalEntry.find({
-        status: 'posted',
+        status: { $in: ['POSTED', 'posted'] },
         date: { $lte: new Date(asOfDate) },
       }).populate('lines.account', 'code name type normalBalance');
 
@@ -524,7 +524,7 @@ class FinancialReportsService {
     try {
       // Get all posted journal entries in date range
       const entries = await JournalEntry.find({
-        status: 'posted',
+        status: { $in: ['POSTED', 'posted'] },
         date: { $gte: new Date(startDate), $lte: new Date(endDate) },
       }).populate('lines.account', 'code name type');
 
@@ -642,7 +642,7 @@ class FinancialReportsService {
   async generateTrialBalance(asOfDate) {
     try {
       const entries = await JournalEntry.find({
-        status: 'posted',
+        status: { $in: ['POSTED', 'posted'] },
         date: { $lte: new Date(asOfDate) },
       }).populate('lines.account', 'code name type normalBalance');
 
@@ -1201,7 +1201,7 @@ class FinancialReportsService {
       });
 
       // Get recent journal entries
-      const recentEntries = await JournalEntry.find({ status: 'posted' })
+      const recentEntries = await JournalEntry.find({ status: { $in: ['POSTED', 'posted'] } })
         .sort({ createdAt: -1 })
         .limit(10)
         .populate('postedBy', 'name');

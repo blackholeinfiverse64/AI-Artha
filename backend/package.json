@@ -27,6 +27,7 @@
     "test:database": "cross-env NODE_ENV=test jest tests/database-optimization.test.js",
     "test:health": "cross-env NODE_ENV=test jest tests/health-monitoring.test.js",
     "test:ledger-frontend": "cross-env NODE_ENV=test jest tests/ledger-integrity-frontend.test.js",
+    "test:ca-ledger": "cross-env NODE_ENV=test jest tests/ca-ledger-proof.test.js",
     "test:gst-frontend": "cross-env NODE_ENV=test jest tests/gst-frontend-integration.test.js",
     "test:all": "cross-env NODE_ENV=test jest --coverage --forceExit",
     "lint": "eslint src/ --fix",
