@@ -8,6 +8,7 @@ import AuthLayout from './components/layout/AuthLayout';
 
 // Auth Pages
 import Login from './pages/auth/Login';
+import Signup from './pages/auth/Signup';
 
 // Dashboard
 import Dashboard from './pages/dashboard/Dashboard';
@@ -137,6 +138,7 @@ function App() {
       {/* Auth Routes */}
       <Route element={<AuthLayout />}>
         <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+        <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
       </Route>
 
       {/* Protected Routes */}

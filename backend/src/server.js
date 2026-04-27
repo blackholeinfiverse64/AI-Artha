@@ -14,7 +14,7 @@ import {
   protect,
   clearBlackholeCookie,
 } from './middleware/auth.js';
-import { login } from './controllers/auth.controller.js';
+import { login, signup } from './controllers/auth.controller.js';
 
 import {
   helmetConfig,
@@ -22,6 +22,7 @@ import {
   sanitizeInput,
   watermark,
   authPasswordLimiter,
+  authSignupLimiter,
 } from './middleware/security.js';
 
 import {
@@ -142,7 +143,7 @@ function redirectToSpaPath(req, res, pathName) {
   }
 }
 
-app.get(['/login', '/dashboard'], (req, res) => {
+app.get(['/login', '/signup', '/dashboard'], (req, res) => {
   return redirectToSpaPath(req, res, req.path);
 });
 
@@ -173,6 +174,7 @@ app.get('/api/v1/auth/test', (req, res) => {
 
 /** Local password login — returns JWT for `Authorization: Bearer`. */
 app.post('/api/v1/auth/login', authPasswordLimiter, login);
+app.post('/api/v1/auth/signup', authSignupLimiter, signup);
 
 app.get('/api/v1/auth/me', protect, (req, res) => {
   res.json({
