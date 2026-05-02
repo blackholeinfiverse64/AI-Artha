@@ -42,6 +42,31 @@ const expenseValidation = [
     const num = parseFloat(value);
     return !isNaN(num) && num > 0;
   }).withMessage('Amount must be a positive number'),
+  body('gstRate').optional().custom(value => {
+    const allowedRates = [0, 5, 12, 18, 28];
+    const rateNum = Number(value);
+    return !isNaN(rateNum) && allowedRates.includes(rateNum);
+  }).withMessage('GST rate must be one of 0, 5, 12, 18, 28'),
+  body('gstRate').custom((value, { req }) => {
+    const taxAmount = parseFloat(req.body.taxAmount || 0);
+    const rateValue = value === undefined || value === null || value === '' ? null : Number(value);
+
+    if (taxAmount > 0 && (rateValue === null || isNaN(rateValue))) {
+      throw new Error('GST rate is required when tax amount is provided');
+    }
+    return true;
+  }),
+  body('supplierState').custom((value, { req }) => {
+    const taxAmount = parseFloat(req.body.taxAmount || 0);
+    const rateValue = req.body.gstRate === undefined || req.body.gstRate === null || req.body.gstRate === ''
+      ? null
+      : Number(req.body.gstRate);
+
+    if ((taxAmount > 0 || (rateValue !== null && rateValue > 0)) && !value) {
+      throw new Error('Supplier state is required for GST');
+    }
+    return true;
+  }),
   body('paymentMethod')
     .isIn(['cash', 'credit_card', 'debit_card', 'check', 'bank_transfer', 'other'])
     .withMessage('Valid payment method required'),

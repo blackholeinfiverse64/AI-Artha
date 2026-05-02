@@ -46,6 +46,83 @@ const journalLineSchema = new mongoose.Schema({
   description: String,
 }, { _id: false });
 
+const auditTraceSchema = new mongoose.Schema({
+  action: {
+    type: String,
+    required: true,
+  },
+  entity_id: {
+    type: String,
+    required: true,
+  },
+  before_state: {
+    type: mongoose.Schema.Types.Mixed,
+    default: null,
+  },
+  after_state: {
+    type: mongoose.Schema.Types.Mixed,
+    required: true,
+  },
+  action_user: {
+    type: String,
+    default: null,
+  },
+  timestamp: {
+    type: String,
+    required: true,
+  },
+  trace_id: {
+    type: String,
+    required: true,
+  },
+}, { _id: false });
+
+const gstDetailSchema = new mongoose.Schema({
+  transaction_type: {
+    type: String,
+    enum: ['sale', 'purchase'],
+    required: true,
+  },
+  amount: {
+    type: String,
+    required: true,
+  },
+  gst_rate: {
+    type: Number,
+    required: true,
+  },
+  supplier_state: {
+    type: String,
+    required: true,
+  },
+  company_state: {
+    type: String,
+    required: true,
+  },
+  taxable_value: {
+    type: String,
+    required: true,
+  },
+  cgst: {
+    type: String,
+    required: true,
+  },
+  sgst: {
+    type: String,
+    required: true,
+  },
+  igst: {
+    type: String,
+    required: true,
+  },
+  total_amount: {
+    type: String,
+  },
+  is_interstate: {
+    type: Boolean,
+  },
+}, { _id: false });
+
 const journalEntrySchema = new mongoose.Schema({
   id: {
     type: String,
@@ -80,6 +157,10 @@ const journalEntrySchema = new mongoose.Schema({
     type: String,
     // External reference: invoice number, expense ID, etc.
   },
+  reference_entry_id: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'JournalEntry',
+  },
   status: {
     type: String,
     enum: ['DRAFT', 'VALIDATED', 'POSTED', 'VOIDED', 'draft', 'posted', 'voided'],
@@ -101,25 +182,7 @@ const journalEntrySchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
-  auditTrace: {
-    trace_id: {
-      type: String,
-      default: randomUUID,
-    },
-    source: {
-      type: String,
-      enum: ['OCR', 'MANUAL', 'SYSTEM'],
-      default: 'MANUAL',
-    },
-    steps: {
-      type: [String],
-      default: [],
-    },
-    timestamp: {
-      type: Date,
-      default: Date.now,
-    },
-  },
+  auditTrace: auditTraceSchema,
   postedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -175,18 +238,12 @@ const journalEntrySchema = new mongoose.Schema({
   }],
   
   // Audit trail
-  auditTrail: [{
-    action: String,
-    performedBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-    },
-    timestamp: {
-      type: Date,
-      default: Date.now,
-    },
-    details: mongoose.Schema.Types.Mixed,
-  }],
+  auditTrail: [auditTraceSchema],
+
+  gstDetails: {
+    type: [gstDetailSchema],
+    default: undefined,
+  },
   
   // Metadata
   tags: [String],
@@ -203,6 +260,7 @@ journalEntrySchema.index({ 'lines.account': 1, date: -1 });
 journalEntrySchema.index({ postedBy: 1 });
 journalEntrySchema.index({ reference: 1 });
 journalEntrySchema.index({ tags: 1 });
+journalEntrySchema.index({ reference_entry_id: 1 });
 
 // Hash-chain indexes
 journalEntrySchema.index({ chainPosition: 1, status: 1 });
@@ -224,6 +282,10 @@ journalEntrySchema.statics.computeHash = function(entryData, prevHash = '0') {
       .sort((a, b) => a.account.localeCompare(b.account)),
     status: entryData.status,
     reference: entryData.reference || '',
+    reference_entry_id: entryData.reference_entry_id
+      ? entryData.reference_entry_id.toString()
+      : undefined,
+    gstDetails: entryData.gstDetails ?? undefined,
     prevHash: prevHash,
   };
 

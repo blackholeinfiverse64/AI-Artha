@@ -2,6 +2,9 @@ import express from 'express';
 import { body } from 'express-validator';
 import {
   createEntry,
+  createCreditNote,
+  createDebitNote,
+  createReversalEntry,
   validateEntry,
   postEntry,
   getEntries,
@@ -37,6 +40,27 @@ const voidEntryValidation = [
   body('reason').trim().notEmpty().withMessage('Reason for voiding is required'),
 ];
 
+const creditNoteValidation = [
+  body('amount').isNumeric().withMessage('Amount is required'),
+  body('gst_rate').isNumeric().withMessage('GST rate is required'),
+  body('supplier_state').trim().notEmpty().withMessage('Supplier state is required'),
+  body('company_state').trim().notEmpty().withMessage('Company state is required'),
+];
+
+const debitNoteValidation = [
+  body('amount').isNumeric().withMessage('Amount is required'),
+  body().custom((value) => {
+    if (!value.expenseAccountId && !value.expenseAccountCode) {
+      throw new Error('Expense account ID or code is required');
+    }
+    return true;
+  }),
+];
+
+const reversalValidation = [
+  body('reason').optional().isString().withMessage('Reason must be a string'),
+];
+
 // All routes require authentication
 router.use(protect);
 
@@ -65,6 +89,16 @@ router
   );
 
 router
+  .route('/entries/:id/reversal')
+  .post(
+    authorize('accountant', 'admin'),
+    reversalValidation,
+    validate,
+    auditLogger('journal_entry.reversed', 'JournalEntry'),
+    createReversalEntry
+  );
+
+router
   .route('/entries/:id/post')
   .post(
     authorize('accountant', 'admin'),
@@ -80,6 +114,26 @@ router
     validate,
     auditLogger('journal_entry.voided', 'JournalEntry'),
     voidEntry
+  );
+
+router
+  .route('/credit-notes')
+  .post(
+    authorize('accountant', 'admin'),
+    creditNoteValidation,
+    validate,
+    auditLogger('journal_entry.credit_note_created', 'JournalEntry'),
+    createCreditNote
+  );
+
+router
+  .route('/debit-notes')
+  .post(
+    authorize('accountant', 'admin'),
+    debitNoteValidation,
+    validate,
+    auditLogger('journal_entry.debit_note_created', 'JournalEntry'),
+    createDebitNote
   );
 
 router.route('/balances').get(cacheMiddleware(600), getBalances);

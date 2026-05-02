@@ -8,6 +8,8 @@ import {
   getAgedReceivables,
   getDashboardSummary,
   getReportPeriodContext,
+  getGSTSummaryReport,
+  getTDSSummaryReport,
   getKPIs,
   exportProfitLossPDF,
   exportBalanceSheetPDF,
@@ -37,6 +39,8 @@ router.route('/trial-balance/export').get(exportTrialBalancePDF);
 router.route('/aged-receivables').get(getAgedReceivables);
 router.route('/dashboard').get(getDashboardSummary);
 router.route('/period-context').get(getReportPeriodContext);
+router.route('/gst-summary').get(getGSTSummaryReport);
+router.route('/tds-summary').get(getTDSSummaryReport);
 router.route('/kpis').get(getKPIs);
 router.route('/revenue-expenses-chart').get(getRevenueExpensesChart);
 router.route('/expense-breakdown').get(getExpenseBreakdown);

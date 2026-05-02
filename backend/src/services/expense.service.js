@@ -2,12 +2,14 @@ import Decimal from 'decimal.js';
 import mongoose from 'mongoose';
 import { randomUUID } from 'crypto';
 import Expense from '../models/Expense.js';
+import CompanySettings from '../models/CompanySettings.js';
 import ledgerService from './ledger.service.js';
 import ChartOfAccounts from '../models/ChartOfAccounts.js';
 import logger from '../config/logger.js';
 import fs from 'fs/promises';
 import path from 'path';
 import cacheService from './cache.service.js';
+import { calculateGSTBreakdown, buildGSTValidationError } from './gstEngine.service.js';
 
 class ExpenseService {
   /**
@@ -266,6 +268,7 @@ class ExpenseService {
       const cashAccount = await ChartOfAccounts.findOne({ code: '1010' }).session(session);
       let inputCGST = await ChartOfAccounts.findOne({ code: '2301' }).session(session);
       let inputSGST = await ChartOfAccounts.findOne({ code: '2302' }).session(session);
+      let inputIGST = await ChartOfAccounts.findOne({ code: '2303' }).session(session);
 
       if (!inputCGST) {
         inputCGST = await ChartOfAccounts.create([
@@ -292,16 +295,95 @@ class ExpenseService {
         ], { session });
         inputSGST = inputSGST[0];
       }
+
+      if (!inputIGST) {
+        inputIGST = await ChartOfAccounts.create([
+          {
+            code: '2303',
+            name: 'Input IGST',
+            type: 'Asset',
+            subtype: 'Current Asset',
+            normalBalance: 'debit',
+          },
+        ], { session });
+        inputIGST = inputIGST[0];
+      }
       
-      if (!expenseAccount || !cashAccount || !inputCGST || !inputSGST) {
+      if (!expenseAccount || !cashAccount || !inputCGST || !inputSGST || !inputIGST) {
         throw new Error('Required accounts not found');
       }
 
-      const totalAmount = new Decimal(expense.totalAmount || 0);
-      const taxAmount = new Decimal(expense.taxAmount || 0);
-      const taxableAmount = totalAmount.minus(taxAmount);
-      const splitTax = taxAmount.dividedBy(2).toDecimalPlaces(2);
-      const taxRemainder = taxAmount.minus(splitTax);
+      const taxableAmount = new Decimal(expense.amount || 0);
+      const declaredTaxAmount = new Decimal(expense.taxAmount || 0);
+      const declaredTotalAmount = new Decimal(expense.totalAmount || 0);
+      const gstRate = expense.gstRate;
+      const tolerance = new Decimal('0.01');
+
+      let totalCGST = new Decimal(0);
+      let totalSGST = new Decimal(0);
+      let totalIGST = new Decimal(0);
+      let gstDetails = undefined;
+
+      if (declaredTaxAmount.greaterThan(0) || (gstRate !== undefined && gstRate !== null && new Decimal(gstRate).greaterThan(0))) {
+        const settings = await CompanySettings.findById('company_settings').session(session);
+        const companyState = settings?.address?.state || (settings?.gstin ? settings.gstin.substring(0, 2) : null);
+
+        if (!companyState) {
+          throw buildGSTValidationError('Company state is required for GST', {
+            expenseId: String(expense._id),
+          });
+        }
+
+        if (!expense.supplierState) {
+          throw buildGSTValidationError('Supplier state is required for GST', {
+            expenseId: String(expense._id),
+          });
+        }
+
+        if (gstRate === undefined || gstRate === null) {
+          throw buildGSTValidationError('GST rate is required for expense', {
+            expenseId: String(expense._id),
+          });
+        }
+
+        const detail = calculateGSTBreakdown({
+          transaction_type: 'purchase',
+          amount: taxableAmount.toDecimalPlaces(2).toString(),
+          gst_rate: gstRate,
+          supplier_state: expense.supplierState,
+          company_state: companyState,
+        });
+
+        totalCGST = new Decimal(detail.cgst || 0);
+        totalSGST = new Decimal(detail.sgst || 0);
+        totalIGST = new Decimal(detail.igst || 0);
+        gstDetails = [{
+          ...detail,
+          amount: taxableAmount.toDecimalPlaces(2).toString(),
+        }];
+      }
+
+      const totalTax = totalCGST.plus(totalSGST).plus(totalIGST);
+      const totalAmount = taxableAmount.plus(totalTax);
+
+      if (declaredTaxAmount.greaterThan(0) && totalTax.minus(declaredTaxAmount).abs().greaterThan(tolerance)) {
+        throw buildGSTValidationError('Expense tax amount does not match GST calculation', {
+          expenseId: String(expense._id),
+          expected: totalTax.toString(),
+          actual: expense.taxAmount,
+        });
+      }
+
+      if (declaredTotalAmount.greaterThan(0) && totalAmount.minus(declaredTotalAmount).abs().greaterThan(tolerance)) {
+        throw buildGSTValidationError('Expense total amount does not match GST calculation', {
+          expenseId: String(expense._id),
+          expected: totalAmount.toString(),
+          actual: expense.totalAmount,
+        });
+      }
+
+      expense.taxAmount = totalTax.toString();
+      expense.totalAmount = totalAmount.toString();
 
       const lines = [
         {
@@ -312,21 +394,35 @@ class ExpenseService {
         },
       ];
 
-      if (taxAmount.greaterThan(0)) {
+      if (totalCGST.greaterThan(0)) {
         lines.push(
           {
             account: inputCGST._id,
-            debit: splitTax.toString(),
+            debit: totalCGST.toString(),
             credit: '0',
             description: 'Input CGST',
           },
+        );
+      }
+
+      if (totalSGST.greaterThan(0)) {
+        lines.push(
           {
             account: inputSGST._id,
-            debit: taxRemainder.toString(),
+            debit: totalSGST.toString(),
             credit: '0',
             description: 'Input SGST',
           }
         );
+      }
+
+      if (totalIGST.greaterThan(0)) {
+        lines.push({
+          account: inputIGST._id,
+          debit: totalIGST.toString(),
+          credit: '0',
+          description: 'Input IGST',
+        });
       }
 
       lines.push({
@@ -347,9 +443,8 @@ class ExpenseService {
           tags: ['expense', expense.category],
           source: 'MANUAL',
           trace_id: traceId,
-          auditTrace: {
-            steps: ['expense captured', 'gst extracted', 'draft saved'],
-          },
+          gstDetails,
+          auditAction: 'EXPENSE_RECORDED',
         },
         userId
       );

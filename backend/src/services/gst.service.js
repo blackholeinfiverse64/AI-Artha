@@ -3,35 +3,30 @@ import GSTReturn from '../models/GSTReturn.js';
 import Invoice from '../models/Invoice.js';
 import CompanySettings from '../models/CompanySettings.js';
 import logger from '../config/logger.js';
+import { calculateGSTBreakdown } from './gstEngine.service.js';
 
 class GSTService {
   /**
    * Calculate GST components based on state
    */
-  calculateGST(amount, gstRate, isInterstate = false) {
-    const amt = new Decimal(amount);
-    const rate = new Decimal(gstRate);
-    
-    const gstAmount = amt.times(rate).dividedBy(100);
-    
-    if (isInterstate) {
-      // Interstate: IGST
-      return {
-        cgst: '0',
-        sgst: '0',
-        igst: gstAmount.toString(),
-        total: gstAmount.toString(),
-      };
-    } else {
-      // Intrastate: CGST + SGST (split equally)
-      const halfGST = gstAmount.dividedBy(2);
-      return {
-        cgst: halfGST.toString(),
-        sgst: halfGST.toString(),
-        igst: '0',
-        total: gstAmount.toString(),
-      };
-    }
+  calculateGST(amount, gstRate, supplierState, companyState) {
+    const breakdown = calculateGSTBreakdown({
+      transaction_type: 'sale',
+      amount,
+      gst_rate: gstRate,
+      supplier_state: supplierState,
+      company_state: companyState,
+    });
+
+    return {
+      cgst: breakdown.cgst,
+      sgst: breakdown.sgst,
+      igst: breakdown.igst,
+      total: new Decimal(breakdown.cgst || 0)
+        .plus(breakdown.sgst || 0)
+        .plus(breakdown.igst || 0)
+        .toString(),
+    };
   }
   
   /**
@@ -65,17 +60,63 @@ class GSTService {
       
       invoices.forEach(invoice => {
         const taxableValue = invoice.subtotal;
-        const gstAmount = invoice.totalTax;
-        
-        // Determine if interstate based on customer GSTIN
-        const companyState = settings.gstin.substring(0, 2);
-        const customerState = invoice.customerGSTIN ? 
-          invoice.customerGSTIN.substring(0, 2) : companyState;
-        const isInterstate = companyState !== customerState;
-        
-        // Calculate GST components
-        const gstRate = invoice.lines[0]?.taxRate || 18; // Assume first line rate
-        const gst = this.calculateGST(taxableValue, gstRate, isInterstate);
+
+        const companyState = settings.address?.state || settings.gstin?.substring(0, 2);
+        const customerState = invoice.customerGSTIN
+          ? invoice.customerGSTIN.substring(0, 2)
+          : (invoice.customerState || invoice.customerAddress?.state);
+
+        if (!companyState || !customerState) {
+          throw new Error('GST state information missing for invoice');
+        }
+
+        let gstTotals = {
+          cgst: new Decimal(0),
+          sgst: new Decimal(0),
+          igst: new Decimal(0),
+        };
+
+        const breakdown = invoice.gstBreakdown || {};
+        const hasBreakdown = new Decimal(breakdown.cgst || 0)
+          .plus(breakdown.sgst || 0)
+          .plus(breakdown.igst || 0)
+          .greaterThan(0);
+
+        if (hasBreakdown) {
+          gstTotals = {
+            cgst: new Decimal(breakdown.cgst || 0),
+            sgst: new Decimal(breakdown.sgst || 0),
+            igst: new Decimal(breakdown.igst || 0),
+          };
+        } else {
+          const lines = invoice.lines && invoice.lines.length ? invoice.lines : (invoice.items || []);
+          if (!lines.length) {
+            throw new Error('GST rate missing for invoice');
+          }
+          lines.forEach((line) => {
+            const lineRate = line.taxRate ?? invoice.taxRate;
+            if (lineRate === undefined || lineRate === null) {
+              throw new Error('GST rate missing for invoice line');
+            }
+            const lineAmount = line.amount || new Decimal(line.unitPrice || 0).times(line.quantity || 0).toString();
+            const detail = calculateGSTBreakdown({
+              transaction_type: 'sale',
+              amount: lineAmount,
+              gst_rate: lineRate,
+              supplier_state: customerState,
+              company_state: companyState,
+            });
+            gstTotals.cgst = gstTotals.cgst.plus(detail.cgst || 0);
+            gstTotals.sgst = gstTotals.sgst.plus(detail.sgst || 0);
+            gstTotals.igst = gstTotals.igst.plus(detail.igst || 0);
+          });
+        }
+
+        const gst = {
+          cgst: gstTotals.cgst.toString(),
+          sgst: gstTotals.sgst.toString(),
+          igst: gstTotals.igst.toString(),
+        };
         
         const invoiceData = {
           invoiceNumber: invoice.invoiceNumber,

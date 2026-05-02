@@ -78,6 +78,11 @@ const expenseSchema = new mongoose.Schema({
     required: true,
     validate: validateDecimal,
   },
+  gstRate: {
+    type: Number,
+    min: 0,
+    max: 100,
+  },
   taxAmount: {
     type: String,
     default: '0',
@@ -92,6 +97,9 @@ const expenseSchema = new mongoose.Schema({
     type: String,
     required: true,
     enum: ['cash', 'credit_card', 'debit_card', 'check', 'bank_transfer', 'other'],
+  },
+  supplierState: {
+    type: String,
   },
   receipts: [receiptSchema],
   status: {

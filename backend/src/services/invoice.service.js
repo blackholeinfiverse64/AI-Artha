@@ -2,10 +2,12 @@ import Decimal from 'decimal.js';
 import mongoose from 'mongoose';
 import { randomUUID } from 'crypto';
 import Invoice from '../models/Invoice.js';
+import CompanySettings from '../models/CompanySettings.js';
 import ledgerService from './ledger.service.js';
 import ChartOfAccounts from '../models/ChartOfAccounts.js';
 import logger from '../config/logger.js';
 import cacheService from './cache.service.js';
+import { calculateGSTBreakdown, buildGSTValidationError } from './gstEngine.service.js';
 
 class InvoiceService {
   /**
@@ -191,9 +193,7 @@ class InvoiceService {
           tags: ['invoice-payment', invoice.invoiceNumber],
           source: 'SYSTEM',
           trace_id: traceId,
-          auditTrace: {
-            steps: ['payment input received', 'draft saved'],
-          },
+          auditAction: 'INVOICE_PAYMENT_RECORDED',
         },
         userId
       );
@@ -250,6 +250,34 @@ class InvoiceService {
       const revenueAccount = await ChartOfAccounts.findOne({ code: '4000' }).session(session);
       let outputCGST = await ChartOfAccounts.findOne({ code: '2311' }).session(session);
       let outputSGST = await ChartOfAccounts.findOne({ code: '2312' }).session(session);
+      let outputIGST = await ChartOfAccounts.findOne({ code: '2313' }).session(session);
+
+      const settings = await CompanySettings.findById('company_settings').session(session);
+      const companyState = settings?.address?.state || (settings?.gstin ? settings.gstin.substring(0, 2) : null);
+
+      if (!companyState) {
+        throw buildGSTValidationError('Company state is required for GST', {
+          invoiceId: String(invoice._id),
+        });
+      }
+
+      const customerState = invoice.customerGSTIN
+        ? invoice.customerGSTIN.substring(0, 2)
+        : (invoice.customerState || invoice.customerAddress?.state);
+
+      const invoiceLines = (invoice.lines && invoice.lines.length)
+        ? invoice.lines
+        : (invoice.items || []);
+
+      if (!invoiceLines.length) {
+        throw new Error('Invoice lines are required');
+      }
+
+      if (!customerState) {
+        throw buildGSTValidationError('Customer state is required for GST', {
+          invoiceId: String(invoice._id),
+        });
+      }
 
       if (!outputCGST) {
         outputCGST = await ChartOfAccounts.create([
@@ -276,54 +304,170 @@ class InvoiceService {
         ], { session });
         outputSGST = outputSGST[0];
       }
+
+      if (!outputIGST) {
+        outputIGST = await ChartOfAccounts.create([
+          {
+            code: '2313',
+            name: 'Output IGST',
+            type: 'Liability',
+            subtype: 'Current Liability',
+            normalBalance: 'credit',
+          },
+        ], { session });
+        outputIGST = outputIGST[0];
+      }
       
-      if (!arAccount || !revenueAccount || !outputCGST || !outputSGST) {
+      if (!arAccount || !revenueAccount || !outputCGST || !outputSGST || !outputIGST) {
         throw new Error('Required accounts not found');
       }
 
       const traceId = randomUUID();
-      const taxableAmount = new Decimal(invoice.subtotal || invoice.totalAmount);
-      const taxAmount = new Decimal(invoice.taxAmount || 0);
-      const splitTax = taxAmount.dividedBy(2).toDecimalPlaces(2);
-      const taxRemainder = taxAmount.minus(splitTax);
+      let totalTaxable = new Decimal(0);
+      let totalCGST = new Decimal(0);
+      let totalSGST = new Decimal(0);
+      let totalIGST = new Decimal(0);
+      let taxType = null;
+      const gstDetails = [];
+
+      invoiceLines.forEach((line, index) => {
+        const quantity = new Decimal(line.quantity || 0);
+        const unitPrice = new Decimal(line.unitPrice || 0);
+        const lineAmount = (line.amount !== undefined && line.amount !== null)
+          ? new Decimal(line.amount)
+          : quantity.times(unitPrice);
+        const lineRate = (line.taxRate !== undefined && line.taxRate !== null)
+          ? line.taxRate
+          : invoice.taxRate;
+
+        if (lineRate === undefined || lineRate === null) {
+          throw buildGSTValidationError('GST rate is required for invoice line', {
+            invoiceId: String(invoice._id),
+            line: index + 1,
+          });
+        }
+
+        const detail = calculateGSTBreakdown({
+          transaction_type: 'sale',
+          amount: lineAmount.toDecimalPlaces(2).toString(),
+          gst_rate: lineRate,
+          supplier_state: customerState,
+          company_state: companyState,
+        });
+
+        if (taxType === null) {
+          taxType = detail.is_interstate ? 'interstate' : 'intrastate';
+        }
+
+        if ((detail.is_interstate && taxType !== 'interstate') ||
+            (!detail.is_interstate && taxType !== 'intrastate')) {
+          throw buildGSTValidationError('Mixed GST tax types are not allowed', {
+            invoiceId: String(invoice._id),
+          });
+        }
+
+        gstDetails.push({
+          ...detail,
+          amount: lineAmount.toDecimalPlaces(2).toString(),
+        });
+
+        totalTaxable = totalTaxable.plus(detail.taxable_value || 0);
+        totalCGST = totalCGST.plus(detail.cgst || 0);
+        totalSGST = totalSGST.plus(detail.sgst || 0);
+        totalIGST = totalIGST.plus(detail.igst || 0);
+      });
+
+      const totalTax = totalCGST.plus(totalSGST).plus(totalIGST);
+      const totalAmount = totalTaxable.plus(totalTax);
+      const tolerance = new Decimal('0.01');
+
+      if (invoice.subtotal && totalTaxable.minus(invoice.subtotal).abs().greaterThan(tolerance)) {
+        throw buildGSTValidationError('Invoice subtotal does not match GST calculation', {
+          invoiceId: String(invoice._id),
+          expected: totalTaxable.toString(),
+          actual: invoice.subtotal,
+        });
+      }
+
+      if (invoice.taxAmount && totalTax.minus(invoice.taxAmount).abs().greaterThan(tolerance)) {
+        throw buildGSTValidationError('Invoice tax amount does not match GST calculation', {
+          invoiceId: String(invoice._id),
+          expected: totalTax.toString(),
+          actual: invoice.taxAmount,
+        });
+      }
+
+      if (invoice.totalAmount && totalAmount.minus(invoice.totalAmount).abs().greaterThan(tolerance)) {
+        throw buildGSTValidationError('Invoice total amount does not match GST calculation', {
+          invoiceId: String(invoice._id),
+          expected: totalAmount.toString(),
+          actual: invoice.totalAmount,
+        });
+      }
+
+      invoice.subtotal = totalTaxable.toString();
+      invoice.taxAmount = totalTax.toString();
+      invoice.totalAmount = totalAmount.toString();
+      invoice.gstBreakdown = {
+        cgst: totalCGST.toString(),
+        sgst: totalSGST.toString(),
+        igst: totalIGST.toString(),
+        cess: '0',
+      };
       
+      const lines = [
+        {
+          account: arAccount._id,
+          debit: totalAmount.toString(),
+          credit: '0',
+          description: 'Accounts Receivable',
+        },
+        {
+          account: revenueAccount._id,
+          debit: '0',
+          credit: totalTaxable.toString(),
+          description: 'Sales Revenue',
+        },
+      ];
+
+      if (totalCGST.greaterThan(0)) {
+        lines.push({
+          account: outputCGST._id,
+          debit: '0',
+          credit: totalCGST.toString(),
+          description: 'Output CGST',
+        });
+      }
+
+      if (totalSGST.greaterThan(0)) {
+        lines.push({
+          account: outputSGST._id,
+          debit: '0',
+          credit: totalSGST.toString(),
+          description: 'Output SGST',
+        });
+      }
+
+      if (totalIGST.greaterThan(0)) {
+        lines.push({
+          account: outputIGST._id,
+          debit: '0',
+          credit: totalIGST.toString(),
+          description: 'Output IGST',
+        });
+      }
+
       const journalEntry = await ledgerService.createJournalEntry(
         {
           date: invoice.invoiceDate,
           description: `Invoice ${invoice.invoiceNumber} to ${invoice.customerName}`,
-          lines: [
-            {
-              account: arAccount._id,
-              debit: invoice.totalAmount,
-              credit: '0',
-              description: 'Accounts Receivable',
-            },
-            {
-              account: revenueAccount._id,
-              debit: '0',
-              credit: taxableAmount.toString(),
-              description: 'Sales Revenue',
-            },
-            {
-              account: outputCGST._id,
-              debit: '0',
-              credit: splitTax.toString(),
-              description: 'Output CGST',
-            },
-            {
-              account: outputSGST._id,
-              debit: '0',
-              credit: taxRemainder.toString(),
-              description: 'Output SGST',
-            },
-          ],
+          lines,
           reference: invoice.invoiceNumber,
           tags: ['invoice', invoice.invoiceNumber],
           source: 'SYSTEM',
           trace_id: traceId,
-          auditTrace: {
-            steps: ['invoice prepared', 'gst extracted', 'draft saved'],
-          },
+          gstDetails,
+          auditAction: 'INVOICE_SENT',
         },
         userId
       );

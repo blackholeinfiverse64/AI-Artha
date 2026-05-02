@@ -98,19 +98,28 @@ class PDFService {
     y += 20;
 
     if (invoice.cgst || invoice.cgstAmount) {
-      doc.text(`CGST (${invoice.cgstRate || 9}%):`, 350, y);
+      const cgstRateLabel = invoice.cgstRate !== undefined && invoice.cgstRate !== null
+        ? ` (${invoice.cgstRate}%)`
+        : '';
+      doc.text(`CGST${cgstRateLabel}:`, 350, y);
       doc.text(this.formatCurrency(invoice.cgst || invoice.cgstAmount || 0), col5, y);
       y += 15;
     }
 
     if (invoice.sgst || invoice.sgstAmount) {
-      doc.text(`SGST (${invoice.sgstRate || 9}%):`, 350, y);
+      const sgstRateLabel = invoice.sgstRate !== undefined && invoice.sgstRate !== null
+        ? ` (${invoice.sgstRate}%)`
+        : '';
+      doc.text(`SGST${sgstRateLabel}:`, 350, y);
       doc.text(this.formatCurrency(invoice.sgst || invoice.sgstAmount || 0), col5, y);
       y += 15;
     }
 
     if (invoice.igst || invoice.igstAmount) {
-      doc.text(`IGST (${invoice.igstRate || 18}%):`, 350, y);
+      const igstRateLabel = invoice.igstRate !== undefined && invoice.igstRate !== null
+        ? ` (${invoice.igstRate}%)`
+        : '';
+      doc.text(`IGST${igstRateLabel}:`, 350, y);
       doc.text(this.formatCurrency(invoice.igst || invoice.igstAmount || 0), col5, y);
       y += 15;
     }

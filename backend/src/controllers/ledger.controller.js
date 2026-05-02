@@ -22,6 +22,79 @@ export const createEntry = async (req, res) => {
   }
 };
 
+// @desc    Create credit note
+// @route   POST /api/v1/ledger/credit-notes
+// @access  Private (accountant, admin)
+export const createCreditNote = async (req, res) => {
+  try {
+    const entry = await ledgerService.createCreditNote(req.body, req.user._id);
+
+    res.status(201).json({
+      success: true,
+      data: entry,
+    });
+  } catch (error) {
+    logger.error('Create credit note error:', error);
+    const payload = {
+      success: false,
+      message: error.message,
+    };
+    if (error.code) payload.code = error.code;
+    if (error.details) payload.details = error.details;
+    res.status(400).json(payload);
+  }
+};
+
+// @desc    Create debit note
+// @route   POST /api/v1/ledger/debit-notes
+// @access  Private (accountant, admin)
+export const createDebitNote = async (req, res) => {
+  try {
+    const entry = await ledgerService.createDebitNote(req.body, req.user._id);
+
+    res.status(201).json({
+      success: true,
+      data: entry,
+    });
+  } catch (error) {
+    logger.error('Create debit note error:', error);
+    const payload = {
+      success: false,
+      message: error.message,
+    };
+    if (error.code) payload.code = error.code;
+    if (error.details) payload.details = error.details;
+    res.status(400).json(payload);
+  }
+};
+
+// @desc    Create reversal entry
+// @route   POST /api/v1/ledger/entries/:id/reversal
+// @access  Private (accountant, admin)
+export const createReversalEntry = async (req, res) => {
+  try {
+    const entry = await ledgerService.createReversalEntry(
+      req.params.id,
+      req.user._id,
+      req.body?.reason || null
+    );
+
+    res.status(201).json({
+      success: true,
+      data: entry,
+    });
+  } catch (error) {
+    logger.error('Create reversal entry error:', error);
+    const payload = {
+      success: false,
+      message: error.message,
+    };
+    if (error.code) payload.code = error.code;
+    if (error.details) payload.details = error.details;
+    res.status(400).json(payload);
+  }
+};
+
 // @desc    Validate journal entry
 // @route   POST /api/v1/ledger/entries/:id/validate
 // @access  Private (accountant, admin)
@@ -35,10 +108,13 @@ export const validateEntry = async (req, res) => {
     });
   } catch (error) {
     logger.error('Validate entry error:', error);
-    res.status(400).json({
+    const payload = {
       success: false,
       message: error.message,
-    });
+    };
+    if (error.code) payload.code = error.code;
+    if (error.details) payload.details = error.details;
+    res.status(400).json(payload);
   }
 };
 
@@ -55,10 +131,13 @@ export const postEntry = async (req, res) => {
     });
   } catch (error) {
     logger.error('Post entry error:', error);
-    res.status(400).json({
+    const payload = {
       success: false,
       message: error.message,
-    });
+    };
+    if (error.code) payload.code = error.code;
+    if (error.details) payload.details = error.details;
+    res.status(400).json(payload);
   }
 };
 

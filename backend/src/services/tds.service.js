@@ -165,9 +165,7 @@ class TDSService {
           tags: ['tds', tdsEntry.section],
           source: 'SYSTEM',
           trace_id: traceId,
-          auditTrace: {
-            steps: ['tds computed', 'draft saved'],
-          },
+          auditAction: 'TDS_DEDUCTION_RECORDED',
         },
         userId
       );

@@ -1,4 +1,5 @@
 import financialReportsService from '../services/financialReports.service.js';
+import statutoryReportsService from '../services/statutoryReports.service.js';
 import logger from '../config/logger.js';
 
 // @desc    Generate Profit & Loss
@@ -179,6 +180,52 @@ export const getReportPeriodContext = async (req, res) => {
     });
   } catch (error) {
     logger.error('Get report period context error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Get GST summary (ledger-only)
+// @route   GET /api/v1/reports/gst-summary
+// @access  Private
+export const getGSTSummaryReport = async (req, res) => {
+  try {
+    const summary = await statutoryReportsService.getGSTSummary({
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+    });
+
+    res.json({
+      success: true,
+      data: summary,
+    });
+  } catch (error) {
+    logger.error('Get GST summary report error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+// @desc    Get TDS summary (ledger-only)
+// @route   GET /api/v1/reports/tds-summary
+// @access  Private
+export const getTDSSummaryReport = async (req, res) => {
+  try {
+    const summary = await statutoryReportsService.getTDSSummary({
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+    });
+
+    res.json({
+      success: true,
+      data: summary,
+    });
+  } catch (error) {
+    logger.error('Get TDS summary report error:', error);
     res.status(500).json({
       success: false,
       message: error.message,

@@ -256,7 +256,13 @@ class BankStatementService {
       throw new Error('Required accounts not found for invoice payment');
     }
 
-    const paymentAmount = transaction.credit;
+    const { default: Decimal } = await import('decimal.js');
+    const paymentAmount = new Decimal(transaction.credit || 0);
+    const amountDue = new Decimal(invoice.totalAmount || 0).minus(new Decimal(invoice.amountPaid || 0));
+
+    if (paymentAmount.greaterThan(amountDue)) {
+      throw new Error('Auto-payment exceeds outstanding amount');
+    }
 
     const journalEntry = await ledgerService.createJournalEntry(
       {
@@ -280,9 +286,7 @@ class BankStatementService {
         tags: ['invoice-payment', 'auto-reconciled', invoice.invoiceNumber],
         source: 'SYSTEM',
         trace_id: randomUUID(),
-        auditTrace: {
-          steps: ['bank statement uploaded', 'auto-match completed', 'draft saved'],
-        },
+        auditAction: 'AUTO_PAYMENT_RECORDED',
       },
       userId
     );
@@ -291,7 +295,7 @@ class BankStatementService {
     await ledgerService.postJournalEntry(journalEntry._id, userId);
 
     invoice.payments.push({
-      amount: paymentAmount,
+      amount: paymentAmount.toString(),
       paymentDate: transaction.date,
       paymentMethod: 'bank_transfer',
       reference: transaction.reference || `Auto-matched from bank statement`,
@@ -299,9 +303,8 @@ class BankStatementService {
       notes: `Auto-reconciled from bank statement`,
     });
 
-    const { default: Decimal } = await import('decimal.js');
     const currentPaid = new Decimal(invoice.amountPaid || 0);
-    invoice.amountPaid = currentPaid.plus(new Decimal(paymentAmount)).toString();
+    invoice.amountPaid = currentPaid.plus(paymentAmount).toString();
 
     await invoice.save();
     return journalEntry;
@@ -365,9 +368,7 @@ class BankStatementService {
           tags: ['bank-statement', 'auto-reconciled'],
           source: 'SYSTEM',
           trace_id: randomUUID(),
-          auditTrace: {
-            steps: ['bank statement uploaded', 'transaction classified', 'draft saved'],
-          },
+          auditAction: 'BANK_TRANSACTION_RECORDED',
         },
         userId
       );

@@ -189,10 +189,13 @@ export const recordExpense = async (req, res) => {
     });
   } catch (error) {
     logger.error('Record expense error:', error);
-    res.status(400).json({
+    const payload = {
       success: false,
       message: error.message,
-    });
+    };
+    if (error.code) payload.code = error.code;
+    if (error.details) payload.details = error.details;
+    res.status(400).json(payload);
   }
 };
 

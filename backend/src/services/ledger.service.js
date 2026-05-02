@@ -8,6 +8,11 @@ import logger from '../config/logger.js';
 import mongoose from 'mongoose';
 import cacheService from './cache.service.js';
 import { withTransaction, areTransactionsAvailable } from '../config/database.js';
+import {
+  calculateGSTBreakdown,
+  buildGSTValidationError,
+  validateGSTDetailShape,
+} from './gstEngine.service.js';
 
 const JOURNAL_STATUS = {
   DRAFT: 'DRAFT',
@@ -20,7 +25,6 @@ const POSTED_STATUSES = ['POSTED', 'posted'];
 const VOIDED_STATUSES = ['VOIDED', 'voided'];
 const VALIDATED_STATUSES = ['VALIDATED', 'validated'];
 const DRAFT_STATUSES = ['DRAFT', 'draft'];
-const GST_RATE = new Decimal('0.18');
 const ROUNDING_TOLERANCE = new Decimal('0.01');
 
 class LedgerService {
@@ -106,20 +110,133 @@ class LedgerService {
     return accounts;
   }
 
-  validateGST(total, cgst, sgst) {
-    const totalDecimal = new Decimal(total || 0);
-    const cgstDecimal = new Decimal(cgst || 0);
-    const sgstDecimal = new Decimal(sgst || 0);
+  buildAuditSnapshot(entry) {
+    return {
+      id: entry?._id ? String(entry._id) : undefined,
+      entryNumber: entry?.entryNumber,
+      date: entry?.date,
+      description: entry?.description,
+      lines: entry?.lines,
+      reference: entry?.reference,
+      reference_entry_id: entry?.reference_entry_id
+        ? String(entry.reference_entry_id)
+        : undefined,
+      status: entry?.status,
+      source: entry?.source,
+      tags: entry?.tags,
+      gstDetails: entry?.gstDetails,
+    };
+  }
 
-    const expectedTax = totalDecimal.times(GST_RATE);
-    const actualTax = cgstDecimal.plus(sgstDecimal);
+  buildAuditTraceEntry({ action, entry, beforeState, afterState, userId }) {
+    return {
+      action,
+      entity_id: entry?._id ? String(entry._id) : 'unknown',
+      before_state: beforeState ?? null,
+      after_state: afterState ?? {},
+      action_user: userId ? String(userId) : null,
+      timestamp: new Date().toISOString(),
+      trace_id: entry?.trace_id || entry?.auditTrace?.trace_id || 'unknown',
+    };
+  }
 
-    if (actualTax.minus(expectedTax).abs().greaterThan(ROUNDING_TOLERANCE)) {
-      throw new Error('Invalid GST split');
+  validateGSTDetails(entry, gstTotals) {
+    const gstDetails = entry.gstDetails;
+
+    if (!Array.isArray(gstDetails) || gstDetails.length === 0) {
+      throw buildGSTValidationError('GST details are required for GST entries', {
+        entryId: String(entry._id),
+      });
     }
 
-    if (cgstDecimal.minus(sgstDecimal).abs().greaterThan(ROUNDING_TOLERANCE)) {
-      throw new Error('Invalid GST split');
+    let hasIGST = false;
+    let hasCGSTSGST = false;
+    let outputCGST = new Decimal(0);
+    let outputSGST = new Decimal(0);
+    let outputIGST = new Decimal(0);
+    let inputCGST = new Decimal(0);
+    let inputSGST = new Decimal(0);
+    let inputIGST = new Decimal(0);
+
+    gstDetails.forEach((detail) => {
+      validateGSTDetailShape(detail);
+
+      const computed = calculateGSTBreakdown({
+        transaction_type: detail.transaction_type,
+        amount: detail.taxable_value,
+        gst_rate: detail.gst_rate,
+        supplier_state: detail.supplier_state,
+        company_state: detail.company_state,
+      });
+
+      const expectedCGST = new Decimal(computed.cgst || 0);
+      const expectedSGST = new Decimal(computed.sgst || 0);
+      const expectedIGST = new Decimal(computed.igst || 0);
+      const actualCGST = new Decimal(detail.cgst || 0);
+      const actualSGST = new Decimal(detail.sgst || 0);
+      const actualIGST = new Decimal(detail.igst || 0);
+
+      if (expectedCGST.minus(actualCGST).abs().greaterThan(ROUNDING_TOLERANCE) ||
+          expectedSGST.minus(actualSGST).abs().greaterThan(ROUNDING_TOLERANCE) ||
+          expectedIGST.minus(actualIGST).abs().greaterThan(ROUNDING_TOLERANCE)) {
+        throw buildGSTValidationError('GST detail amounts do not match rate calculation', {
+          detail,
+          expected: computed,
+        });
+      }
+
+      if (!expectedIGST.isZero()) {
+        hasIGST = true;
+      }
+
+      if (!expectedCGST.isZero() || !expectedSGST.isZero()) {
+        hasCGSTSGST = true;
+      }
+
+      if (detail.transaction_type === 'sale') {
+        outputCGST = outputCGST.plus(actualCGST.abs());
+        outputSGST = outputSGST.plus(actualSGST.abs());
+        outputIGST = outputIGST.plus(actualIGST.abs());
+      } else {
+        inputCGST = inputCGST.plus(actualCGST.abs());
+        inputSGST = inputSGST.plus(actualSGST.abs());
+        inputIGST = inputIGST.plus(actualIGST.abs());
+      }
+    });
+
+    if (hasIGST && hasCGSTSGST) {
+      throw buildGSTValidationError('Mixed GST tax types are not allowed', {
+        entryId: String(entry._id),
+      });
+    }
+
+    const compareTotals = (expected, actual, label) => {
+      if (expected.minus(actual).abs().greaterThan(ROUNDING_TOLERANCE)) {
+        throw buildGSTValidationError('GST ledger totals do not match GST details', {
+          label,
+          expected: expected.toString(),
+          actual: actual.toString(),
+        });
+      }
+    };
+
+    if (gstTotals.outputCGST) {
+      compareTotals(outputCGST, gstTotals.outputCGST, 'outputCGST');
+    }
+    if (gstTotals.outputSGST) {
+      compareTotals(outputSGST, gstTotals.outputSGST, 'outputSGST');
+    }
+    if (gstTotals.outputIGST) {
+      compareTotals(outputIGST, gstTotals.outputIGST, 'outputIGST');
+    }
+    if (gstTotals.inputCGST) {
+      compareTotals(inputCGST, gstTotals.inputCGST, 'inputCGST');
+    }
+    if (gstTotals.inputSGST) {
+      compareTotals(inputSGST, gstTotals.inputSGST, 'inputSGST');
+    }
+    if (gstTotals.inputIGST) {
+      compareTotals(inputIGST, gstTotals.inputIGST, 'inputIGST');
     }
 
     return true;
@@ -139,8 +256,10 @@ class LedgerService {
   validateComplianceRules(entry, accountsById) {
     let outputCGST = new Decimal(0);
     let outputSGST = new Decimal(0);
+    let outputIGST = new Decimal(0);
     let inputCGST = new Decimal(0);
     let inputSGST = new Decimal(0);
+    let inputIGST = new Decimal(0);
     let taxableRevenue = new Decimal(0);
     let taxableExpense = new Decimal(0);
     let tdsPayable = new Decimal(0);
@@ -154,25 +273,36 @@ class LedgerService {
       const accountType = (account?.type || '').toLowerCase();
       const debit = new Decimal(line.debit || 0);
       const credit = new Decimal(line.credit || 0);
+      const lineAmount = debit.plus(credit);
 
       if (accountName.includes('output cgst')) {
         hasGST = true;
-        outputCGST = outputCGST.plus(credit);
+        outputCGST = outputCGST.plus(lineAmount);
       }
 
       if (accountName.includes('output sgst')) {
         hasGST = true;
-        outputSGST = outputSGST.plus(credit);
+        outputSGST = outputSGST.plus(lineAmount);
+      }
+
+      if (accountName.includes('output igst')) {
+        hasGST = true;
+        outputIGST = outputIGST.plus(lineAmount);
       }
 
       if (accountName.includes('input cgst')) {
         hasGST = true;
-        inputCGST = inputCGST.plus(debit);
+        inputCGST = inputCGST.plus(lineAmount);
       }
 
       if (accountName.includes('input sgst')) {
         hasGST = true;
-        inputSGST = inputSGST.plus(debit);
+        inputSGST = inputSGST.plus(lineAmount);
+      }
+
+      if (accountName.includes('input igst')) {
+        hasGST = true;
+        inputIGST = inputIGST.plus(lineAmount);
       }
 
       if (accountType === 'income') {
@@ -193,12 +323,25 @@ class LedgerService {
       }
     });
 
-    if (hasGST && (!outputCGST.isZero() || !outputSGST.isZero())) {
-      this.validateGST(taxableRevenue, outputCGST, outputSGST);
-    }
-
-    if (hasGST && (!inputCGST.isZero() || !inputSGST.isZero())) {
-      this.validateGST(taxableExpense, inputCGST, inputSGST);
+    if (hasGST) {
+      if (entry.gstDetails?.length) {
+        this.validateGSTDetails(entry, {
+          outputCGST,
+          outputSGST,
+          outputIGST,
+          inputCGST,
+          inputSGST,
+          inputIGST,
+        });
+      } else {
+        throw buildGSTValidationError('GST details are missing for GST accounts', {
+          entryId: String(entry._id),
+        });
+      }
+    } else if (entry.gstDetails?.length) {
+      throw buildGSTValidationError('GST accounts are missing for GST details', {
+        entryId: String(entry._id),
+      });
     }
 
     if (hasTDS) {
@@ -230,6 +373,13 @@ class LedgerService {
         normalBalance: 'debit',
       },
       {
+        code: '2303',
+        name: 'Input IGST',
+        type: 'Asset',
+        subtype: 'Current Asset',
+        normalBalance: 'debit',
+      },
+      {
         code: '2311',
         name: 'Output CGST',
         type: 'Liability',
@@ -242,6 +392,20 @@ class LedgerService {
         type: 'Liability',
         subtype: 'Current Liability',
         normalBalance: 'credit',
+      },
+      {
+        code: '2313',
+        name: 'Output IGST',
+        type: 'Liability',
+        subtype: 'Current Liability',
+        normalBalance: 'credit',
+      },
+      {
+        code: '4010',
+        name: 'Sales Returns',
+        type: 'Income',
+        subtype: 'Contra Revenue',
+        normalBalance: 'debit',
       },
       {
         code: '2400',
@@ -297,28 +461,33 @@ class LedgerService {
         throw new Error('Audit trace metadata is required');
       }
 
-      if (!entry.auditTrace || !Array.isArray(entry.auditTrace.steps)) {
-        throw new Error('Audit trace steps are required');
+      if (!entry.auditTrace || !entry.auditTrace.action || !entry.auditTrace.trace_id) {
+        throw new Error('Audit trace record is required');
       }
+
+      const beforeState = this.buildAuditSnapshot(entry);
 
       entry.status = JOURNAL_STATUS.VALIDATED;
-      entry.auditTrace.trace_id = entry.trace_id;
-      entry.auditTrace.source = entry.source;
-      entry.auditTrace.timestamp = new Date();
-      if (!entry.auditTrace.steps.includes('validated')) {
-        entry.auditTrace.steps.push('validated');
-      }
 
-      if (!entry.auditTrail) entry.auditTrail = [];
-      entry.auditTrail.push({
-        action: 'VALIDATED',
-        performedBy: userId,
-        timestamp: new Date(),
-        details: {
+      const afterState = {
+        ...this.buildAuditSnapshot(entry),
+        validation: {
           ...journalValidation,
           ...complianceValidation,
         },
+      };
+
+      const auditRecord = this.buildAuditTraceEntry({
+        action: 'VALIDATED',
+        entry,
+        beforeState,
+        afterState,
+        userId,
       });
+
+      entry.auditTrace = auditRecord;
+      if (!entry.auditTrail) entry.auditTrail = [];
+      entry.auditTrail.push(auditRecord);
 
       await entry.save({ session });
       return entry;
@@ -348,10 +517,14 @@ class LedgerService {
         description,
         lines,
         reference,
+        reference_entry_id,
         tags,
         source,
         trace_id,
-        auditTrace,
+        gstDetails,
+        auditAction,
+        auditBeforeState,
+        auditAfterState,
       } = entryData;
 
       if (!lines || !Array.isArray(lines) || lines.length < 2) {
@@ -383,25 +556,30 @@ class LedgerService {
         description,
         lines,
         reference,
+        reference_entry_id,
         tags,
         status: JOURNAL_STATUS.DRAFT,
         source: source || 'MANUAL',
         trace_id,
         created_at: new Date(),
-        auditTrace: {
-          trace_id: trace_id || undefined,
-          source: source || 'MANUAL',
-          steps: Array.isArray(auditTrace?.steps)
-            ? auditTrace.steps
-            : ['entry created', 'draft saved'],
-          timestamp: new Date(),
-        },
+        gstDetails: Array.isArray(gstDetails) && gstDetails.length ? gstDetails : undefined,
         prevHash,
         hash,
         chainPosition,
         prev_hash: prevHash, // Legacy field
         immutable_hash: hash, // Legacy field
       });
+
+      const auditRecord = this.buildAuditTraceEntry({
+        action: auditAction || 'ENTRY_CREATED',
+        entry: journalEntry,
+        beforeState: auditBeforeState ?? null,
+        afterState: auditAfterState || this.buildAuditSnapshot(journalEntry),
+        userId,
+      });
+
+      journalEntry.auditTrace = auditRecord;
+      journalEntry.auditTrail = [auditRecord];
 
       await journalEntry.save(session ? { session } : {});
       
@@ -414,6 +592,224 @@ class LedgerService {
 
       return journalEntry;
     });
+  }
+
+  async createCreditNote(noteData, userId) {
+    const {
+      amount,
+      gst_rate,
+      supplier_state,
+      company_state,
+      reference,
+      description,
+      customerName,
+      reference_entry_id,
+      date,
+    } = noteData;
+
+    if (amount === undefined || amount === null) {
+      throw buildGSTValidationError('Credit note amount is required', {
+        field: 'amount',
+      });
+    }
+
+    const gstDetail = calculateGSTBreakdown({
+      transaction_type: 'sale',
+      amount,
+      gst_rate,
+      supplier_state,
+      company_state,
+    });
+
+    const taxableAmount = new Decimal(gstDetail.taxable_value || 0);
+    const totalTax = new Decimal(gstDetail.cgst || 0)
+      .plus(gstDetail.sgst || 0)
+      .plus(gstDetail.igst || 0);
+    const totalAmount = taxableAmount.plus(totalTax);
+
+    const arAccount = await ChartOfAccounts.findOne({ code: '1100' });
+    const salesReturnAccount = await ChartOfAccounts.findOne({ code: '4010' });
+    const outputCGST = await ChartOfAccounts.findOne({ code: '2311' });
+    const outputSGST = await ChartOfAccounts.findOne({ code: '2312' });
+    const outputIGST = await ChartOfAccounts.findOne({ code: '2313' });
+
+    if (!arAccount || !salesReturnAccount || !outputCGST || !outputSGST || !outputIGST) {
+      throw new Error('Required accounts not found');
+    }
+
+    const lines = [
+      {
+        account: salesReturnAccount._id,
+        debit: taxableAmount.toString(),
+        credit: '0',
+        description: 'Sales Returns',
+      },
+    ];
+
+    if (new Decimal(gstDetail.cgst || 0).greaterThan(0)) {
+      lines.push({
+        account: outputCGST._id,
+        debit: gstDetail.cgst,
+        credit: '0',
+        description: 'Output CGST reversal',
+      });
+    }
+
+    if (new Decimal(gstDetail.sgst || 0).greaterThan(0)) {
+      lines.push({
+        account: outputSGST._id,
+        debit: gstDetail.sgst,
+        credit: '0',
+        description: 'Output SGST reversal',
+      });
+    }
+
+    if (new Decimal(gstDetail.igst || 0).greaterThan(0)) {
+      lines.push({
+        account: outputIGST._id,
+        debit: gstDetail.igst,
+        credit: '0',
+        description: 'Output IGST reversal',
+      });
+    }
+
+    lines.push({
+      account: arAccount._id,
+      debit: '0',
+      credit: totalAmount.toString(),
+      description: 'Accounts Receivable reversal',
+    });
+
+    const journalEntry = await this.createJournalEntry(
+      {
+        date: date || new Date(),
+        description: description || `Credit note for ${customerName || reference || 'sales return'}`,
+        lines,
+        reference,
+        reference_entry_id,
+        tags: ['credit-note', reference].filter(Boolean),
+        source: 'MANUAL',
+        trace_id: noteData.trace_id,
+        gstDetails: [{
+          ...gstDetail,
+          amount: taxableAmount.toString(),
+        }],
+        auditAction: 'CREDIT_NOTE_CREATED',
+      },
+      userId
+    );
+
+    await this.validateJournalEntry(journalEntry._id, userId);
+    await this.postJournalEntry(journalEntry._id, userId);
+
+    return journalEntry;
+  }
+
+  async createDebitNote(noteData, userId) {
+    const {
+      amount,
+      expenseAccountId,
+      expenseAccountCode,
+      reference,
+      description,
+      reference_entry_id,
+      date,
+    } = noteData;
+
+    if (amount === undefined || amount === null) {
+      throw new Error('Debit note amount is required');
+    }
+
+    let expenseAccount = null;
+    if (expenseAccountId) {
+      expenseAccount = await ChartOfAccounts.findById(expenseAccountId);
+    } else if (expenseAccountCode) {
+      expenseAccount = await ChartOfAccounts.findOne({ code: expenseAccountCode });
+    }
+
+    const payableAccount = await ChartOfAccounts.findOne({ code: '2000' });
+
+    if (!expenseAccount || !payableAccount) {
+      throw new Error('Required accounts not found');
+    }
+
+    const amountDecimal = new Decimal(amount);
+    const journalEntry = await this.createJournalEntry(
+      {
+        date: date || new Date(),
+        description: description || `Debit note for ${reference || 'payable adjustment'}`,
+        lines: [
+          {
+            account: expenseAccount._id,
+            debit: amountDecimal.toString(),
+            credit: '0',
+            description: 'Debit note expense',
+          },
+          {
+            account: payableAccount._id,
+            debit: '0',
+            credit: amountDecimal.toString(),
+            description: 'Accounts Payable',
+          },
+        ],
+        reference,
+        reference_entry_id,
+        tags: ['debit-note', reference].filter(Boolean),
+        source: 'MANUAL',
+        trace_id: noteData.trace_id,
+        auditAction: 'DEBIT_NOTE_CREATED',
+      },
+      userId
+    );
+
+    await this.validateJournalEntry(journalEntry._id, userId);
+    await this.postJournalEntry(journalEntry._id, userId);
+
+    return journalEntry;
+  }
+
+  async createReversalEntry(entryId, userId, reason = null) {
+    const entry = await JournalEntry.findById(entryId);
+
+    if (!entry) {
+      throw new Error('Entry not found');
+    }
+
+    if (VOIDED_STATUSES.includes(entry.status)) {
+      throw new Error('Cannot reverse a voided entry');
+    }
+
+    const reversingLines = entry.lines.map((line) => ({
+      account: line.account,
+      debit: line.credit,
+      credit: line.debit,
+      description: `REVERSAL: ${line.description || ''}`,
+    }));
+
+    const journalEntry = await this.createJournalEntry(
+      {
+        date: new Date(),
+        description: reason
+          ? `Reversal of ${entry.entryNumber} - ${reason}`
+          : `Reversal of ${entry.entryNumber}`,
+        lines: reversingLines,
+        reference: `REV-${entry.entryNumber}`,
+        reference_entry_id: entry._id,
+        tags: ['reversal', entry.entryNumber],
+        source: 'SYSTEM',
+        trace_id: entry.trace_id,
+        gstDetails: Array.isArray(entry.gstDetails) && entry.gstDetails.length
+          ? entry.gstDetails
+          : undefined,
+        auditAction: 'REVERSAL_CREATED',
+      },
+      userId
+    );
+
+    await this.validateJournalEntry(journalEntry._id, userId);
+    await this.postJournalEntry(journalEntry._id, userId);
+
+    return journalEntry;
   }
 
   /**
@@ -446,23 +842,33 @@ class LedgerService {
 
       const ledgerEntries = await this.writeLedgerEntries(entry, session);
 
+      const beforeState = this.buildAuditSnapshot(entry);
+
       // Update entry status
       entry.status = JOURNAL_STATUS.POSTED;
       entry.postedBy = userId;
       entry.postedAt = new Date();
 
-      // Add audit trail
-      if (!entry.auditTrail) entry.auditTrail = [];
-      entry.auditTrail.push({
-        action: 'POSTED',
-        performedBy: userId,
-        timestamp: new Date(),
-        details: { 
-          prevHash: entry.prevHash || entry.prev_hash, 
+      const afterState = {
+        ...this.buildAuditSnapshot(entry),
+        posting: {
+          prevHash: entry.prevHash || entry.prev_hash,
           hash: entry.hash || entry.immutable_hash,
           ledgerEntriesCreated: ledgerEntries.length,
         },
+      };
+
+      const auditRecord = this.buildAuditTraceEntry({
+        action: 'POSTED',
+        entry,
+        beforeState,
+        afterState,
+        userId,
       });
+
+      entry.auditTrace = auditRecord;
+      if (!entry.auditTrail) entry.auditTrail = [];
+      entry.auditTrail.push(auditRecord);
       
       // Hash will be recalculated in pre-save hook
       await entry.save({ session });
@@ -999,19 +1405,30 @@ class LedgerService {
         throw new Error('Only posted entries can be voided');
       }
 
+      const beforeState = this.buildAuditSnapshot(entry);
+
       // Create void audit trail but keep chain intact
       entry.status = JOURNAL_STATUS.VOIDED;
       entry.voidedBy = userId;
       entry.voidReason = reason;
 
-      // Add audit trail
-      if (!entry.auditTrail) entry.auditTrail = [];
-      entry.auditTrail.push({
+      const afterState = {
+        ...this.buildAuditSnapshot(entry),
+        voidReason: reason,
+        originalHash: entry.hash || entry.immutable_hash,
+      };
+
+      const auditRecord = this.buildAuditTraceEntry({
         action: 'VOIDED',
-        performedBy: userId,
-        timestamp: new Date(),
-        details: { reason, originalHash: entry.hash || entry.immutable_hash },
+        entry,
+        beforeState,
+        afterState,
+        userId,
       });
+
+      entry.auditTrace = auditRecord;
+      if (!entry.auditTrail) entry.auditTrail = [];
+      entry.auditTrail.push(auditRecord);
 
       await entry.save({ session });
 
@@ -1028,14 +1445,29 @@ class LedgerService {
         description: `VOID: ${entry.description} (Reason: ${reason})`,
         lines: reversingLines,
         reference: `VOID-${entry.entryNumber}`,
+        reference_entry_id: entry._id,
         status: JOURNAL_STATUS.VALIDATED,
         source: 'SYSTEM',
         trace_id: entry.trace_id,
         postedBy: userId,
         postedAt: new Date(),
+        gstDetails: Array.isArray(entry.gstDetails) && entry.gstDetails.length
+          ? entry.gstDetails
+          : undefined,
         prev_hash: await this.getPreviousHash(),
         immutable_hash: '', // Will be calculated in pre-save hook
       });
+
+      const reversalAudit = this.buildAuditTraceEntry({
+        action: 'REVERSAL_CREATED',
+        entry: reversingEntry,
+        beforeState: null,
+        afterState: this.buildAuditSnapshot(reversingEntry),
+        userId,
+      });
+
+      reversingEntry.auditTrace = reversalAudit;
+      reversingEntry.auditTrail = [reversalAudit];
 
       await reversingEntry.save({ session });
 

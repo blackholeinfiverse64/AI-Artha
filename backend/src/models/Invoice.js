@@ -35,6 +35,9 @@ const invoiceSchema = new mongoose.Schema({
     zipCode: String,
     country: String,
   },
+  customerState: {
+    type: String,
+  },
   customerGSTIN: {
     type: String,
     match: /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/,
@@ -71,7 +74,6 @@ const invoiceSchema = new mongoose.Schema({
     },
     taxRate: {
       type: Number,
-      default: 18, // Default GST rate
       min: 0,
       max: 100,
     },
@@ -183,6 +185,9 @@ const invoiceSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+invoiceSchema.set('toJSON', { virtuals: true });
+invoiceSchema.set('toObject', { virtuals: true });
+
 // Additional indexes for performance
 invoiceSchema.index({ status: 1 });
 invoiceSchema.index({ invoiceDate: -1 });
@@ -203,6 +208,18 @@ invoiceSchema.virtual('amountDue').get(function() {
   } catch {
     return '0.00';
   }
+});
+
+invoiceSchema.virtual('invoice_amount').get(function() {
+  return this.totalAmount || '0.00';
+});
+
+invoiceSchema.virtual('paid_amount').get(function() {
+  return this.amountPaid || '0.00';
+});
+
+invoiceSchema.virtual('outstanding_amount').get(function() {
+  return this.amountDue;
 });
 
 // Sync items and lines fields for backward compatibility

@@ -1,8 +1,10 @@
 import Invoice from '../models/Invoice.js';
 import Expense from '../models/Expense.js';
+import CompanySettings from '../models/CompanySettings.js';
 import Decimal from 'decimal.js';
 import logger from '../config/logger.js';
 import fs from 'fs';
+import { calculateGSTBreakdown } from './gstEngine.service.js';
 
 class GSTFilingService {
   /**
@@ -13,6 +15,12 @@ class GSTFilingService {
       const [year, month] = period.split('-');
       const startDate = new Date(`${year}-${month}-01`);
       const endDate = new Date(year, parseInt(month), 0);
+
+      const settings = await CompanySettings.findById('company_settings').lean();
+      const companyState = settings?.address?.state || settings?.gstin?.substring(0, 2);
+
+      const settings = await CompanySettings.findById('company_settings').lean();
+      const companyState = settings?.address?.state || settings?.gstin?.substring(0, 2);
 
       logger.info(`Generating GSTR-1 packet for ${period}`);
 
@@ -34,42 +42,46 @@ class GSTFilingService {
       let totalIGST = new Decimal(0);
 
       for (const invoice of invoices) {
+        const breakdown = invoice.gstBreakdown || {};
+        const cgst = new Decimal(breakdown.cgst || 0);
+        const sgst = new Decimal(breakdown.sgst || 0);
+        const igst = new Decimal(breakdown.igst || 0);
+        const taxAmount = cgst.plus(sgst).plus(igst);
         const invoiceTotal = new Decimal(invoice.totalAmount || 0);
-        const taxAmount = new Decimal(invoice.taxAmount || 0);
-        const supplyType = this.determineSupplyType(invoice);
+        const taxableAmount = invoice.subtotal
+          ? new Decimal(invoice.subtotal)
+          : invoiceTotal.minus(taxAmount);
+
+        const supplyType = this.determineSupplyType(invoice, companyState, {
+          cgst,
+          sgst,
+          igst,
+        });
 
         const lineItem = {
           invoiceNumber: invoice.invoiceNumber,
           invoiceDate: invoice.invoiceDate.toISOString().split('T')[0],
           customerName: invoice.customerName,
           customerGSTIN: invoice.customerGSTIN || 'NOT-PROVIDED',
-          description: invoice.lines
+          description: (invoice.lines || [])
             .map((line) => line.description)
             .join(', ')
             .substring(0, 100),
-          taxableAmount: invoiceTotal.minus(taxAmount).toString(),
+          taxableAmount: taxableAmount.toString(),
           taxAmount: taxAmount.toString(),
-          gstRate: invoice.taxRate || 18,
+          gstRate: invoice.taxRate ?? invoice.lines?.[0]?.taxRate ?? 0,
           totalAmount: invoiceTotal.toString(),
+          cgst: cgst.toString(),
+          sgst: sgst.toString(),
+          igst: igst.toString(),
         };
 
-        if (supplyType === 'b2b_intrastate') {
-          const cgst = taxAmount.dividedBy(2);
-          const sgst = taxAmount.minus(cgst);
-          lineItem.cgst = cgst.toString();
-          lineItem.sgst = sgst.toString();
-          lineItem.igst = '0';
-          totalCGST = totalCGST.plus(cgst);
-          totalSGST = totalSGST.plus(sgst);
-        } else {
-          lineItem.cgst = '0';
-          lineItem.sgst = '0';
-          lineItem.igst = taxAmount.toString();
-          totalIGST = totalIGST.plus(taxAmount);
-        }
+        totalCGST = totalCGST.plus(cgst);
+        totalSGST = totalSGST.plus(sgst);
+        totalIGST = totalIGST.plus(igst);
 
         supplies[supplyType].push(lineItem);
-        totalTaxable = totalTaxable.plus(invoiceTotal.minus(taxAmount));
+        totalTaxable = totalTaxable.plus(taxableAmount);
       }
 
       const packet = {
@@ -129,34 +141,58 @@ class GSTFilingService {
       let inwardTaxable = new Decimal(0);
       let inwardCGST = new Decimal(0);
       let inwardSGST = new Decimal(0);
+      let inwardIGST = new Decimal(0);
 
       for (const invoice of invoices) {
-        const taxAmount = new Decimal(invoice.taxAmount || 0);
-        const taxableAmount = new Decimal(invoice.totalAmount || 0).minus(taxAmount);
+        const breakdown = invoice.gstBreakdown || {};
+        const cgst = new Decimal(breakdown.cgst || 0);
+        const sgst = new Decimal(breakdown.sgst || 0);
+        const igst = new Decimal(breakdown.igst || 0);
+        const taxAmount = cgst.plus(sgst).plus(igst);
+        const taxableAmount = invoice.subtotal
+          ? new Decimal(invoice.subtotal)
+          : new Decimal(invoice.totalAmount || 0).minus(taxAmount);
         outwardTaxable = outwardTaxable.plus(taxableAmount);
 
-        if (this.determineSupplyType(invoice) === 'b2b_intrastate') {
-          const cgst = taxAmount.dividedBy(2);
-          outwardCGST = outwardCGST.plus(cgst);
-          outwardSGST = outwardSGST.plus(cgst);
-        } else {
-          outwardIGST = outwardIGST.plus(taxAmount);
-        }
+        outwardCGST = outwardCGST.plus(cgst);
+        outwardSGST = outwardSGST.plus(sgst);
+        outwardIGST = outwardIGST.plus(igst);
       }
 
       for (const expense of expenses) {
-        const taxAmount = new Decimal(expense.taxAmount || 0);
-        const taxableAmount = new Decimal(expense.amount || 0).minus(taxAmount);
-        inwardTaxable = inwardTaxable.plus(taxableAmount);
+        const taxableAmount = new Decimal(expense.amount || 0);
+        const gstRate = expense.gstRate;
+        if (gstRate === undefined || gstRate === null) {
+          continue;
+        }
 
-        const cgst = taxAmount.dividedBy(2);
+        if (!companyState || !expense.supplierState) {
+          continue;
+        }
+
+        const detail = calculateGSTBreakdown({
+          transaction_type: 'purchase',
+          amount: taxableAmount.toString(),
+          gst_rate: gstRate,
+          supplier_state: expense.supplierState,
+          company_state: companyState,
+        });
+
+        const cgst = new Decimal(detail.cgst || 0);
+        const sgst = new Decimal(detail.sgst || 0);
+        const igst = new Decimal(detail.igst || 0);
+        const taxAmount = cgst.plus(sgst).plus(igst);
+        inwardTaxable = inwardTaxable.plus(taxableAmount);
         inwardCGST = inwardCGST.plus(cgst);
-        inwardSGST = inwardSGST.plus(cgst);
+        inwardSGST = inwardSGST.plus(sgst);
+        if (igst.greaterThan(0)) {
+          inwardIGST = inwardIGST.plus(igst);
+        }
       }
 
       const netCGST = outwardCGST.minus(inwardCGST);
       const netSGST = outwardSGST.minus(inwardSGST);
-      const netIGST = outwardIGST;
+      const netIGST = outwardIGST.minus(inwardIGST);
       const totalTaxPayable = netCGST.plus(netSGST).plus(netIGST);
 
       const packet = {
@@ -177,8 +213,8 @@ class GSTFilingService {
           taxableValue: inwardTaxable.toString(),
           cgst: inwardCGST.toString(),
           sgst: inwardSGST.toString(),
-          igst: '0.00',
-          totalInputCredit: inwardCGST.plus(inwardSGST).toString(),
+          igst: inwardIGST.toString(),
+          totalInputCredit: inwardCGST.plus(inwardSGST).plus(inwardIGST).toString(),
         },
         netLiability: {
           cgst: netCGST.toString(),
@@ -346,10 +382,19 @@ class GSTFilingService {
   /**
    * Determine supply type
    */
-  determineSupplyType(invoice) {
+  determineSupplyType(invoice, companyState, gstTotals = {}) {
     if (invoice.isExport) return 'export';
-    if (invoice.isConsumer) return 'b2c';
-    return 'b2b_intrastate';
+    if (!invoice.customerGSTIN) return 'b2c';
+
+    const customerState = invoice.customerGSTIN
+      ? invoice.customerGSTIN.substring(0, 2)
+      : (invoice.customerState || invoice.customerAddress?.state);
+
+    if (companyState && customerState && companyState === customerState) {
+      return 'b2b_intrastate';
+    }
+
+    return 'b2b';
   }
 
   /**
