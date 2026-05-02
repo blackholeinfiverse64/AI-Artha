@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import api, { API_ORIGIN } from '../services/api';
+import api, { AUTH_TOKEN_KEY } from '../services/api';
 
 export const useAuthStore = create((set) => ({
   user: null,
@@ -10,11 +10,18 @@ export const useAuthStore = create((set) => ({
 
   checkAuth: async () => {
     try {
-      const response = await api.get('/auth/session');
-      const authenticated = Boolean(response.data?.authenticated);
+      if (typeof window !== 'undefined' && !localStorage.getItem(AUTH_TOKEN_KEY)) {
+        set({
+          user: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+        return;
+      }
+      const response = await api.get('/auth/me');
       set({
-        user: authenticated ? response.data?.data || null : null,
-        isAuthenticated: authenticated,
+        user: response.data?.data || null,
+        isAuthenticated: true,
         isLoading: false,
       });
     } catch {
@@ -27,9 +34,13 @@ export const useAuthStore = create((set) => ({
   },
 
   logout: () => {
+    try {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
+    } catch {
+      /* ignore */
+    }
     set({ user: null, isAuthenticated: false, isLoading: false });
-    // Redirect to backend /logout which clears cookie then redirects to auth server
-    window.location.href = `${API_ORIGIN}/logout`;
+    window.location.href = '/login';
   },
 
   updateUser: (userData) => {

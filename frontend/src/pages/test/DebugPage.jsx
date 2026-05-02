@@ -10,13 +10,13 @@ const DebugPage = () => {
 
   const testAuth = async () => {
     try {
-      log('Testing Blackhole auth (cookie)...', 'info');
+      log('Testing JWT auth (/auth/me)...', 'info');
       const response = await api.get('/auth/me');
       log(`Authenticated as: ${response.data.data.email}`, 'success');
       log(`Role: ${response.data.data.role}`, 'info');
     } catch (error) {
       log(`Not authenticated: ${error.response?.data?.message || error.message}`, 'error');
-      log('Login via Blackhole Auth first', 'error');
+      log('Sign in from /login first (JWT in localStorage)', 'error');
     }
   };
 

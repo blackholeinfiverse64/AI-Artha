@@ -3,26 +3,9 @@ import toast from 'react-hot-toast';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || 'http://localhost:5000';
-const AUTH_SERVER_URL = (import.meta.env.VITE_AUTH_SERVER_URL || 'https://bhiv-auth.onrender.com').replace(/\/$/, '');
 
-/**
- * Origin for postMessage from auth popup — must match auth window origin exactly.
- * Override only if you use a non-production auth host.
- */
-export const BHIV_AUTH_MESSAGE_ORIGIN =
-  import.meta.env.VITE_AUTH_MESSAGE_ORIGIN || 'https://bhiv-auth.onrender.com';
-
-/** Must equal {APP_URL}/auth/callback on the API (same host as API_ORIGIN in typical deploy). */
-const AUTH_CALLBACK_URL =
-  import.meta.env.VITE_AUTH_CALLBACK_URL || `${API_ORIGIN}/auth/callback`;
-
-/** Public SPA origin (no trailing slash). Used for signup_url and popup URLs. */
-export function getSpaPublicUrl() {
-  const v = import.meta.env.VITE_APP_URL;
-  if (v && typeof v === 'string') return v.replace(/\/$/, '');
-  if (typeof window !== 'undefined') return window.location.origin;
-  return 'http://localhost:5173';
-}
+/** localStorage key for JWT (Authorization: Bearer). */
+export const AUTH_TOKEN_KEY = 'artha_auth_token';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -30,15 +13,20 @@ const api = axios.create({
   withCredentials: true,
 });
 
+api.interceptors.request.use((config) => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     const reqUrl = error.config?.url || '';
     const silent401Me = error.response?.status === 401 && reqUrl.includes('/auth/me');
-    const silent429AuthFlow =
-      error.response?.status === 429 &&
-      (reqUrl.includes('/auth/magic-link') || reqUrl.includes('/auth/validate-login-email'));
-    if (!silent401Me && !silent429AuthFlow) {
+    if (!silent401Me) {
       console.error('API Error:', {
         status: error.response?.status,
         data: error.response?.data,
@@ -54,13 +42,16 @@ api.interceptors.response.use(
       if (url.includes('/auth/login')) {
         toast.error(message);
       } else if (!url.includes('/auth/me')) {
-        toast.error('Session expired. Please login again.');
+        toast.error('Session expired. Please sign in again.');
+        try {
+          localStorage.removeItem(AUTH_TOKEN_KEY);
+        } catch {
+          /* ignore */
+        }
         window.location.href = '/login';
       }
     } else if (error.response?.status === 403) {
-      if (error.config?.url?.includes('validate-login-email')) {
-        toast.error(message);
-      } else if (error.response?.data?.code === 'app_not_allowed') {
+      if (error.response?.data?.code === 'app_not_allowed') {
         toast.error('Your account is not enabled for this app.');
       } else {
         toast.error('You do not have permission to perform this action');
@@ -74,7 +65,7 @@ api.interceptors.response.use(
     } else if (error.response?.status === 400) {
       const errors = error.response?.data?.errors;
       if (errors && Array.isArray(errors)) {
-        errors.forEach(err => toast.error(err.msg || err.message));
+        errors.forEach((err) => toast.error(err.msg || err.message));
       } else {
         toast.error(message);
       }
@@ -90,5 +81,5 @@ api.interceptors.response.use(
   }
 );
 
-export { AUTH_SERVER_URL, API_ORIGIN, AUTH_CALLBACK_URL };
+export { API_ORIGIN };
 export default api;

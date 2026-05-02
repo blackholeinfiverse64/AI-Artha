@@ -1,16 +1,15 @@
-import { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { UserPlus, Mail, Lock, User, Phone, ArrowLeft } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
-import api, { AUTH_SERVER_URL } from '../../services/api';
+import api, { AUTH_TOKEN_KEY } from '../../services/api';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 
 const Signup = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { checkAuth } = useAuthStore();
-  const isPopup = searchParams.get('popup') === '1';
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -19,22 +18,8 @@ const Signup = () => {
   const [submitting, setSubmitting] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
 
-  useEffect(() => {
-    document.title = 'Create account — Artha';
-  }, []);
-
-  const notifyParentSuccess = () => {
-    if (!window.opener) return;
-    try {
-      window.opener.postMessage({ type: 'artha-signup-success' }, window.location.origin);
-    } catch {
-      /* ignore */
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setFieldErrors({});
     const next = {};
     if (!name.trim()) next.name = 'Name is required';
     if (!email.trim()) next.email = 'Email is required';
@@ -52,28 +37,17 @@ const Signup = () => {
         phone: phone.trim() || undefined,
         password,
       });
-      if (data?.loggedIn) {
-        await checkAuth();
-        if (isPopup && window.opener) {
-          try {
-            window.opener.postMessage({ type: 'artha-session-ready' }, window.location.origin);
-          } catch {
-            /* ignore */
-          }
-          window.close();
-          return;
-        }
-        navigate('/dashboard', { replace: true });
+      const token = data?.data?.token;
+      if (!token) {
+        toast.error('Account created, but no token received. Please login.');
+        navigate('/login', { replace: true });
         return;
       }
-      if (isPopup && window.opener) {
-        notifyParentSuccess();
-        window.close();
-        return;
-      }
-      navigate('/login?registered=1', { replace: true });
+      localStorage.setItem(AUTH_TOKEN_KEY, token);
+      await checkAuth();
+      navigate('/dashboard', { replace: true });
     } catch {
-      /* toasts from api interceptor */
+      /* interceptor handles message */
     } finally {
       setSubmitting(false);
     }
@@ -83,26 +57,25 @@ const Signup = () => {
     <div className="animate-fadeIn">
       <div className="text-center mb-8">
         <h1 className="text-2xl font-bold text-foreground">Create your Artha account</h1>
-        <p className="text-muted-foreground mt-2">
-          We register you with Blackhole Auth, then save your profile here. Sign in afterward from the login page.
-        </p>
+        <p className="text-muted-foreground mt-2">Sign up with email and password.</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {!isPopup && (
-          <Link
-            to="/login"
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to login
-          </Link>
-        )}
+        <Link
+          to="/login"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to login
+        </Link>
 
         <Input
           label="Full name"
           value={name}
-          onChange={(e) => { setName(e.target.value); if (fieldErrors.name) setFieldErrors((p) => ({ ...p, name: '' })); }}
+          onChange={(e) => {
+            setName(e.target.value);
+            if (fieldErrors.name) setFieldErrors((p) => ({ ...p, name: '' }));
+          }}
           error={fieldErrors.name}
           icon={User}
           autoComplete="name"
@@ -113,7 +86,10 @@ const Signup = () => {
           label="Email"
           type="email"
           value={email}
-          onChange={(e) => { setEmail(e.target.value); if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: '' })); }}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (fieldErrors.email) setFieldErrors((p) => ({ ...p, email: '' }));
+          }}
           error={fieldErrors.email}
           icon={Mail}
           autoComplete="email"
@@ -132,7 +108,10 @@ const Signup = () => {
           label="Password"
           type="password"
           value={password}
-          onChange={(e) => { setPassword(e.target.value); if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: '' })); }}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            if (fieldErrors.password) setFieldErrors((p) => ({ ...p, password: '' }));
+          }}
           error={fieldErrors.password}
           icon={Lock}
           autoComplete="new-password"
@@ -145,14 +124,6 @@ const Signup = () => {
           </span>
         </Button>
       </form>
-
-      <p className="mt-8 text-center text-[11px] text-muted-foreground">
-        Identity is secured by{' '}
-        <a href={AUTH_SERVER_URL} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-          Blackhole Auth
-        </a>
-        . Your password is sent only to the auth service and this app’s server — not stored in the browser for login.
-      </p>
     </div>
   );
 };

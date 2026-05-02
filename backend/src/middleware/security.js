@@ -47,7 +47,7 @@ function authRateLimitKey(req) {
 // Password login — tighter cap (brute-force protection)
 export const authPasswordLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: parseInt(process.env.AUTH_PASSWORD_RATE_LIMIT_MAX, 10) || 30,
+  max: parseInt(process.env.AUTH_PASSWORD_RATE_LIMIT_MAX, 10) || 50,
   keyGenerator: authRateLimitKey,
   message: 'Too many login attempts from this IP. Try again in a few minutes.',
   standardHeaders: true,
@@ -56,18 +56,6 @@ export const authPasswordLimiter = rateLimit({
   skip: (req) => process.env.NODE_ENV === 'development',
 });
 
-// Magic link + validate-email (two requests per user action; 5/15m was too easy to hit)
-export const authFlowLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: parseInt(process.env.AUTH_MAGIC_RATE_LIMIT_MAX, 10) || 100,
-  keyGenerator: authRateLimitKey,
-  message: 'Too many sign-in email requests from this IP. Try again in a few minutes.',
-  standardHeaders: true,
-  legacyHeaders: false,
-  skip: (req) => process.env.NODE_ENV === 'development',
-});
-
-// Signup should not share the global API limiter bucket in multi-user production traffic.
 export const authSignupLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: parseInt(process.env.AUTH_SIGNUP_RATE_LIMIT_MAX, 10) || 20,
