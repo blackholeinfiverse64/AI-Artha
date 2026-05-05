@@ -19,9 +19,6 @@ class GSTFilingService {
       const settings = await CompanySettings.findById('company_settings').lean();
       const companyState = settings?.address?.state || settings?.gstin?.substring(0, 2);
 
-      const settings = await CompanySettings.findById('company_settings').lean();
-      const companyState = settings?.address?.state || settings?.gstin?.substring(0, 2);
-
       logger.info(`Generating GSTR-1 packet for ${period}`);
 
       const invoices = await Invoice.find({
@@ -120,6 +117,8 @@ class GSTFilingService {
       const [year, month] = period.split('-');
       const startDate = new Date(`${year}-${month}-01`);
       const endDate = new Date(year, parseInt(month), 0);
+      const settings = await CompanySettings.findById('company_settings').lean();
+      const companyState = settings?.address?.state || settings?.gstin?.substring(0, 2);
 
       logger.info(`Generating GSTR-3B packet for ${period}`);
 
@@ -181,7 +180,6 @@ class GSTFilingService {
         const cgst = new Decimal(detail.cgst || 0);
         const sgst = new Decimal(detail.sgst || 0);
         const igst = new Decimal(detail.igst || 0);
-        const taxAmount = cgst.plus(sgst).plus(igst);
         inwardTaxable = inwardTaxable.plus(taxableAmount);
         inwardCGST = inwardCGST.plus(cgst);
         inwardSGST = inwardSGST.plus(sgst);
@@ -266,8 +264,8 @@ class GSTFilingService {
       let b2cCount = 0;
       let b2cTaxable = new Decimal(0);
       let b2cTax = new Decimal(0);
-      let exportCount = 0;
-      let exportTaxable = new Decimal(0);
+      const exportCount = 0;
+      const exportTaxable = new Decimal(0);
 
       invoices.forEach(invoice => {
         const taxAmount = new Decimal(invoice.taxAmount || 0);
@@ -382,7 +380,7 @@ class GSTFilingService {
   /**
    * Determine supply type
    */
-  determineSupplyType(invoice, companyState, gstTotals = {}) {
+  determineSupplyType(invoice, companyState) {
     if (invoice.isExport) return 'export';
     if (!invoice.customerGSTIN) return 'b2c';
 
