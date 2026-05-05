@@ -22,7 +22,7 @@ const Textarea = forwardRef(({
         ref={ref}
         rows={rows}
         className={clsx(
-          'block w-full rounded-lg border px-3 py-2 text-foreground placeholder-gray-500',
+          'block w-full rounded-lg border px-3 py-2 text-foreground placeholder:text-muted-foreground',
           'focus:outline-none focus:ring-2 focus:ring-offset-0 sm:text-sm resize-none',
           error
             ? 'border-red-300 focus:border-red-500 focus:ring-red-500'

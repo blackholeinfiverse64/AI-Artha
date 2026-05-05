@@ -30,7 +30,7 @@ import {
   Loading,
   EmptyState,
 } from '../../components/common';
-import api from '../../services/api';
+import api, { API_BASE_URL } from '../../services/api';
 import toast from 'react-hot-toast';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
@@ -104,7 +104,7 @@ const AgedReceivables = () => {
   const handleExport = async () => {
     try {
       const asOfDate = new Date().toISOString().split('T')[0];
-      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/reports/aged-receivables/export?asOfDate=${asOfDate}`;
+      const url = `${API_BASE_URL}/reports/aged-receivables/export?asOfDate=${asOfDate}`;
       
       const response = await fetch(url, {
         credentials: 'include',

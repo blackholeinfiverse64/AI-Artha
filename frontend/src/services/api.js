@@ -1,8 +1,41 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
-const API_ORIGIN = import.meta.env.VITE_API_ORIGIN || 'http://localhost:5000';
+const trimTrailingSlash = (value) => value.replace(/\/$/, '');
+
+function resolveApiConfig() {
+  const envBase = import.meta.env.VITE_API_URL?.trim();
+  const envOrigin = import.meta.env.VITE_API_ORIGIN?.trim();
+
+  if (envBase) {
+    return {
+      baseUrl: trimTrailingSlash(envBase),
+      origin: envOrigin ? trimTrailingSlash(envOrigin) : trimTrailingSlash(envBase).replace(/\/api\/v1$/, ''),
+    };
+  }
+
+  if (envOrigin) {
+    const origin = trimTrailingSlash(envOrigin);
+    return { baseUrl: `${origin}/api/v1`, origin };
+  }
+
+  if (typeof window !== 'undefined') {
+    const { hostname, origin } = window.location;
+    const isLocal = hostname === 'localhost' || hostname === '127.0.0.1';
+
+    if (isLocal) {
+      return { baseUrl: 'http://localhost:5000/api/v1', origin: 'http://localhost:5000' };
+    }
+
+    // Production default: same-origin API route for custom domains / rewrites.
+    const normalizedOrigin = trimTrailingSlash(origin);
+    return { baseUrl: `${normalizedOrigin}/api/v1`, origin: normalizedOrigin };
+  }
+
+  return { baseUrl: 'http://localhost:5000/api/v1', origin: 'http://localhost:5000' };
+}
+
+const { baseUrl: API_BASE_URL, origin: API_ORIGIN } = resolveApiConfig();
 
 /** localStorage key for JWT (Authorization: Bearer). */
 export const AUTH_TOKEN_KEY = 'artha_auth_token';
@@ -82,4 +115,5 @@ api.interceptors.response.use(
 );
 
 export { API_ORIGIN };
+export { API_BASE_URL };
 export default api;

@@ -27,7 +27,7 @@ import {
   Select,
   Loading,
 } from '../../components/common';
-import api from '../../services/api';
+import api, { API_BASE_URL } from '../../services/api';
 import toast from 'react-hot-toast';
 import { formatCurrency, getFinancialYear } from '../../utils/formatters';
 
@@ -192,7 +192,7 @@ const ProfitLoss = () => {
   const handleExport = async () => {
     try {
       const { startDate, endDate } = getPeriodDates(period, reportContext, statementMonth);
-      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/reports/profit-loss/export?startDate=${startDate}&endDate=${endDate}`;
+      const url = `${API_BASE_URL}/reports/profit-loss/export?startDate=${startDate}&endDate=${endDate}`;
       
       const response = await fetch(url, {
         credentials: 'include',
