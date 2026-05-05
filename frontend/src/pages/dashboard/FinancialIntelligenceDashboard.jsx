@@ -150,22 +150,6 @@ const FinancialIntelligenceDashboard = () => {
       setErrorState('');
 
       try {
-        // Preferred contract from integration requirement.
-        const signalsRes = await api.get('/signals');
-        const payload = signalsRes?.data?.data;
-        const list = Array.isArray(payload) ? payload : payload?.signals;
-        if (Array.isArray(list) && list.length) {
-          const normalized = list.map(sanitizeSignal);
-          setSignals(normalized);
-          setSelectedSignal(normalized[0]);
-          setSource('api/signals');
-          return;
-        }
-      } catch {
-        // fall through to snapshot mapping
-      }
-
-      try {
         const snapshotRes = await api.get('/signals/snapshot');
         const mapped = mapSnapshotToSignals(snapshotRes?.data?.data).map(sanitizeSignal);
         if (mapped.length) {
@@ -182,7 +166,7 @@ const FinancialIntelligenceDashboard = () => {
       setSignals(fallback);
       setSelectedSignal(fallback[0]);
       setSource('structured-mock');
-      setErrorState('Live signal API unavailable. Showing mapped structured fallback.');
+      setErrorState('Live signal snapshot unavailable. Showing structured fallback.');
       setLoading(false);
     };
 

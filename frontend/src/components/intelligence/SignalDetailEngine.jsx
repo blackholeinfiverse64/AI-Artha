@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { Send, Lightbulb, ShieldAlert } from 'lucide-react';
-import api from '../../services/api';
 import { Card, Badge, Button } from '../common';
 
 const severityBadge = {
@@ -18,12 +17,8 @@ const SignalDetailEngine = ({ selectedSignal }) => {
 
     setSending(true);
     try {
-      // Placeholder dispatch endpoint. Backend can implement later.
-      await api.post(`/signals/${selectedSignal.id}/setu-dispatch`, {
-        signal_id: selectedSignal.id,
-      });
-      toast.success('Signal queued for SETU.');
-    } catch {
+      // Simulation-only action by default to avoid failing placeholder endpoint calls.
+      await Promise.resolve();
       toast.success('Signal queued for SETU (simulation mode).');
     } finally {
       setSending(false);
