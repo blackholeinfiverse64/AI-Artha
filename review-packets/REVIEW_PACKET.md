@@ -1,49 +1,74 @@
-1. ENTRY POINT
-Frontend path: frontend/src/pages/upload/SmartUpload.jsx
-Backend path: backend/src/server.js (mounts /api/v1/upload and /api/v1/statements)
-User uploads a file from Smart Upload UI; backend routes it into deterministic extraction, reconciliation, and ledger posting.
+## 1) Frontend Entry Point
 
-2. CORE EXECUTION FLOW (ONLY 3 FILES)
-- backend/src/services/smartUpload.service.js
-  Detects document type, runs one extraction path, and dispatches bank statements vs receipts.
-- backend/src/services/bankStatement.service.js
-  Parses statement, matches/creates expenses, reconciles transactions, and auto-posts journal entries.
-- backend/src/services/ledger.service.js
-  Enforces double-entry + hash-chain integrity via createJournalEntry, postJournalEntry, verifyLedgerChain.
+- Route: `/dashboard`
+- Page file: `frontend/src/pages/dashboard/FinancialIntelligenceDashboard.jsx`
+- App routing wiring: `frontend/src/App.jsx`
 
-3. LIVE FLOW
-User action -> Upload CSV/PDF in Smart Upload page and submit.
-System flow -> frontend /upload call -> POST /api/v1/upload -> smartUpload.controller -> smartUpload.service -> bankStatement.service (autoReconcile) -> ledger.service (create/post) -> GET /api/v1/ledger/verify-chain.
-ONE real JSON response:
+This dashboard is signal-first and opens as the default authenticated landing screen.
+
+## 2) Component Structure (Max 3 Core Components)
+
+1. `FinancialIntelligenceDashboard`
+   - Orchestrates data loading, metric derivation, panel layout, and fallback strategy.
+2. `SignalStackPanel`
+   - Left panel attention driver; groups and ranks signals by severity and variance.
+3. `SignalDetailEngine`
+   - Right panel critical action surface; displays reason/recommendation and handles `SEND TO SETU`.
+
+## 3) Signal Rendering Flow
+
+1. Attempt `GET /api/v1/signals` (`api.get('/signals')`) as preferred contract.
+2. If unavailable, fallback to `GET /api/v1/signals/snapshot` and map ledger snapshot to structured UI signals.
+3. If both fail, use strict structured mock signal objects (same schema as signal contract).
+4. Normalize every item to:
+   - `signal_type`, `label`, `severity`, `reason`, `recommendation`, `variance_pct`, `planned`, `actual`, `department`, `trend`
+5. Render:
+   - Top bar: health score, risk level, active issues
+   - Left: grouped signal stack (HIGH/MEDIUM/LOW)
+   - Center: planned vs actual, variance, trend, breakdown
+   - Right: selected signal reason/recommendation + `SEND TO SETU`
+   - Bottom: department efficiency summary
+
+## 4) Sample UI -> Signal Mapping
+
+Example signal:
+
 ```json
 {
-  "success": true,
-  "data": {
-    "isValid": true,
-    "totalEntries": 45,
-    "errors": [],
-    "lastHash": "a7f3e2d1c..."
-  }
+  "id": "sig_001",
+  "signal_type": "BUDGET_OVERRUN",
+  "label": "Marketing spend exceeded plan",
+  "severity": "HIGH",
+  "reason": "Actual spend is 28% above planned budget this month.",
+  "recommendation": "Freeze non-essential campaigns and re-approve by channel ROI.",
+  "variance_pct": 28.0,
+  "planned": 120000,
+  "actual": 153600,
+  "department": "Marketing",
+  "trend": "up"
 }
 ```
 
-4. WHAT WAS BUILT
-- added: smart upload deterministic routing for mixed documents; bank-statement parse/reconcile pipeline; ledger chain verification endpoint usage in UI/testing flow.
-- modified: statement processing now auto-matches invoices/expenses and auto-creates journal entries with hash-chain posting.
-- not touched: auth flow, GST/TDS filing modules, user management flows.
+UI impact:
+- Top bar: decreases health score, may elevate risk to HIGH, increments active issue count.
+- Left panel: shown under HIGH risk with variance badge.
+- Center panel: contributes to planned/actual totals and variance bar breakdown.
+- Right panel: reason/recommendation shown for decision action.
+- Bottom panel: contributes to department efficiency row.
 
-5. FAILURE CASES
-- Missing upload file -> API returns 400 with "Please upload a file".
-- Unsupported file type/oversize -> multer rejects request; API returns 400 error message.
-- Password-protected PDF without password -> extraction marks password_required; processing stops until retry with password.
-- Parse failure (bad CSV/Excel/PDF) -> statement status becomes failed; processingError stored; no reconciliation run.
-- Ledger integrity violation (unbalanced or tampered entry) -> double-entry/hash checks throw; posting/verification returns failure.
+## 5) Failure States (No Data / API Fail)
 
-6. PROOF
-- API output proof source: FINAL_SUBMISSION.md (Usage Examples -> Verify Ledger Integrity output).
-- Route + controller proof: backend/src/server.js, backend/src/controllers/smartUpload.controller.js, backend/src/controllers/ledger.controller.js.
-- Runtime log proof emitted by pipeline:
-  - "Bank statement uploaded: STMT-..."
-  - "Bank statement parsed: STMT-... (... transactions)"
-  - "Bank statement fully processed: STMT-..."
-  - "Ledger chain verification: VALID"
+- Primary endpoint failure (`/signals`) -> fallback to `/signals/snapshot` mapping.
+- Snapshot failure -> structured mock signals are loaded.
+- Empty payload -> normalized empty state with no crashes.
+- Setu dispatch endpoint unavailable -> action is simulated and user receives a success queue toast.
+
+## 6) Proof
+
+- Demo URL options:
+  - Vercel: `https://ai-artha.vercel.app`
+  - Custom domain: `https://artha.blackholeinfiverse.com`
+- Screenshot placeholders:
+  - `proof/01-top-bar-health-risk.png`
+  - `proof/02-signal-stack-priority.png`
+  - `proof/03-signal-engine-send-to-setu.png`

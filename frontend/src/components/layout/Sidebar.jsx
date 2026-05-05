@@ -26,7 +26,7 @@ import { useTheme } from '../../hooks/useTheme.jsx';
 
 const menuItems = [
   {
-    title: 'Dashboard',
+    title: 'Financial Intelligence',
     icon: LayoutDashboard,
     path: '/dashboard',
   },

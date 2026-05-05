@@ -11,7 +11,7 @@ import Login from './pages/auth/Login';
 import Signup from './pages/auth/Signup';
 
 // Dashboard
-import Dashboard from './pages/dashboard/Dashboard';
+import FinancialIntelligenceDashboard from './pages/dashboard/FinancialIntelligenceDashboard';
 
 // Invoices
 import InvoiceList from './pages/invoices/InvoiceList';
@@ -143,7 +143,7 @@ function App() {
 
       {/* Protected Routes */}
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard" element={<FinancialIntelligenceDashboard />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
         <Route path="/invoices" element={<InvoiceList />} />
