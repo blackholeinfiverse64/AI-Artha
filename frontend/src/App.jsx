@@ -39,6 +39,7 @@ import AgedReceivables from './pages/reports/AgedReceivables';
 // Compliance
 import GSTDashboard from './pages/compliance/GSTDashboard';
 import TDSManagement from './pages/compliance/TDSManagement';
+import SignalDashboard from './pages/compliance/SignalDashboard';
 
 // Statements
 import StatementsList from './pages/statements/StatementsList';
@@ -170,6 +171,7 @@ function App() {
 
         <Route path="/gst" element={<GSTDashboard />} />
         <Route path="/tds" element={<TDSManagement />} />
+        <Route path="/signals" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><SignalDashboard /></RoleProtectedRoute>} />
 
         <Route path="/upload" element={<SmartUpload />} />
 

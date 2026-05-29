@@ -6,6 +6,7 @@ import JournalEntry from '../models/JournalEntry.js';
 import LedgerEntry from '../models/LedgerEntry.js';
 import { runPipeline } from '../services/setu.pipeline.js';
 import logger from '../config/logger.js';
+import axios from 'axios';
 
 // @desc    Get cash flow signal from ledger only
 // @route   GET /api/v1/signals/cash-flow
@@ -195,6 +196,103 @@ export const pipelineCheck = async (req, res) => {
     res.json({ success: true, data: safeResult });
   } catch (error) {
     logger.error('Pipeline check error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// @desc    Dispatch a persisted signal to SETU — real HTTP attempt, explicit result
+// @route   POST /api/v1/signals/:signalId/dispatch
+// @access  Private (admin, accountant)
+export const dispatchSignal = async (req, res) => {
+  try {
+    const signal = await ComplianceSignal.findOne({ signal_id: req.params.signalId }).lean();
+    if (!signal) {
+      return res.status(404).json({ success: false, message: 'Signal not found' });
+    }
+
+    // Run full pipeline first — normalize → validate → map → serialize
+    const pipeline = runPipeline(signal);
+    if (!pipeline.ok) {
+      return res.status(422).json({
+        success: false,
+        dispatch_attempted: false,
+        pipeline_stage: pipeline.stage,
+        pipeline_error: pipeline.error,
+        warnings: pipeline.warnings || [],
+        message: `Pipeline failed at stage ${pipeline.stage}: ${pipeline.error}`,
+      });
+    }
+
+    const setuEnabled = process.env.SETU_ENABLED === 'true';
+    const setuBaseUrl = process.env.SETU_BASE_URL;
+    const setuApiKey  = process.env.SETU_API_KEY;
+
+    // SETU not configured — return payload proof without dispatching
+    if (!setuEnabled || !setuBaseUrl || !setuApiKey) {
+      return res.json({
+        success: true,
+        dispatch_attempted: false,
+        setu_enabled: setuEnabled,
+        reason: !setuEnabled
+          ? 'SETU_ENABLED is false — set SETU_ENABLED=true to enable dispatch'
+          : 'SETU_BASE_URL or SETU_API_KEY not configured',
+        pipeline_stage: 'COMPLETE',
+        payload: pipeline.payload,
+        headers: pipeline.headers,
+        warnings: pipeline.warnings || [],
+      });
+    }
+
+    // Real dispatch attempt
+    const timeoutMs = parseInt(process.env.SETU_TIMEOUT_MS || '5000', 10);
+    const dispatchedAt = new Date().toISOString();
+
+    try {
+      const setuRes = await axios.post(
+        `${setuBaseUrl}/api/v1/signals/ingest`,
+        JSON.parse(pipeline.body),
+        {
+          headers: { ...pipeline.headers, Authorization: `Bearer ${setuApiKey}` },
+          timeout: timeoutMs,
+        }
+      );
+
+      logger.info(`Signal dispatched to SETU: ${signal.signal_id} trace=${signal.trace_id}`);
+
+      return res.json({
+        success: true,
+        dispatch_attempted: true,
+        setu_enabled: true,
+        dispatched_at: dispatchedAt,
+        setu_status: setuRes.status,
+        setu_response: setuRes.data,
+        pipeline_stage: 'COMPLETE',
+        payload: pipeline.payload,
+        headers: pipeline.headers,
+        warnings: pipeline.warnings || [],
+      });
+    } catch (setuErr) {
+      const isTimeout = setuErr.code === 'ECONNABORTED' || setuErr.message?.includes('timeout');
+      const isUnreachable = setuErr.code === 'ECONNREFUSED' || setuErr.code === 'ENOTFOUND';
+
+      logger.warn(`SETU dispatch failed for ${signal.signal_id}: ${setuErr.message}`);
+
+      return res.status(502).json({
+        success: false,
+        dispatch_attempted: true,
+        setu_enabled: true,
+        dispatched_at: dispatchedAt,
+        failure_reason: isTimeout ? 'SETU_TIMEOUT' : isUnreachable ? 'SETU_UNREACHABLE' : 'SETU_ERROR',
+        failure_message: setuErr.response?.data?.message || setuErr.message,
+        setu_status: setuErr.response?.status || null,
+        pipeline_stage: 'COMPLETE',
+        payload: pipeline.payload,
+        headers: pipeline.headers,
+        warnings: pipeline.warnings || [],
+      });
+    }
+  } catch (error) {
+    logger.error('Dispatch signal error:', error);
     res.status(500).json({ success: false, message: error.message });
   }
 };

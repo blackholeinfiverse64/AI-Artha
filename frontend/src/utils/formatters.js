@@ -156,3 +156,21 @@ export const downloadFile = (blob, filename) => {
   document.body.removeChild(link);
   window.URL.revokeObjectURL(url);
 };
+
+/**
+ * Export a report PDF via the authenticated axios instance.
+ * Uses Bearer token from localStorage — works with the app's auth strategy.
+ *
+ * @param {object} apiInstance  - the axios api instance from services/api.js
+ * @param {string} endpoint     - e.g. '/reports/profit-loss/export'
+ * @param {object} params       - query params e.g. { startDate, endDate }
+ * @param {string} filename     - download filename e.g. 'profit-loss.pdf'
+ */
+export const exportReportPDF = async (apiInstance, endpoint, params, filename) => {
+  const response = await apiInstance.get(endpoint, {
+    params,
+    responseType: 'blob',
+    timeout: 30000,
+  });
+  downloadFile(response.data, filename);
+};

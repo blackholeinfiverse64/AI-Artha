@@ -29,7 +29,7 @@ import {
 } from '../../components/common';
 import api, { API_BASE_URL } from '../../services/api';
 import toast from 'react-hot-toast';
-import { formatCurrency, getFinancialYear } from '../../utils/formatters';
+import { formatCurrency, getFinancialYear, exportReportPDF } from '../../utils/formatters';
 
 const getPeriodDates = (period, reportContext, statementMonth) => {
   if (period === 'statement_month' && statementMonth && reportContext?.availableMonths?.length) {
@@ -192,25 +192,12 @@ const ProfitLoss = () => {
   const handleExport = async () => {
     try {
       const { startDate, endDate } = getPeriodDates(period, reportContext, statementMonth);
-      const url = `${API_BASE_URL}/reports/profit-loss/export?startDate=${startDate}&endDate=${endDate}`;
-      
-      const response = await fetch(url, {
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Export failed');
-      }
-      
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = `profit-loss-${startDate}-to-${endDate}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
+      await exportReportPDF(
+        api,
+        '/reports/profit-loss/export',
+        { startDate, endDate },
+        `profit-loss-${startDate}-to-${endDate}.pdf`
+      );
       toast.success('Report exported successfully');
     } catch (error) {
       console.error('Export failed:', error);

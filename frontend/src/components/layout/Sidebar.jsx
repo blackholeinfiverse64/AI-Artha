@@ -18,6 +18,7 @@ import {
   X,
   CreditCard,
   Zap,
+  Radio,
 } from 'lucide-react';
 import { useState } from 'react';
 import clsx from 'clsx';
@@ -79,6 +80,12 @@ const menuItems = [
     title: 'TDS',
     icon: Calculator,
     path: '/tds',
+  },
+  {
+    title: 'Signals',
+    icon: Radio,
+    path: '/signals',
+    roles: ['admin', 'accountant'],
   },
   {
     title: 'Statements',

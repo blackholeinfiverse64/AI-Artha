@@ -40,21 +40,29 @@ const DispatchResult = ({ state, result }) => {
   }
 
   if (state === DISPATCH_STATE.SUCCESS) {
+    const notDispatched = result?.not_dispatched;
     return (
       <div className="rounded-xl border border-success/30 bg-success/10 p-3 space-y-1.5">
         <div className="flex items-center gap-2 text-success text-xs font-semibold">
           <CheckCircle2 className="w-3.5 h-3.5" />
-          SETU DISPATCH CONFIRMED
+          {notDispatched ? 'PIPELINE VALIDATED — SETU NOT CONFIGURED' : 'SETU DISPATCH CONFIRMED'}
         </div>
-        {result?.setu_signal_id && (
-          <p className="text-xs text-muted-foreground font-mono">
-            setu_id: {result.setu_signal_id}
+        {notDispatched && (
+          <p className="text-xs text-muted-foreground">{result.reason}</p>
+        )}
+        {result?.dispatched_at && (
+          <p className="text-xs text-muted-foreground">
+            dispatched at {new Date(result.dispatched_at).toLocaleTimeString()}
+            {result.setu_status && ` — HTTP ${result.setu_status}`}
           </p>
+        )}
+        {result?.warnings?.length > 0 && (
+          <p className="text-xs text-warning">Warnings: {result.warnings.join('; ')}</p>
         )}
         {result?.payload && (
           <details className="text-xs">
             <summary className="cursor-pointer text-muted-foreground hover:text-foreground">
-              View dispatched payload
+              {notDispatched ? 'View validated payload' : 'View dispatched payload'}
             </summary>
             <pre className="mt-1 bg-background/60 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all">
               {JSON.stringify(result.payload, null, 2)}
@@ -73,8 +81,16 @@ const DispatchResult = ({ state, result }) => {
           SETU UNAVAILABLE — REQUEST TIMED OUT
         </div>
         <p className="text-muted-foreground">
-          Signal was persisted locally. SETU did not respond within timeout.
+          {result?.reason || 'Signal was persisted locally. SETU did not respond within timeout.'}
         </p>
+        {result?.payload && (
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted-foreground hover:text-foreground">View payload that was attempted</summary>
+            <pre className="mt-1 bg-background/60 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all">
+              {JSON.stringify(result.payload, null, 2)}
+            </pre>
+          </details>
+        )}
       </div>
     );
   }
@@ -92,6 +108,14 @@ const DispatchResult = ({ state, result }) => {
       {result?.status && (
         <p className="text-muted-foreground font-mono">HTTP {result.status}</p>
       )}
+      {result?.payload && (
+        <details className="text-xs">
+          <summary className="cursor-pointer text-muted-foreground hover:text-foreground">View payload that failed</summary>
+          <pre className="mt-1 bg-background/60 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all">
+            {JSON.stringify(result.payload, null, 2)}
+          </pre>
+        </details>
+      )}
     </div>
   );
 };
@@ -107,53 +131,94 @@ const SignalDetailEngine = ({ selectedSignal }) => {
     setDispatchState(DISPATCH_STATE.DISPATCHING);
     setDispatchResult(null);
 
-    // Build the signal_id to look up — use the DB signal_id field
     const signalId = selectedSignal.signal_id;
 
     if (!signalId) {
-      // Snapshot-derived signal — no DB record, cannot pipeline-check
       setDispatchState(DISPATCH_STATE.FAILED);
-      setDispatchResult({ error: 'This signal has no signal_id — it is a snapshot-derived signal and cannot be dispatched to SETU directly. Persist it first via the compliance filing flow.' });
+      setDispatchResult({
+        error: 'This signal has no signal_id — it is a snapshot-derived signal and cannot be dispatched to SETU directly. Persist it first via the compliance filing flow.',
+      });
       return;
     }
 
     try {
-      // Step 1: Run pipeline check (dry-run validation)
-      const checkRes = await api.get(`/signals/${signalId}/pipeline-check`, { timeout: 8000 });
-      const pipelineResult = checkRes.data?.data;
+      // POST /api/v1/signals/:signalId/dispatch
+      // Real HTTP attempt — backend runs normalize→validate→map→serialize→dispatch
+      const res = await api.post(`/signals/${signalId}/dispatch`, {}, { timeout: 10000 });
+      const result = res.data;
 
-      if (!pipelineResult?.ok) {
-        setDispatchState(DISPATCH_STATE.FAILED);
+      if (result.dispatch_attempted === false) {
+        // Pipeline passed but SETU not configured — show payload proof
+        setDispatchState(DISPATCH_STATE.SUCCESS);
         setDispatchResult({
-          error: `Pipeline validation failed at stage ${pipelineResult?.stage}: ${pipelineResult?.error}`,
-          payload: pipelineResult,
+          not_dispatched: true,
+          reason: result.reason,
+          payload: result.payload,
+          headers: result.headers,
+          warnings: result.warnings,
         });
-        toast.error(`SETU pipeline failed: ${pipelineResult?.error}`);
+        toast.success('Pipeline validated. SETU not configured — payload proof available.');
         return;
       }
 
-      // Step 2: If SETU_ENABLED on backend, dispatch happens automatically via emitSignal.
-      // We surface the pipeline result as proof of what would be sent.
+      // Actual dispatch succeeded
       setDispatchState(DISPATCH_STATE.SUCCESS);
       setDispatchResult({
-        setu_signal_id: `SETU-${Date.now()}`,
-        payload: pipelineResult?.payload,
+        dispatched_at: result.dispatched_at,
+        setu_status: result.setu_status,
+        setu_response: result.setu_response,
+        payload: result.payload,
+        headers: result.headers,
+        warnings: result.warnings,
       });
-      toast.success('Signal validated and dispatched via SETU pipeline.');
+      toast.success(`Signal dispatched to SETU — HTTP ${result.setu_status}`);
 
     } catch (e) {
       if (e.code === 'ECONNABORTED' || e.message?.includes('timeout')) {
         setDispatchState(DISPATCH_STATE.TIMEOUT);
         setDispatchResult(null);
         toast.error('SETU dispatch timed out.');
-      } else {
+        return;
+      }
+
+      const data = e.response?.data;
+
+      // 422 = pipeline validation failed
+      if (e.response?.status === 422) {
         setDispatchState(DISPATCH_STATE.FAILED);
         setDispatchResult({
-          error: e.response?.data?.message || e.message,
-          status: e.response?.status,
+          error: `Pipeline failed at stage ${data?.pipeline_stage}: ${data?.pipeline_error}`,
+          payload: null,
         });
-        toast.error(`Dispatch failed: ${e.response?.data?.message || e.message}`);
+        toast.error(`SETU pipeline failed: ${data?.pipeline_error}`);
+        return;
       }
+
+      // 502 = SETU unreachable / timeout / error
+      if (e.response?.status === 502) {
+        const isTimeout = data?.failure_reason === 'SETU_TIMEOUT';
+        if (isTimeout) {
+          setDispatchState(DISPATCH_STATE.TIMEOUT);
+          setDispatchResult({ reason: data?.failure_message, payload: data?.payload });
+          toast.error('SETU did not respond within timeout.');
+        } else {
+          setDispatchState(DISPATCH_STATE.FAILED);
+          setDispatchResult({
+            error: `${data?.failure_reason}: ${data?.failure_message}`,
+            status: data?.setu_status,
+            payload: data?.payload,
+          });
+          toast.error(`SETU dispatch failed: ${data?.failure_reason}`);
+        }
+        return;
+      }
+
+      setDispatchState(DISPATCH_STATE.FAILED);
+      setDispatchResult({
+        error: data?.message || e.message,
+        status: e.response?.status,
+      });
+      toast.error(`Dispatch failed: ${data?.message || e.message}`);
     }
   };
 

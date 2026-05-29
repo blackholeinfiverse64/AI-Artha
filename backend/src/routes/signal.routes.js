@@ -7,6 +7,7 @@ import {
   listSignals,
   reconstructTrace,
   pipelineCheck,
+  dispatchSignal,
 } from '../controllers/signal.controller.js';
 
 const router = express.Router();
@@ -25,6 +26,9 @@ router.get('/trace/:traceId', reconstructTrace);
 
 // Pipeline dry-run check (Phase 2A)
 router.get('/:signalId/pipeline-check', authorize('admin', 'accountant'), pipelineCheck);
+
+// SETU dispatch — real HTTP attempt with explicit result (Phase 2A)
+router.post('/:signalId/dispatch', authorize('admin', 'accountant'), dispatchSignal);
 
 // Overdue invoice evaluation
 router.post('/evaluate/overdue-invoices', authorize('admin', 'accountant'), evaluateOverdueInvoices);

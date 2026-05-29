@@ -17,7 +17,7 @@ import {
 } from '../../components/common';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency, formatDate, exportReportPDF } from '../../utils/formatters';
 
 const BalanceSheet = () => {
   const [loading, setLoading] = useState(true);
@@ -137,23 +137,12 @@ const BalanceSheet = () => {
 
   const handleExport = async () => {
     try {
-      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/reports/balance-sheet/export?asOfDate=${asOfDate}`;
-      
-      const response = await fetch(url, {
-        credentials: 'include',
-      });
-      
-      if (!response.ok) throw new Error('Export failed');
-      
-      const blob = await response.blob();
-      const downloadUrl = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = downloadUrl;
-      link.download = `balance-sheet-${asOfDate}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(downloadUrl);
+      await exportReportPDF(
+        api,
+        '/reports/balance-sheet/export',
+        { asOfDate },
+        `balance-sheet-${asOfDate}.pdf`
+      );
       toast.success('Report exported successfully');
     } catch (error) {
       console.error('Export failed:', error);
