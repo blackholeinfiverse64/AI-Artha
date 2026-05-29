@@ -12,7 +12,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
 import api from '../services/api';
+import { AUTH_TOKEN_KEY } from '../services/api';
 
 export const RUNTIME_MODES = {
   CHECKING:            'CHECKING',
@@ -44,17 +46,32 @@ export function useRuntimeMode() {
 
     setMode(RUNTIME_MODES.CHECKING);
 
+    // Health endpoint is at root /health — NOT under /api/v1
+    // Derive the origin from the api baseURL (strip /api/v1)
+    const origin = api.defaults.baseURL?.replace(/\/api\/v1$/, '') || 'http://localhost:5000';
+
     try {
-      const res = await api.get('/health', { timeout: 5000 });
+      const res = await axios.get(`${origin}/health`, { timeout: 5000 });
       setHealthDetail(res.data);
 
-      // Health OK — now check if signals endpoint is reachable
-      try {
-        await api.get('/signals/snapshot', { timeout: 5000 });
+      // Health OK — now check signals endpoint (requires auth token)
+      const token = typeof window !== 'undefined' ? localStorage.getItem(AUTH_TOKEN_KEY) : null;
+
+      if (!token) {
+        // No token yet (user not logged in) — backend is reachable, signals need auth
         setMode(RUNTIME_MODES.BACKEND_CONNECTED);
-      } catch {
-        // Health OK but signals degraded
-        setMode(RUNTIME_MODES.BACKEND_DEGRADED);
+      } else {
+        try {
+          await api.get('/signals/snapshot', { timeout: 5000 });
+          setMode(RUNTIME_MODES.BACKEND_CONNECTED);
+        } catch (sigErr) {
+          // 401 means token expired — still connected, just auth issue
+          if (sigErr.response?.status === 401) {
+            setMode(RUNTIME_MODES.BACKEND_CONNECTED);
+          } else {
+            setMode(RUNTIME_MODES.BACKEND_DEGRADED);
+          }
+        }
       }
     } catch {
       setMode(RUNTIME_MODES.BACKEND_UNAVAILABLE);
