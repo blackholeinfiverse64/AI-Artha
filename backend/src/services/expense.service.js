@@ -188,14 +188,18 @@ class ExpenseService {
     
     logger.info(`Expense approved: ${expense.expenseNumber}`);
 
+    let autoRecordWarning = null;
     try {
       await this.recordExpense(expenseId, userId);
       logger.info(`Expense auto-recorded to ledger after approval: ${expense.expenseNumber}`);
     } catch (err) {
+      autoRecordWarning = `Auto-record failed: ${err.message}. Call POST /expenses/${expenseId}/record to retry after fixing the issue.`;
       logger.warn(`Auto-record after approval failed for ${expense.expenseNumber}: ${err.message}`);
     }
     
-    return expense;
+    // Re-fetch to get latest status after possible auto-record
+    const updatedExpense = await Expense.findById(expenseId);
+    return { expense: updatedExpense, autoRecordWarning };
   }
   
   /**

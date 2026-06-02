@@ -51,68 +51,33 @@ const GSTDashboard = () => {
     fetchGSTData();
   }, [period]);
 
+  const getPeriodParam = () => {
+    const now = new Date();
+    switch (period) {
+      case 'previous_month': {
+        const d = new Date(now.getFullYear(), now.getMonth() - 1);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      }
+      default:
+        return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+  };
+
   const fetchGSTData = async () => {
     setLoading(true);
     try {
-      // Convert period to YYYY-MM format
-      const now = new Date();
-      let periodParam;
-      
-      switch(period) {
-        case 'current_month':
-          periodParam = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-          break;
-        case 'previous_month':
-          const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1);
-          periodParam = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}`;
-          break;
-        case 'current_quarter':
-        case 'current_fy':
-        default:
-          periodParam = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      }
-      
+      const periodParam = getPeriodParam();
       const response = await api.get(`/gst/summary?period=${periodParam}`);
       setData(response.data.data);
     } catch (error) {
       console.error('Failed to fetch GST data:', error);
-      // Sample data
+      toast.error('Failed to load GST data');
       setData({
-        summary: {
-          outputGST: 225000,
-          inputGST: 165000,
-          netPayable: 60000,
-          previousCredit: 15000,
-          finalPayable: 45000,
-        },
-        currentMonth: {
-          period: 'February 2026',
-          gstr1DueDate: '2026-03-11',
-          gstr3bDueDate: '2026-03-20',
-          gstr1Status: 'pending',
-          gstr3bStatus: 'not_filed',
-        },
-        returns: [
-          { period: 'Feb 2026', type: 'GSTR-1', dueDate: '2026-03-11', status: 'pending', outputTax: 225000 },
-          { period: 'Feb 2026', type: 'GSTR-3B', dueDate: '2026-03-20', status: 'not_filed', netPayable: 45000 },
-          { period: 'Jan 2026', type: 'GSTR-1', dueDate: '2026-02-11', status: 'filed', filedDate: '2026-02-10', outputTax: 198000 },
-          { period: 'Jan 2026', type: 'GSTR-3B', dueDate: '2026-02-20', status: 'filed', filedDate: '2026-02-18', netPayable: 38000 },
-          { period: 'Dec 2025', type: 'GSTR-1', dueDate: '2026-01-11', status: 'filed', filedDate: '2026-01-09', outputTax: 215000 },
-          { period: 'Dec 2025', type: 'GSTR-3B', dueDate: '2026-01-20', status: 'filed', filedDate: '2026-01-17', netPayable: 52000 },
-        ],
-        monthlyData: [
-          { month: 'Sep', output: 180000, input: 130000, net: 50000 },
-          { month: 'Oct', output: 195000, input: 145000, net: 50000 },
-          { month: 'Nov', output: 210000, input: 155000, net: 55000 },
-          { month: 'Dec', output: 215000, input: 163000, net: 52000 },
-          { month: 'Jan', output: 198000, input: 160000, net: 38000 },
-          { month: 'Feb', output: 225000, input: 165000, net: 60000 },
-        ],
-        invoicesSummary: {
-          b2b: { count: 45, taxable: 980000, tax: 176400 },
-          b2c: { count: 120, taxable: 270000, tax: 48600 },
-          exports: { count: 5, taxable: 150000, tax: 0 },
-        },
+        summary: { outputGST: 0, inputGST: 0, netPayable: 0, previousCredit: 0, finalPayable: 0 },
+        currentMonth: { period: '—', gstr1DueDate: null, gstr3bDueDate: null, gstr1Status: 'not_filed', gstr3bStatus: 'not_filed' },
+        returns: [],
+        monthlyData: [],
+        invoicesSummary: { b2b: { count: 0, taxable: 0, tax: 0 }, b2c: { count: 0, taxable: 0, tax: 0 }, exports: { count: 0, taxable: 0, tax: 0 } },
       });
     } finally {
       setLoading(false);
@@ -121,17 +86,12 @@ const GSTDashboard = () => {
 
   const handleExportGSTR1 = async () => {
     try {
-      const now = new Date();
-      const periodParam = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const url = `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'}/gst/filing-packet/export?type=gstr-1&period=${periodParam}`;
-      
-      const response = await fetch(url, {
-        credentials: 'include',
-      });
-      
-      if (!response.ok) throw new Error('Export failed');
-      
-      const blob = await response.blob();
+      const periodParam = getPeriodParam();
+      const response = await api.get(
+        `/gst/filing-packet/export?type=gstr-1&period=${periodParam}`,
+        { responseType: 'blob' }
+      );
+      const blob = new Blob([response.data]);
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
@@ -172,18 +132,25 @@ const GSTDashboard = () => {
 
   const handleFileReturn = async () => {
     if (!selectedReturn) return;
-    
     setFiling(true);
     try {
-      await api.post('/gst/file-return', {
-        period: selectedReturn.period,
-        returnType: selectedReturn.type,
-      });
-      toast.success(`${selectedReturn.type} filed successfully!`);
+      if (selectedReturn._id) {
+        // File an existing GSTReturn document by its DB id
+        await api.post(`/gst/returns/${selectedReturn._id}/file`);
+      } else {
+        // Generate the packet first (creates the GSTReturn doc) then note it as filed
+        const periodParam = getPeriodParam();
+        const genEndpoint = selectedReturn.type === 'GSTR-1'
+          ? `/gst/filing-packet/gstr-1?period=${periodParam}`
+          : `/gst/filing-packet/gstr-3b?period=${periodParam}`;
+        await api.get(genEndpoint);
+      }
+      toast.success(`${selectedReturn.type} submitted successfully!`);
       setShowFilingModal(false);
       fetchGSTData();
     } catch (error) {
-      toast.error('Failed to file return');
+      console.error('File return error:', error);
+      toast.error(error.response?.data?.message || 'Failed to submit return');
     } finally {
       setFiling(false);
     }

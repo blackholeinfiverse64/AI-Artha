@@ -132,12 +132,13 @@ export const updateExpense = async (req, res) => {
 // @access  Private (accountant, admin)
 export const approveExpense = async (req, res) => {
   try {
-    const expense = await expenseService.approveExpense(req.params.id, req.user._id);
-    
-    res.json({
-      success: true,
-      data: expense,
-    });
+    const { expense, autoRecordWarning } = await expenseService.approveExpense(req.params.id, req.user._id);
+
+    const response = { success: true, data: expense };
+    if (autoRecordWarning) {
+      response.warnings = [autoRecordWarning];
+    }
+    res.json(response);
   } catch (error) {
     logger.error('Approve expense error:', error);
     res.status(400).json({

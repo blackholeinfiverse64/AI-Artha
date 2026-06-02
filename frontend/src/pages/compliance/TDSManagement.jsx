@@ -47,6 +47,8 @@ const TDSManagement = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [paying, setPaying] = useState(false);
+  const [challanNumber, setChallanNumber] = useState('');
+  const [challanDate, setChallanDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     fetchTDSData();
@@ -167,15 +169,31 @@ const TDSManagement = () => {
 
   const handlePayTDS = async () => {
     if (!selectedEntry) return;
-    
+    if (!challanNumber.trim()) {
+      toast.error('Challan number is required');
+      return;
+    }
     setPaying(true);
     try {
-      await api.post(`/tds/pay/${selectedEntry._id}`);
-      toast.success('TDS payment recorded successfully!');
+      const entryId = selectedEntry._id;
+      // Step 1: record the deduction (creates journal entry, status → deducted)
+      if (selectedEntry.status === 'pending') {
+        await api.post(`/tds/entries/${entryId}/deduct`);
+      }
+      // Step 2: record the challan deposit (status → deposited)
+      await api.post(`/tds/entries/${entryId}/challan`, {
+        challanNumber: challanNumber.trim(),
+        challanDate,
+        bankBSR: '',
+      });
+      toast.success('TDS payment and challan recorded successfully!');
       setShowPaymentModal(false);
+      setChallanNumber('');
+      setChallanDate(new Date().toISOString().split('T')[0]);
       fetchTDSData();
     } catch (error) {
-      toast.error('Failed to record payment');
+      console.error('TDS pay error:', error);
+      toast.error(error.response?.data?.message || 'Failed to record payment');
     } finally {
       setPaying(false);
     }
@@ -183,6 +201,8 @@ const TDSManagement = () => {
 
   const openPaymentModal = (entry) => {
     setSelectedEntry(entry);
+    setChallanNumber('');
+    setChallanDate(new Date().toISOString().split('T')[0]);
     setShowPaymentModal(true);
   };
 
@@ -519,12 +539,15 @@ const TDSManagement = () => {
           <Input
             label="Challan Number"
             placeholder="Enter challan number"
+            value={challanNumber}
+            onChange={(e) => setChallanNumber(e.target.value)}
           />
 
           <Input
             label="Payment Date"
             type="date"
-            defaultValue={new Date().toISOString().split('T')[0]}
+            value={challanDate}
+            onChange={(e) => setChallanDate(e.target.value)}
           />
 
           <div className="flex justify-end gap-3 pt-4">
