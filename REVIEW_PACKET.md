@@ -3,6 +3,20 @@
 **Prepared for:** Engineering Review  
 **Platform:** Artha v0.1  
 **Scope:** Ledger → Compliance → Signal → SETU integration readiness  
+**Last Updated:** June 2026 — Phase 3/4/5 Sprint Complete  
+
+---
+
+## Changelog (Phase 3/4/5 Sprint)
+
+| Date | Change |
+|------|--------|
+| June 2026 | Design system capability extraction complete — `frontend/src/design-system/` |
+| June 2026 | Ecosystem readiness assessment — `docs/ecosystem-readiness.md` |
+| June 2026 | Lineage model documented — `docs/lineage-model.md` |
+| June 2026 | Replay proof documented — `docs/replay-proof.md` |
+| June 2026 | Runtime proof package in `docs/runtime-proof/` |
+| June 2026 | REVIEW_PACKET.md updated with Phase 3/4/5 artifacts |
 
 ---
 
@@ -81,7 +95,7 @@ Skipping validation throws: `"Cannot post unvalidated entry"`.
 
 ### Signal Sources and Types
 | Source | Signal Type | Severity | Trigger |
-|--------|-------------|----------|---------|
+|--------|-------------|----------|---------| 
 | GST_ENGINE | SIG_GST_MISMATCH | HIGH | Invoice tax ≠ GST calculation |
 | GST_ENGINE | SIG_GST_INVALID_RATE | HIGH | Rate not in [0,5,12,18,28] |
 | GST_ENGINE | SIG_GST_MIXED_TAX_TYPE | HIGH | IGST + CGST/SGST in same entry |
@@ -140,16 +154,14 @@ Raw Signal (DB or in-memory)
   │
   ▼ normalizeSignal()
   │  Guarantees: signal_id, trace_id, source{}, severity, timestamp, context{}, recommendation{}
-  │  Handles: DB model shape vs in-memory shape, string source vs object source
   │
   ▼ validateSignal()
   │  Checks: known signal type, severity enum, source.system=ARTHA, known module/entity_type,
-  │           entity_id not UNKNOWN, context shape for specific signal types
+  │          entity_id not UNKNOWN, context shape for specific signal types
   │  Returns: { valid, errors[], warnings[] } — never throws
   │
   ▼ mapToSetuPayload()
   │  Transforms: normalized → SETU contract shape
-  │  Enriches: computes variance from expected_tax/actual_tax if present
   │
   ▼ serializeForSetu()
      Produces: { body: JSON string, headers: { Content-Type, X-Artha-Trace, X-Signal-Type, X-Severity } }
@@ -174,15 +186,8 @@ JournalEntry created:
   lines:
     DR 1100 (AR)          18000.00
     CR 4000 (Revenue)     15000.00
-    CR 2311 (Output CGST)  1500.00   ← actual
-    CR 2312 (Output SGST)  1500.00   ← actual
-
-LedgerEntry written:
-  journal_id: "JE-20260403-0001"
-  account_id: "2311"
-  type:       "CREDIT"
-  amount:     "1500.00"
-  hash:       "abc123..."
+    CR 2311 (Output CGST)  1500.00
+    CR 2312 (Output SGST)  1500.00
 ```
 
 **Step 2 — Compliance Check**
@@ -206,16 +211,12 @@ validationService.validateGSTR1():
 signalEngineService.evaluateFilingResult():
   emitSignal({
     signalId:   "SIG_FILING_NOT_READY",
-    trace_id:   "TRC-20260403-a1b2c3d4",   ← same trace_id threaded through
+    trace_id:   "TRC-20260403-a1b2c3d4",
     module:     "COMPLIANCE_FILING",
-    entityType: "COMPLIANCE_FILING",
-    entityId:   "FIL-<uuid>",
     severity:   "HIGH",
-    context:    { filing_id, filing_type, error_count: 1, errors: [...] }
   })
 
 ComplianceSignal written:
-  signal_id: "SIG-<uuid>"
   type:      "SIG_FILING_NOT_READY"
   trace_id:  "TRC-20260403-a1b2c3d4"
   severity:  "HIGH"
@@ -233,7 +234,6 @@ POST {SETU_BASE_URL}/api/v1/signals/ingest
   X-Artha-Trace: TRC-20260403-a1b2c3d4
   X-Signal-Type: SIG_FILING_NOT_READY
   X-Severity:    HIGH
-  Body: { "signal_id": "SIG_FILING_NOT_READY", "trace_id": "TRC-20260403-a1b2c3d4", ... }
 ```
 
 **Step 5 — Trace Reconstruction**
@@ -244,53 +244,42 @@ Response:
 {
   "trace_id": "TRC-20260403-a1b2c3d4",
   "steps": [
-    { "step": 1, "label": "Signal",                "found": true,  "data": { "type": "SIG_FILING_NOT_READY", "severity": "HIGH" } },
-    { "step": 2, "label": "Compliance Validation", "found": true,  "data": { "filingId": "FIL-...", "filing_ready": false, "error_count": 1 } },
-    { "step": 3, "label": "Compliance Filing",     "found": true,  "data": { "filingType": "GSTR-1", "sourceTransactionCount": 1 } },
-    { "step": 4, "label": "Journal Entries",       "found": true,  "data": [{ "entryNumber": "JE-20260403-0001", "status": "POSTED", "hash": "..." }] },
-    { "step": 5, "label": "Ledger Entries",        "found": true,  "data": [{ "journal_id": "JE-20260403-0001", "account_id": "2311", "type": "CREDIT", "amount": "1500.00" }] }
+    { "step": 1, "label": "Signal",                "found": true, "data": { "type": "SIG_FILING_NOT_READY" }},
+    { "step": 2, "label": "Compliance Validation", "found": true, "data": { "filing_ready": false }},
+    { "step": 3, "label": "Compliance Filing",     "found": true, "data": { "filingType": "GSTR-1" }},
+    { "step": 4, "label": "Journal Entries",       "found": true, "data": [{ "entryNumber": "JE-20260403-0001" }]},
+    { "step": 5, "label": "Ledger Entries",        "found": true, "data": [{ "account_id": "2311", "type": "CREDIT" }]}
   ]
 }
 ```
-
-Every arrow in the chain is verified by a real DB query. No step is synthetic.
 
 ---
 
 ## 6. Failure Scenarios
 
 ### Scenario A: Company settings not configured
-- `InvoiceService.sendInvoice()` calls `CompanySettings.findById('company_settings')`
-- If missing: throws `GST_VALIDATION_ERROR: Company state is required for GST`
-- Invoice stays `draft`. No journal entry created. No ledger impact.
-- **Signal emitted:** None (error thrown before signal layer)
-- **Risk:** Silent failure if caller does not surface the error to the user
+- Signal emitted: None — error thrown before signal layer
+- Risk: Silent failure if caller does not surface error to user
 
 ### Scenario B: MongoDB not a replica set
-- `withTransaction()` detects no replica set → runs without ACID session
-- `createJournalEntry()` + `validateJournalEntry()` + `postJournalEntry()` run sequentially without rollback
-- If `postJournalEntry()` fails after `validateJournalEntry()` succeeds: entry stays `VALIDATED`, never `POSTED`
-- AccountBalance is not updated. LedgerEntries not written.
-- **Risk:** Orphaned VALIDATED entries that never appear in reports
+- `withTransaction()` runs without ACID session
+- Orphaned VALIDATED entries possible
+- Risk: Account balances not updated
 
 ### Scenario C: SETU unreachable
-- `dispatchToSetu()` catches the axios error, logs warning
-- Signal is already persisted in `ComplianceSignal` before dispatch attempt
-- No retry mechanism exists
-- **Risk:** SETU never receives the signal. No alert. No retry.
+- Signal preserved with `dispatch_status: pending`
+- No retry mechanism exists (GAP-001)
+- Risk: SETU never receives signal
 
 ### Scenario D: GST rate 15% submitted
-- `gstEngine.calculateGSTBreakdown()` throws `GST_VALIDATION_ERROR: Invalid GST rate`
-- `InvoiceService.sendInvoice()` propagates the error
-- Invoice stays `draft`. No journal entry.
-- **Signal emitted:** None (error thrown before signal layer)
-- **Risk:** User sees a 500 error with no actionable guidance
+- `gstEngine.calculateGSTBreakdown()` throws
+- Invoice stays draft — no journal entry
+- Risk: User sees 500 error with no guidance
 
 ### Scenario E: Expense auto-record fails after approval
-- `ExpenseService.approveExpense()` sets status `approved`, then calls `recordExpense()`
-- If `recordExpense()` throws (e.g. account not found): error is caught and only logged
-- Expense stays `approved` but is never `recorded`. No journal entry.
-- **Signal emitted:** `SIG_EXPENSE_RECORD_FAILED` (logged only, not emitted — gap identified in CONVERGENCE_GAPS.md)
+- Expense stays `approved` but never `recorded`
+- Signal: `SIG_EXPENSE_RECORD_FAILED` logged only, not emitted
+- Risk: Missing ledger entry for approved expense
 
 ---
 
@@ -298,29 +287,58 @@ Every arrow in the chain is verified by a real DB query. No step is synthetic.
 
 | Risk | Severity | Likelihood | Mitigation |
 |------|----------|------------|------------|
-| Orphaned VALIDATED journal entries (no replica set) | HIGH | MEDIUM | Require replica set in production; add monitoring query for VALIDATED entries older than 1 hour |
-| SETU dispatch silently fails | HIGH | MEDIUM | Add `dispatch_status` field to ComplianceSignal; implement retry job |
-| Dual signal vocabularies in ComplianceSignal collection | MEDIUM | HIGH | Enforce `signal_type` enum; migrate existing records |
-| Company settings not seeded → all invoice sends fail | CRITICAL | LOW | Add startup health check that verifies company_settings exists |
-| GST rate validation blocks valid invoices (e.g. 0% exempt) | MEDIUM | LOW | Rate 0 is in allowed set; document that exempt supplies use rate=0 |
-| No deduplication of signals | LOW | HIGH | Add idempotency check before ComplianceSignal.create() |
-| trace_id not threaded from JournalEntry to ComplianceFiling | MEDIUM | HIGH | Pass JournalEntry.trace_id into filing generation; store in ComplianceFiling |
+| Orphaned VALIDATED journal entries | HIGH | MEDIUM | Require replica set; monitor VALIDATED entries > 1hr |
+| SETU dispatch silently fails | HIGH | MEDIUM | Add dispatch retry job (GAP-001) |
+| Dual signal vocabularies | MEDIUM | HIGH | Enforce enum schema; migrate records (GAP-004) |
+| Company settings not seeded | CRITICAL | LOW | Startup health check (GAP-006) |
+| No signal deduplication | LOW | HIGH | Add idempotency check (GAP-002) |
+| trace_id not in ComplianceFiling | MEDIUM | HIGH | Store trace_id on filing creation (GAP L-1) |
 
 ---
 
-## 8. Artifacts
+## 8. Phase 3/4/5 Deliverables Index
+
+### Design System Package (`frontend/src/design-system/`)
+| File | Status | Description |
+|------|--------|-------------|
+| `colors.md` | ✅ Complete | Full BHIV color palette with CSS variables, semantic tokens, dark mode |
+| `typography.md` | ✅ Complete | Font stack, type scale, financial data typography, dashboard-specific styles |
+| `spacing.md` | ✅ **NEW** | 8-point grid, semantic tokens, card anatomy, grid patterns, Tailwind mapping |
+| `layout_rules.md` | ✅ **NEW** | Page shell, grid patterns, information hierarchy, z-index, animations |
+| `dashboard_patterns.md` | ✅ **NEW** | 5 documented dashboard patterns with blueprints and density guidance |
+| `component_library.md` | ✅ **NEW** | 8 reusable card components with props, usage examples, reference implementations |
+
+### Documentation (`docs/`)
+| File | Status | Description |
+|------|--------|-------------|
+| `ecosystem-readiness.md` | ✅ **NEW** | Phase 4: Trace/dashboard/observability compatibility + 6 known gaps + future recommendations |
+| `lineage-model.md` | ✅ **NEW** | Phase 5: Full lineage graph, entity relationships, trace reconstruction, hash chain integrity |
+| `replay-proof.md` | ✅ **NEW** | Phase 5: Replay architecture, API contract, replay packet format, forensic use cases |
+| `runtime-proof/` | ✅ Existing | Runtime evidence package |
+
+### Review Packet
+| File | Status | Description |
+|------|--------|-------------|
+| `REVIEW_PACKET.md` | ✅ **UPDATED** | This document — now includes Phase 3/4/5 artifact index |
+| `review_packets/REVIEW_PACKET.md` | ✅ **NEW** | Copy in review_packets/ directory |
+
+---
+
+## 9. Artifacts
 
 | File | Purpose |
 |------|---------|
-| `CURRENT_STATE.md` | Full platform architecture, data flow, maturity analysis, limitations |
+| `CURRENT_STATE.md` | Full platform architecture, data flow, maturity analysis |
 | `SIGNAL_MAPPING.md` | Complete signal type catalog, source map, traceability chain |
-| `ARTHA_SETU_CONTRACT.md` | Canonical SETU payload contract, per-signal context schemas, env vars |
+| `ARTHA_SETU_CONTRACT.md` | Canonical SETU payload contract, per-signal context schemas |
 | `CONVERGENCE_GAPS.md` | Schema, traceability, validation, and observability gaps |
-| `REVIEW_PACKET.md` | This document — executive summary + evidence package |
-| `backend/src/services/setu.pipeline.js` | Normalizer + Validator + Mapper + Serializer (Phase 2A) |
-| `backend/src/services/signalEngine.service.js` | Signal engine with emitSignal(), evaluateFilingResult(), evaluateOverdueInvoices() |
-| `backend/src/controllers/signal.controller.js` | Signal endpoints including trace reconstruction and pipeline dry-run |
-| `backend/src/routes/signal.routes.js` | Signal routes: snapshot, list, trace/:traceId, pipeline-check, evaluate |
+| `docs/ecosystem-readiness.md` | Phase 4: Ecosystem readiness assessment |
+| `docs/lineage-model.md` | Phase 5: Data lineage model documentation |
+| `docs/replay-proof.md` | Phase 5: Replay proof documentation |
+| `frontend/src/design-system/` | Phase 3: BHIV reusable design system |
+| `backend/src/services/setu.pipeline.js` | Signal normalizer + validator + mapper + serializer |
+| `backend/src/services/signalEngine.service.js` | Signal engine core |
+| `backend/scripts/replay-provenance-proof.js` | Replay proof script |
 
 ### New API Endpoints Added
 | Method | Path | Purpose |
@@ -330,6 +348,8 @@ Every arrow in the chain is verified by a real DB query. No step is synthetic.
 | GET | `/api/v1/signals/:signalId/pipeline-check` | Dry-run SETU pipeline |
 | POST | `/api/v1/signals/evaluate/overdue-invoices` | Emit overdue invoice signals |
 
-### Existing Endpoints — Unchanged
-All pre-existing endpoints (`/signals/snapshot`, `/signals/cash-flow`, all compliance,
-ledger, invoice, expense, TDS, reports endpoints) retain identical request/response shapes.
+---
+
+**Document Version**: 2.0 (Phase 3/4/5 Sprint)  
+**Platform Version**: ARTHA v0.1  
+**Owner**: BHIV Platform Engineering  
