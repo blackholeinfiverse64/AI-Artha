@@ -179,20 +179,29 @@ class TraceabilityService {
    * Verify trace continuity
    */
   verifyContinuity(trace) {
-    // Check if all expected stages are present in order
-    const expectedStages = ['TRANSACTION_CREATED', 'JOURNAL_CREATED', 'JOURNAL_VALIDATED', 'JOURNAL_POSTED'];
+    // Full expected lifecycle: Transaction → Journal → Signal → Filing → Validation → SETU
+    const expectedStages = [
+      'TRANSACTION_CREATED',
+      'JOURNAL_CREATED',
+      'JOURNAL_VALIDATED',
+      'JOURNAL_POSTED',
+      'SIGNAL_GENERATED',
+      'FILING_CREATED',
+      'FILING_VALIDATED',
+      'SETU_DISPATCHED',
+    ];
     const actualStages = trace.stages.map(s => s.stage);
-    
+
     let continuityBroken = false;
     let missingStages = [];
-    
+
     for (const expectedStage of expectedStages) {
       if (!actualStages.includes(expectedStage)) {
         missingStages.push(expectedStage);
         continuityBroken = true;
       }
     }
-    
+
     return {
       is_continuous: !continuityBroken,
       missing_stages: missingStages,

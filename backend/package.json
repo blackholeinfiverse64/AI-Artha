@@ -75,6 +75,11 @@
     "proof:production": "node scripts/production-audit.js",
     "proof:handover": "node scripts/final-handover.js",
     "proof:all": "npm run proof:runtime && npm run proof:failure && npm run proof:e2e && npm run proof:replay && npm run proof:production && npm run proof:handover",
+    "proof:v2:replay": "node scripts/proof-replay.js",
+    "proof:v2:compliance": "node scripts/proof-compliance.js",
+    "proof:v2:audit": "node scripts/proof-audit.js",
+    "proof:v2:certify": "node scripts/proof-certify.js",
+    "proof:v2:all": "node scripts/proof-all.js",
     "prepare": "node -e \"try { require('husky').install() } catch (e) {if (e.code !== 'MODULE_NOT_FOUND') throw e}\""
   },
   "dependencies": {

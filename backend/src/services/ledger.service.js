@@ -14,6 +14,14 @@ import {
   validateGSTDetailShape,
 } from './gstEngine.service.js';
 
+let traceabilityService = null;
+try {
+  const mod = await import('./traceability.service.js');
+  traceabilityService = mod.default;
+} catch {
+  logger.warn('traceability.service.js not available — trace stages will not be recorded');
+}
+
 const JOURNAL_STATUS = {
   DRAFT: 'DRAFT',
   VALIDATED: 'VALIDATED',
@@ -38,6 +46,18 @@ class LedgerService {
     if (normalized === JOURNAL_STATUS.VOIDED) return { $in: VOIDED_STATUSES };
 
     return status;
+  }
+
+  /**
+   * Record a trace stage if traceability service is available
+   */
+  async recordTraceStage(trace_id, stageData) {
+    if (!traceabilityService || !trace_id) return;
+    try {
+      await traceabilityService.addStage(trace_id, stageData);
+    } catch (err) {
+      logger.warn(`Failed to record trace stage: ${err.message}`);
+    }
   }
 
   validateJournal(journalLines) {
@@ -491,6 +511,22 @@ class LedgerService {
       entry.auditTrail.push(auditRecord);
 
       await entry.save({ session });
+
+      // Record JOURNAL_VALIDATED trace stage
+      await this.recordTraceStage(entry.trace_id, {
+        stage: 'JOURNAL_VALIDATED',
+        entity_type: 'JournalEntry',
+        entity_id: String(entry._id),
+        status: 'SUCCESS',
+        timestamp: new Date(),
+        metadata: {
+          entry_number: entry.entryNumber,
+          balanced: journalValidation.balanced,
+          gst_valid: complianceValidation.gst_valid,
+          tds_valid: complianceValidation.tds_valid,
+        },
+      });
+
       return entry;
     });
   }
@@ -583,7 +619,21 @@ class LedgerService {
       journalEntry.auditTrail = [auditRecord];
 
       await journalEntry.save(session ? { session } : {});
-      
+
+      // Record JOURNAL_CREATED trace stage
+      await this.recordTraceStage(trace_id, {
+        stage: 'JOURNAL_CREATED',
+        entity_type: 'JournalEntry',
+        entity_id: String(journalEntry._id),
+        status: 'SUCCESS',
+        timestamp: new Date(),
+        metadata: {
+          entry_number: journalEntry.entryNumber,
+          line_count: lines.length,
+          source: source || 'MANUAL',
+        },
+      });
+
       logger.info(`Journal entry created: ${journalEntry.entryNumber}`, {
         hash: journalEntry.hash,
         chainPosition: journalEntry.chainPosition,
@@ -883,10 +933,25 @@ class LedgerService {
 
       // Update account balances
       await this.updateAccountBalances(entry.lines, session);
-      
+
+      // Record JOURNAL_POSTED trace stage
+      await this.recordTraceStage(entry.trace_id, {
+        stage: 'JOURNAL_POSTED',
+        entity_type: 'JournalEntry',
+        entity_id: String(entry._id),
+        status: 'SUCCESS',
+        timestamp: new Date(),
+        metadata: {
+          entry_number: entry.entryNumber,
+          hash: entry.hash,
+          chain_position: entry.chainPosition,
+          ledger_entries_created: ledgerEntries.length,
+        },
+      });
+
       // Invalidate related caches
       await cacheService.invalidateLedgerCaches();
-      
+
       logger.info(`Journal entry posted: ${entry.entryNumber}`, {
         hash: entry.hash,
         chainPosition: entry.chainPosition,

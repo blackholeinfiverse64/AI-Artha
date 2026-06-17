@@ -4,21 +4,22 @@
     {
       "name": "Double-Entry Balance",
       "passed": true,
-      "detail": "11/11 entries balanced",
+      "detail": "44/44 entries balanced",
       "unbalanced": [],
       "score": 25,
       "max": 25
     },
     {
       "name": "Hash Chain Integrity",
-      "detail": "Chain length: 27, Valid: undefined",
-      "score": 0,
+      "passed": true,
+      "detail": "Chain length: 123, Valid: true",
+      "score": 25,
       "max": 25
     },
     {
       "name": "Account Balance Consistency",
       "passed": true,
-      "detail": "10 account balances checked, 0 inconsistent",
+      "detail": "11 account balances checked, 0 inconsistent",
       "inconsistent": [],
       "score": 25,
       "max": 25
@@ -31,6 +32,6 @@
       "max": 25
     }
   ],
-  "score": 75,
+  "score": 100,
   "max_score": 100
 }

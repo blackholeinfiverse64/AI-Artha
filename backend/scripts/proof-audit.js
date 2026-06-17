@@ -18,7 +18,7 @@ import path from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const BASE = path.resolve(__dirname, '../../');
+const BASE = path.resolve(__dirname, '..');
 
 // Ensure .env is loaded
 import fs from 'fs/promises';
@@ -68,11 +68,12 @@ async function auditSystemHealth() {
   const collections = await mongoose.connection.db.listCollections().toArray();
   const expectedCollections = ['journaldentries', 'ledgerentries', 'accountbalances', 'chartofaccounts', 'invoices', 'expenses'];
   const collectionNames = collections.map(c => c.name.toLowerCase());
+  const collectionsPresent = expectedCollections.every(c => collectionNames.includes(c));
   const collCheck = {
     name: 'Required Collections',
-    passed: expectedCollections.every(c => collectionNames.includes(c)),
-    detail: `${collectionNames.length} collections found`,
-    score: Math.min(20, collectionNames.length * 3),
+    passed: collectionsPresent,
+    detail: collectionNames.length + ' collections found' + (collectionsPresent ? '' : ' (missing: ' + expectedCollections.filter(c => !collectionNames.includes(c)).join(', ') + ')'),
+    score: collectionsPresent ? 20 : 0,
     max: 20,
   };
   result.checks.push(collCheck);
@@ -164,7 +165,7 @@ async function auditSecurity() {
   // Check helmet is configured
   let helmetConfigured = false;
   try {
-    const serverContent = await fs.readFile(path.join(BASE, 'backend/src/server.js'), 'utf8');
+    const serverContent = await fs.readFile(path.join(BASE, 'src/server.js'), 'utf8');
     helmetConfigured = serverContent.includes('helmet');
   } catch (e) { /* ignore */ }
   const helmetCheck = {
@@ -179,7 +180,7 @@ async function auditSecurity() {
   // Check rate limiting
   let rateLimitConfigured = false;
   try {
-    const serverContent = await fs.readFile(path.join(BASE, 'backend/src/server.js'), 'utf8');
+    const serverContent = await fs.readFile(path.join(BASE, 'src/server.js'), 'utf8');
     rateLimitConfigured = serverContent.includes('rateLimit') || serverContent.includes('limiter');
   } catch (e) { /* ignore */ }
   const rateCheck = {
@@ -194,7 +195,7 @@ async function auditSecurity() {
   // Check CORS configuration
   let corsConfigured = false;
   try {
-    const corsContent = await fs.readFile(path.join(BASE, 'backend/src/config/cors.js'), 'utf8');
+    const corsContent = await fs.readFile(path.join(BASE, 'src/config/cors.js'), 'utf8');
     corsConfigured = corsContent.includes('origin');
   } catch (e) { /* ignore */ }
   const corsCheck = {
@@ -209,7 +210,7 @@ async function auditSecurity() {
   // Check password hashing
   let bcryptUsed = false;
   try {
-    const userModel = await fs.readFile(path.join(BASE, 'backend/src/models/User.js'), 'utf8');
+    const userModel = await fs.readFile(path.join(BASE, 'src/models/User.js'), 'utf8');
     bcryptUsed = userModel.includes('bcrypt');
   } catch (e) { /* ignore */ }
   const bcryptCheck = {
@@ -267,8 +268,10 @@ async function auditDatabaseIntegrity() {
   let chainLength = 0;
   try {
     const chainResult = await ledgerService.verifyLedgerChain();
-    chainValid = chainResult.valid === true || chainResult.isValid === true || (chainResult.errors && chainResult.errors.length === 0);
-    chainLength = chainResult.chainLength || chainResult.totalEntries || 0;
+    if (chainResult && typeof chainResult === 'object') {
+      chainValid = chainResult.isValid === true || chainResult.valid === true || (Array.isArray(chainResult.errors) && chainResult.errors.length === 0);
+      chainLength = chainResult.chainLength || chainResult.totalEntries || 0;
+    }
   } catch (e) {
     chainValid = false;
   }
@@ -328,7 +331,7 @@ async function auditAPICompliance() {
   const result = { name: 'API Compliance Audit', checks: [], score: 0, max_score: 100 };
 
   // Check route files exist
-  const routeDir = path.join(BASE, 'backend/src/routes');
+  const routeDir = path.join(BASE, 'src/routes');
   const expectedRoutes = [
     'ledger.routes.js', 'invoice.routes.js', 'expense.routes.js',
     'gst.routes.js', 'tds.routes.js', 'reports.routes.js',
@@ -354,7 +357,7 @@ async function auditAPICompliance() {
   result.checks.push(routeCheck);
 
   // Check controller files exist
-  const ctrlDir = path.join(BASE, 'backend/src/controllers');
+  const ctrlDir = path.join(BASE, 'src/controllers');
   const expectedControllers = [
     'ledger.controller.js', 'invoice.controller.js', 'expense.controller.js',
     'gst.controller.js', 'tds.controller.js', 'reports.controller.js',
@@ -381,7 +384,7 @@ async function auditAPICompliance() {
   // Check auth middleware
   let authMiddleware = false;
   try {
-    const authContent = await fs.readFile(path.join(BASE, 'backend/src/middleware/auth.js'), 'utf8');
+    const authContent = await fs.readFile(path.join(BASE, 'src/middleware/auth.js'), 'utf8');
     authMiddleware = authContent.includes('protect') || authContent.includes('authorize');
   } catch (e) { /* ignore */ }
 
@@ -397,7 +400,7 @@ async function auditAPICompliance() {
   // Check validation middleware
   let validationMiddleware = false;
   try {
-    const valContent = await fs.readFile(path.join(BASE, 'backend/src/middleware/validation.js'), 'utf8');
+    const valContent = await fs.readFile(path.join(BASE, 'src/middleware/validation.js'), 'utf8');
     validationMiddleware = valContent.includes('validate') || valContent.includes('check');
   } catch (e) { /* ignore */ }
 
@@ -420,7 +423,7 @@ async function auditAPICompliance() {
 async function auditConfiguration() {
   console.log('\n  [Audit 5] Configuration Audit...');
   const result = { name: 'Configuration Audit', checks: [], score: 0, max_score: 100 };
-  const BACKEND = path.join(BASE, 'backend');
+  const BACKEND = BASE;
 
   // Check .env file
   let envExists = false;
@@ -477,12 +480,13 @@ async function auditConfiguration() {
 
   // Check docker-compose
   let composeExists = false;
+  const PROJECT_ROOT = path.resolve(BASE, '..');
   try {
-    await fs.access(path.join(BASE, 'docker-compose.yml'));
+    await fs.access(path.join(PROJECT_ROOT, 'docker-compose.yml'));
     composeExists = true;
   } catch (e) {
     try {
-      await fs.access(path.join(BASE, 'docker-compose.dev.yml'));
+      await fs.access(path.join(PROJECT_ROOT, 'docker-compose.dev.yml'));
       composeExists = true;
     } catch (e2) { /* missing */ }
   }
@@ -532,7 +536,7 @@ async function auditConfiguration() {
   // Check health endpoints
   let healthRoutes = false;
   try {
-    const healthContent = await fs.readFile(path.join(BASE, 'backend/src/routes/health.routes.js'), 'utf8');
+    const healthContent = await fs.readFile(path.join(BASE, 'src/routes/health.routes.js'), 'utf8');
     healthRoutes = healthContent.includes('/health') || healthContent.includes('/live') || healthContent.includes('/ready');
   } catch (e) { /* ignore */ }
 
@@ -585,11 +589,11 @@ async function run() {
     // Calculate overall score (weighted)
     const weights = { health: 0.2, security: 0.2, database: 0.3, api: 0.15, config: 0.15 };
     const weightedScore = Math.round(
-      (healthAudit.score / healthAudit.max_score) * weights.health * 100 +
-      (securityAudit.score / securityAudit.max_score) * weights.security * 100 +
-      (dbAudit.score / dbAudit.max_score) * weights.database * 100 +
-      (apiAudit.score / apiAudit.max_score) * weights.api * 100 +
-      (configAudit.score / configAudit.max_score) * weights.config * 100
+      (Math.min(healthAudit.score, healthAudit.max_score) / healthAudit.max_score) * weights.health * 100 +
+      (Math.min(securityAudit.score, securityAudit.max_score) / securityAudit.max_score) * weights.security * 100 +
+      (Math.min(dbAudit.score, dbAudit.max_score) / dbAudit.max_score) * weights.database * 100 +
+      (Math.min(apiAudit.score, apiAudit.max_score) / apiAudit.max_score) * weights.api * 100 +
+      (Math.min(configAudit.score, configAudit.max_score) / configAudit.max_score) * weights.config * 100
     );
 
     const totalMax = 500;
@@ -625,6 +629,38 @@ async function run() {
     await ensureDir(EVIDENCE_DIR);
     await ensureDir(AUDIT_EVIDENCE_DIR);
     await ensureDir(REPORT_DIR);
+
+    // PDF RULE: If passed=false, score MUST be 0. No contradictions allowed.
+    for (const audit of evidence.audits) {
+      for (const check of audit.checks) {
+        if (check.passed === false && check.score !== 0) {
+          console.warn(`  ⚠ CONTRADICTION FIXED: "${check.name}" had passed=false but score=${check.score} → set to 0`);
+          check.score = 0;
+        }
+      }
+      // Recalculate audit score from checks
+      audit.score = audit.checks.reduce((s, c) => s + c.score, 0);
+    }
+
+    // Recalculate overall score from corrected audits
+    const weights = { health: 0.2, security: 0.2, database: 0.3, api: 0.15, config: 0.15 };
+    const weightKeys = ['health', 'security', 'database', 'api', 'config'];
+    let correctedWeightedScore = 0;
+    for (let i = 0; i < evidence.audits.length; i++) {
+      const a = evidence.audits[i];
+      const w = weights[weightKeys[i]] || 0;
+      // PDF RULE: score must not exceed max_score
+      const normalizedScore = Math.min(a.score, a.max_score);
+      correctedWeightedScore += (normalizedScore / a.max_score) * w * 100;
+    }
+    correctedWeightedScore = Math.round(correctedWeightedScore);
+    if (evidence.summary) {
+      evidence.summary.overall_score = correctedWeightedScore;
+      evidence.summary.total_passed = evidence.audits.reduce((s, a) => s + a.checks.filter(c => c.passed === true).length, 0);
+      evidence.summary.verdict = correctedWeightedScore >= 80 ? 'PRODUCTION READY'
+        : correctedWeightedScore >= 60 ? 'NEEDS IMPROVEMENT'
+        : 'NOT PRODUCTION READY';
+    }
 
     // Write individual audit files
     for (const audit of evidence.audits) {
