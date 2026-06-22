@@ -27,7 +27,9 @@ const runtimeProofSchema = new mongoose.Schema({
     type: String,
     required: true,
     enum: ['API_RESPONSE', 'DATABASE_STATE', 'TERMINAL_LOG', 'CURL_OUTPUT', 
-           'SCREENSHOT', 'CHAIN_VERIFICATION', 'BALANCE_SHEET', 'INTEGRATION_TEST'],
+           'SCREENSHOT', 'CHAIN_VERIFICATION', 'BALANCE_SHEET', 'INTEGRATION_TEST',
+           'SETU_DISPATCH_ATTEMPT', 'SETU_ACKNOWLEDGMENT', 'SETU_REJECTION',
+           'SETU_RETRY', 'DELIVERY_RECEIPT'],
   },
   endpoint: String,
   method: String, // GET, POST, etc.
@@ -101,6 +103,21 @@ const runtimeProofSchema = new mongoose.Schema({
     default: true,
   },
   reproduction_steps: [String],
+
+  // SETU delivery tracking
+  attempt_number: Number,
+  dispatch_id: String,
+  is_retry: { type: Boolean, default: false },
+  retry_of: String,
+  setu_reference: String,
+  delivery_status: {
+    type: String,
+    enum: ['INITIATED', 'SENT', 'ACCEPTED', 'REJECTED', 'TIMEOUT', 'NETWORK_ERROR', 'DEAD_LETTER'],
+  },
+  content_hash: String,
+  webhook_signature: String,
+  original_proof_id: String,
+  pipeline_version: { type: String, default: '1.0.0' },
   
   created_at: {
     type: Date,
@@ -116,6 +133,9 @@ runtimeProofSchema.index({ proof_type: 1, created_at: -1 });
 runtimeProofSchema.index({ endpoint: 1, method: 1 });
 runtimeProofSchema.index({ verified: 1 });
 runtimeProofSchema.index({ 'environment.node_env': 1 });
+runtimeProofSchema.index({ dispatch_id: 1 });
+runtimeProofSchema.index({ attempt_number: 1, trace_id: 1 });
+runtimeProofSchema.index({ delivery_status: 1 });
 
 // Add assertion
 runtimeProofSchema.methods.addAssertion = function(description, expected, actual) {

@@ -4,6 +4,7 @@ import { getRedisClient } from '../config/redis.js';
 import logger from '../config/logger.js';
 import healthService from '../services/health.service.js';
 import performanceService from '../services/performance.service.js';
+import observabilityService from '../services/observability.service.js';
 
 const router = express.Router();
 
@@ -136,6 +137,45 @@ router.get('/status', async (req, res) => {
       success: false,
       message: 'Status check failed',
     });
+  }
+});
+
+// Comprehensive observability health check
+router.get('/observability', async (req, res) => {
+  try {
+    const health = await observabilityService.getSystemHealth();
+    res.status(health.status === 'healthy' ? 200 : 503).json({
+      success: health.status === 'healthy',
+      data: health,
+    });
+  } catch (error) {
+    logger.error('Observability health check error:', error);
+    res.status(503).json({ success: false, message: 'Observability check failed' });
+  }
+});
+
+// Prometheus-compatible metrics
+router.get('/prometheus', (req, res) => {
+  try {
+    const metrics = observabilityService.getMetrics();
+    let output = '';
+    for (const [key, value] of Object.entries(metrics)) {
+      output += `# TYPE artha_${key} gauge\nartha_${key} ${value}\n`;
+    }
+    res.set('Content-Type', 'text/plain');
+    res.send(output);
+  } catch (error) {
+    res.status(500).send('# Error generating metrics\n');
+  }
+});
+
+// Runtime dashboard data
+router.get('/dashboard', async (req, res) => {
+  try {
+    const data = await observabilityService.getDashboardData();
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(500).json({ success: false, message: 'Dashboard data unavailable' });
   }
 });
 

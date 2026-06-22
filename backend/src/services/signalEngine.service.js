@@ -3,6 +3,8 @@ import { randomUUID } from 'crypto';
 import ChartOfAccounts from '../models/ChartOfAccounts.js';
 import LedgerEntry from '../models/LedgerEntry.js';
 import ComplianceSignal from '../models/ComplianceSignal.js';
+import SetuDispatch from '../models/SetuDispatch.js';
+import RuntimeProof from '../models/RuntimeProof.js';
 import Invoice from '../models/Invoice.js';
 import logger from '../config/logger.js';
 
@@ -64,11 +66,29 @@ function buildSignalPayload({ signalId, traceId, module: mod, entityType, entity
   };
 }
 
-// ─── Persist signal to DB ─────────────────────────────────────────────────────
+// ─── Persist signal to DB (with deduplication) ──────────────────────────────
 
 async function persistSignal(payload) {
   try {
-    await ComplianceSignal.create({
+    // Deduplication: skip if same signal type + entity_id already exists today
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date();
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const entityId = payload.source?.entity_id || 'UNKNOWN';
+    const existing = await ComplianceSignal.findOne({
+      type: payload.signal_id,
+      'context.source.entity_id': entityId,
+      created_at: { $gte: todayStart, $lte: todayEnd },
+    }).select('_id');
+
+    if (existing) {
+      logger.debug(`Signal deduplicated: ${payload.signal_id} entity=${entityId} already exists today`);
+      return existing;
+    }
+
+    const signal = await ComplianceSignal.create({
       trace_id: payload.trace_id,
       source: payload.source.system,
       type: payload.signal_id,
@@ -76,6 +96,7 @@ async function persistSignal(payload) {
       context: { ...payload.context, source: payload.source },
       recommendation: `[${payload.recommendation.code}] ${payload.recommendation.message}`,
     });
+    return signal;
   } catch (err) {
     // Never let signal persistence break the calling flow
     logger.warn(`Signal persist failed for ${payload.signal_id}: ${err.message}`);
@@ -85,40 +106,217 @@ async function persistSignal(payload) {
 // ─── SETU dispatch — runs full pipeline before sending ──────────────────────
 
 async function dispatchToSetu(payload) {
-  if (process.env.SETU_ENABLED !== 'true') return;
+  if (process.env.SETU_ENABLED !== 'true') return { dispatched: false, reason: 'SETU not enabled' };
 
   const baseUrl = process.env.SETU_BASE_URL;
   const apiKey  = process.env.SETU_API_KEY;
   if (!baseUrl || !apiKey) {
     logger.warn('SETU_BASE_URL or SETU_API_KEY not configured — skipping dispatch');
-    return;
+    return { dispatched: false, reason: 'Missing credentials' };
   }
 
   // Run the full Normalize → Validate → Map → Serialize pipeline
-  const { runPipeline } = await import('./setu.pipeline.js');
-  const result = runPipeline(payload);
+  const { runPipeline, parseSetuAcknowledge, buildDeliveryEvidence, shouldRetry, computeRetryDelay } = await import('./setu.pipeline.js');
+  const result = runPipeline(payload, { attemptNumber: 1 });
 
   if (!result.ok) {
     logger.warn(`SETU pipeline failed at stage ${result.stage} for ${payload.signal_id}: ${result.error}`);
-    return;
+    return { dispatched: false, reason: `Pipeline failed at ${result.stage}: ${result.error}` };
   }
 
   if (result.warnings?.length) {
     logger.warn(`SETU pipeline warnings for ${payload.signal_id}: ${result.warnings.join('; ')}`);
   }
 
+  // Create dispatch record
+  const dispatchRecord = await SetuDispatch.create({
+    signal_id: payload.signal_id,
+    trace_id: payload.trace_id,
+    signal_type: payload.signal_id,
+    severity: payload.severity,
+    attempt_number: 1,
+    max_retries: 3,
+    request: {
+      endpoint: `${baseUrl}/api/v1/signals/ingest`,
+      method: 'POST',
+      headers: result.headers,
+      body_hash: result.contentHash,
+      body: JSON.parse(result.body),
+    },
+    idempotency_key: result.idempotencyKey,
+    dispatch_id: result.dispatchId,
+    is_retry: false,
+    pipeline_version: '1.0.0',
+    environment: process.env.NODE_ENV,
+    created_by: 'system',
+  });
+
+  const startTime = Date.now();
+  
   try {
     const { default: axios } = await import('axios');
-    await axios.post(`${baseUrl}/api/v1/signals/ingest`, result.body, {
+    const response = await axios.post(`${baseUrl}/api/v1/signals/ingest`, result.body, {
       headers: {
         ...result.headers,
         Authorization: `Bearer ${apiKey}`,
       },
       timeout: parseInt(process.env.SETU_TIMEOUT_MS || '5000', 10),
     });
-    logger.info(`Signal dispatched to SETU: ${payload.signal_id} trace=${payload.trace_id}`);
+    
+    const latencyMs = Date.now() - startTime;
+    const ack = parseSetuAcknowledge(response.data);
+    
+    // Update dispatch record with response
+    await SetuDispatch.findByIdAndUpdate(dispatchRecord._id, {
+      $set: {
+        'response.status': response.status,
+        'response.headers': response.headers,
+        'response.body': response.data,
+        'response.latency_ms': latencyMs,
+        'response.timestamp': new Date(),
+        'ack.status': ack.status,
+        'ack.setu_reference': ack.setuReference,
+        'ack.received_at': new Date(),
+        status: ack.status === 'ACCEPTED' ? 'dispatched' : 'failed',
+        delivered_at: new Date(),
+      },
+    });
+
+    // Create delivery evidence proof
+    const evidence = buildDeliveryEvidence({
+      dispatchId: result.dispatchId,
+      signalId: payload.signal_id,
+      traceId: payload.trace_id,
+      attemptNumber: 1,
+      request: {
+        endpoint: `${baseUrl}/api/v1/signals/ingest`,
+        method: 'POST',
+        headers: result.headers,
+        contentHash: result.contentHash,
+      },
+      response: {
+        status: response.status,
+        latencyMs,
+        body: response.data,
+      },
+      ack,
+      contentHash: result.contentHash,
+    });
+
+    // Store delivery evidence as RuntimeProof
+    await RuntimeProof.create({
+      type: 'SETU_DISPATCH_ATTEMPT',
+      trace_id: payload.trace_id,
+      signal_id: payload.signal_id,
+      source_system: 'ARTHA',
+      payload: evidence,
+      environment: process.env.NODE_ENV,
+      content_hash: result.contentHash,
+      pipeline_version: '1.0.0',
+    });
+
+    if (ack.status === 'ACCEPTED') {
+      // Update compliance signal with dispatch info
+      await ComplianceSignal.updateOne(
+        { trace_id: payload.trace_id },
+        { $set: { dispatch_status: 'acknowledged', setu_reference: ack.setuReference, ack_received_at: new Date(), ack_payload: ack.raw } }
+      );
+      
+      logger.info(`Signal dispatched and acknowledged: ${payload.signal_id} trace=${payload.trace_id} setu_ref=${ack.setuReference}`);
+      return { dispatched: true, ack: ack.raw, dispatchId: result.dispatchId, setuReference: ack.setuReference };
+    } else {
+      logger.warn(`Signal dispatched but rejected: ${payload.signal_id} trace=${payload.trace_id} status=${ack.status}`);
+      return { dispatched: false, reason: `SETU rejected: ${ack.status}`, ack: ack.raw, dispatchId: result.dispatchId };
+    }
   } catch (err) {
-    logger.warn(`SETU dispatch failed for ${payload.signal_id}: ${err.message}`);
+    const latencyMs = Date.now() - startTime;
+    
+    // Update dispatch record with error
+    await SetuDispatch.findByIdAndUpdate(dispatchRecord._id, {
+      $set: {
+        'response.status': err.response?.status,
+        'response.body': err.response?.data,
+        'response.latency_ms': latencyMs,
+        'response.timestamp': new Date(),
+        'response.error': err.message,
+        status: 'failed',
+        error: { message: err.message, code: err.code, stack: err.stack?.split('\n').slice(0, 5).join('\n') },
+      },
+    });
+
+    // Create failure evidence
+    const evidence = buildDeliveryEvidence({
+      dispatchId: result.dispatchId,
+      signalId: payload.signal_id,
+      traceId: payload.trace_id,
+      attemptNumber: 1,
+      request: {
+        endpoint: `${baseUrl}/api/v1/signals/ingest`,
+        method: 'POST',
+        headers: result.headers,
+        contentHash: result.contentHash,
+      },
+      response: {
+        status: err.response?.status,
+        latencyMs,
+        body: err.response?.data,
+      },
+      ack: { status: 'FAILED', receivedAt: new Date() },
+      contentHash: result.contentHash,
+    });
+
+    await RuntimeProof.create({
+      type: 'SETU_DISPATCH_ATTEMPT',
+      trace_id: payload.trace_id,
+      signal_id: payload.signal_id,
+      source_system: 'ARTHA',
+      payload: evidence,
+      environment: process.env.NODE_ENV,
+      content_hash: result.contentHash,
+      pipeline_version: '1.0.0',
+    });
+
+    // Check if we should retry
+    const retryCount = 1;
+    const maxRetries = 3;
+    const responseStatus = err.response?.status;
+    
+    if (shouldRetry(responseStatus, retryCount, maxRetries)) {
+      const retryDelay = computeRetryDelay(retryCount);
+      const nextRetryTime = new Date(Date.now() + retryDelay);
+      
+      // Update dispatch record with retry info
+      await SetuDispatch.findByIdAndUpdate(dispatchRecord._id, {
+        $set: {
+          'retry.count': retryCount,
+          'retry.max_retries': maxRetries,
+          'retry.next_retry_at': nextRetryTime,
+          'retry.backoff_ms': retryDelay,
+        },
+      });
+
+      // Update compliance signal with retry info
+      await ComplianceSignal.updateOne(
+        { trace_id: payload.trace_id },
+        { $set: { dispatch_status: 'retry_scheduled', retry_count: retryCount, next_retry_at: nextRetryTime } }
+      );
+
+      logger.warn(`SETU dispatch failed, retry scheduled: ${payload.signal_id} trace=${payload.trace_id} retry=${retryCount}/${maxRetries} at=${nextRetryTime}`);
+      return { dispatched: false, reason: `Retry scheduled: ${err.message}`, retryScheduled: true, nextRetryAt: nextRetryTime, dispatchId: result.dispatchId };
+    } else {
+      // Max retries exceeded or non-retryable error
+      await SetuDispatch.findByIdAndUpdate(dispatchRecord._id, {
+        $set: { status: 'dead_letter', 'retry.exhausted_at': new Date() },
+      });
+
+      await ComplianceSignal.updateOne(
+        { trace_id: payload.trace_id },
+        { $set: { dispatch_status: 'retry_exhausted' } }
+      );
+
+      logger.warn(`SETU dispatch failed permanently: ${payload.signal_id} trace=${payload.trace_id} error=${err.message}`);
+      return { dispatched: false, reason: `Permanent failure: ${err.message}`, dispatchId: result.dispatchId };
+    }
   }
 }
 
@@ -127,8 +325,8 @@ async function dispatchToSetu(payload) {
 export async function emitSignal(opts) {
   const payload = buildSignalPayload(opts);
   await persistSignal(payload);
-  await dispatchToSetu(payload);
-  return payload;
+  const dispatchResult = await dispatchToSetu(payload);
+  return { payload, dispatch: dispatchResult };
 }
 
 // ─── SignalEngineService class (extends existing snapshot logic) ───────────────
@@ -179,7 +377,8 @@ class SignalEngineService {
 
   /**
    * Snapshot — backward-compatible with existing /signals/snapshot endpoint.
-   * Now also evaluates signals and persists them.
+   * Read-only: returns current financial state without emitting signals.
+   * Signals should only be emitted via explicit trigger endpoints or scheduled jobs.
    */
   async getSignalSnapshot(startDate = null, endDate = null) {
     const cash        = await this.calculateCashFlow(startDate, endDate);
@@ -190,26 +389,6 @@ class SignalEngineService {
     const tdsPayable  = await this.sumLedgerForAccounts(tdsIds,  startDate, endDate);
     const outputCGST  = await this.sumLedgerForAccounts(cgstIds, startDate, endDate);
     const outputSGST  = await this.sumLedgerForAccounts(sgstIds, startDate, endDate);
-
-    const cashFlowNum = new Decimal(cash.cashFlow);
-
-    // Emit cash flow signal if negative
-    if (cashFlowNum.isNegative()) {
-      await emitSignal({
-        signalId:   'SIG_CASHFLOW_NEGATIVE',
-        traceId:    buildTraceId(),
-        module:     'LEDGER',
-        entityType: 'JOURNAL_ENTRY',
-        entityId:   'LEDGER_SNAPSHOT',
-        severity:   'HIGH',
-        context: {
-          cash_flow:    cash.cashFlow,
-          account_codes: ['1000', '1010'],
-          period_start: startDate,
-          period_end:   endDate,
-        },
-      });
-    }
 
     return {
       source: 'ledger-only',

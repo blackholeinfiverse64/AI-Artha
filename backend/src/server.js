@@ -52,6 +52,18 @@ import signalRoutes from './routes/signal.routes.js';
 import complianceRoutes from './routes/compliance.routes.js';
 import runtimeRoutes from './routes/runtime.routes.js';
 import traceRoutes from './routes/trace.routes.js';
+import bankingRoutes from './routes/banking.routes.js';
+import auditRoutes from './routes/audit.routes.js';
+import caWorkflowRoutes from './routes/caWorkflow.routes.js';
+import tallyRoutes from './routes/tally.routes.js';
+import multiCompanyRoutes from './routes/multiCompany.routes.js';
+import tantraRoutes from './routes/tantra.routes.js';
+import observabilityService from './services/observability.service.js';
+import bankingService from './services/banking.service.js';
+import auditService from './services/audit.service.js';
+import caWorkflowService from './services/caWorkflow.service.js';
+import SetuDispatch from './models/SetuDispatch.js';
+import ComplianceSignal from './models/ComplianceSignal.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -71,6 +83,19 @@ connectDB();
     logger.info('Redis connected');
   } catch (err) {
     logger.warn('Redis unavailable, continuing without cache');
+  }
+})();
+
+// Initialize services
+(async () => {
+  try {
+    await auditService.init();
+    await bankingService.init();
+    await caWorkflowService.init();
+    await observabilityService.getSystemHealth();
+    logger.info('All services initialized');
+  } catch (err) {
+    logger.warn('Some services failed to initialize:', err.message);
   }
 })();
 
@@ -217,6 +242,65 @@ app.use('/api/v1/upload', smartUploadRoutes);
 app.use('/api/v1/signals', signalRoutes);
 app.use('/api/v1/runtime', runtimeRoutes);
 app.use('/api/v1/trace', traceRoutes);
+app.use('/api/v1/banking', bankingRoutes);
+app.use('/api/v1/audit', auditRoutes);
+app.use('/api/v1/ca-workflow', caWorkflowRoutes);
+app.use('/api/v1/tally', tallyRoutes);
+app.use('/api/v1/multi-company', multiCompanyRoutes);
+app.use('/api/v1/tantra', tantraRoutes);
+
+// SETU callback webhook endpoint
+app.post('/api/v1/setu/callback', async (req, res) => {
+  try {
+    const { dispatch_id, signal_id, trace_id, status, setu_reference, processing_time_ms, error } = req.body;
+    
+    if (!dispatch_id || !signal_id) {
+      return res.status(400).json({ success: false, message: 'Missing required fields: dispatch_id, signal_id' });
+    }
+    
+    // Find the dispatch record
+    const dispatch = await SetuDispatch.findOne({ dispatch_id, signal_id });
+    if (!dispatch) {
+      logger.warn(`SETU callback for unknown dispatch: ${dispatch_id}`);
+      return res.status(404).json({ success: false, message: 'Dispatch not found' });
+    }
+    
+    // Update dispatch with acknowledgement
+    await SetuDispatch.findByIdAndUpdate(dispatch._id, {
+      $set: {
+        'ack.status': status,
+        'ack.setu_reference': setu_reference,
+        'ack.processing_time_ms': processing_time_ms,
+        'ack.error': error,
+        'ack.received_at': new Date(),
+        status: status === 'ACCEPTED' ? 'dispatched' : 'failed',
+      },
+      $push: {
+        acknowledgement: {
+          status,
+          setu_reference,
+          processing_time_ms,
+          error,
+          received_at: new Date(),
+        },
+      },
+    });
+    
+    // Update compliance signal if exists
+    if (trace_id) {
+      await ComplianceSignal.updateOne(
+        { trace_id },
+        { $set: { dispatch_status: status === 'ACCEPTED' ? 'acknowledged' : 'rejected', setu_reference, ack_received_at: new Date(), ack_payload: req.body } }
+      );
+    }
+    
+    logger.info(`SETU callback processed: dispatch_id=${dispatch_id} status=${status}`);
+    res.json({ success: true, message: 'Callback processed' });
+  } catch (err) {
+    logger.error(`SETU callback error: ${err.message}`);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
 
 app.use((req, res) => {
   res.status(404).json({ success: false, message: 'Route not found' });

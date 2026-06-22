@@ -3,12 +3,14 @@
  *
  * Phase 2A — Integration Support
  * Four pure functions: Normalizer → Validator → Mapper → Serializer
+ * Extended: Acknowledgement envelope, retry metadata, delivery evidence, idempotency
  *
  * Nothing here executes, orchestrates, or dispatches.
  * Each function is independently testable and has no side effects.
  */
 
 import Decimal from 'decimal.js';
+import crypto from 'crypto';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -319,22 +321,138 @@ export function mapToSetuPayload(normalized) {
 /**
  * Serialize a SETU payload to wire format.
  * Returns { ok: true, body, headers } or { ok: false, error }.
+ * 
+ * Extended with: idempotency key, dispatch_id, pipeline version, content fingerprint.
  */
-export function serializeForSetu(setuPayload) {
+export function serializeForSetu(setuPayload, options = {}) {
   try {
-    const body = JSON.stringify(setuPayload);
+    const { attemptNumber = 1, originalDispatchTime, parentDispatchId } = options;
+    
+    // Generate idempotency key
+    const idempotencyKey = `IDEM-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${setuPayload.signal_id}-${attemptNumber}`;
+    
+    // Generate dispatch ID
+    const dispatchId = `SD-${crypto.randomBytes(8).toString('hex')}`;
+    
+    // Compute content fingerprint for tamper detection
+    const contentHash = crypto.createHash('sha256').update(JSON.stringify(setuPayload)).digest('hex');
+    
+    // Add retry metadata to payload
+    const enrichedPayload = {
+      ...setuPayload,
+      _metadata: {
+        dispatch_id: dispatchId,
+        attempt_number: attemptNumber,
+        original_dispatch_time: originalDispatchTime || new Date().toISOString(),
+        parent_dispatch_id: parentDispatchId,
+        pipeline_version: '1.0.0',
+        content_hash: contentHash,
+      },
+    };
+    
+    const body = JSON.stringify(enrichedPayload);
 
     const headers = {
       'Content-Type':  'application/json',
       'X-Artha-Trace': setuPayload.trace_id,
       'X-Signal-Type': setuPayload.signal_id,
       'X-Severity':    setuPayload.severity,
+      'X-Idempotency-Key': idempotencyKey,
+      'X-Dispatch-Attempt': String(attemptNumber),
+      'X-Dispatch-ID': dispatchId,
+      'X-Content-Hash': contentHash,
+      'X-Pipeline-Version': '1.0.0',
     };
 
-    return { ok: true, body, headers };
+    return { ok: true, body, headers, dispatchId, idempotencyKey, contentHash };
   } catch (err) {
     return { ok: false, error: `Serialization failed: ${err.message}` };
   }
+}
+
+/**
+ * Parse SETU acknowledgement envelope.
+ * Expected shape: { status: "ACCEPTED"|"REJECTED", request_id, setu_reference, processing_time_ms }
+ */
+export function parseSetuAcknowledge(responseBody) {
+  if (!responseBody || typeof responseBody !== 'object') {
+    return { valid: false, error: 'Empty or invalid response body' };
+  }
+  
+  const { status, request_id, setu_reference, processing_time_ms, error } = responseBody;
+  
+  const validStatuses = ['ACCEPTED', 'REJECTED', 'PENDING', 'TIMEOUT'];
+  if (!validStatuses.includes(status)) {
+    return { valid: false, error: `Unknown acknowledgement status: ${status}` };
+  }
+  
+  return {
+    valid: true,
+    status,
+    setuReference: setu_reference || request_id,
+    processingTimeMs: processing_time_ms,
+    error,
+    raw: responseBody,
+  };
+}
+
+/**
+ * Build delivery evidence object for RuntimeProof.
+ */
+export function buildDeliveryEvidence({ dispatchId, signalId, traceId, attemptNumber, request, response, ack, contentHash }) {
+  return {
+    dispatch_id: dispatchId,
+    signal_id: signalId,
+    trace_id: traceId,
+    attempt_number: attemptNumber,
+    request: {
+      endpoint: request?.endpoint,
+      method: request?.method || 'POST',
+      headers: request?.headers,
+      body_hash: contentHash,
+      timestamp: request?.timestamp || new Date(),
+    },
+    response: {
+      status: response?.status,
+      latency_ms: response?.latencyMs,
+      body: response?.body,
+      timestamp: response?.timestamp || new Date(),
+    },
+    ack: {
+      status: ack?.status || 'PENDING',
+      setu_reference: ack?.setuReference,
+      received_at: ack?.receivedAt,
+    },
+    content_hash: contentHash,
+    pipeline_version: '1.0.0',
+    environment: process.env.NODE_ENV,
+    created_at: new Date(),
+  };
+}
+
+/**
+ * Check if a dispatch should be retried based on response.
+ */
+export function shouldRetry(responseStatus, retryCount, maxRetries) {
+  if (retryCount >= maxRetries) return false;
+  
+  // Retryable: server errors (5xx), timeouts, network errors
+  if (!responseStatus || responseStatus >= 500) return true;
+  
+  // Retryable: 429 Too Many Requests
+  if (responseStatus === 429) return true;
+  
+  // Non-retryable: client errors (4xx except 429)
+  if (responseStatus >= 400 && responseStatus < 500) return false;
+  
+  return false;
+}
+
+/**
+ * Compute retry delay with exponential backoff.
+ */
+export function computeRetryDelay(attemptNumber, baseDelayMs = 60000) {
+  return Math.pow(2, attemptNumber) * baseDelayMs;
 }
 
 // ─── Pipeline runner (convenience — not orchestration) ────────────────────────
@@ -347,9 +465,10 @@ export function serializeForSetu(setuPayload) {
  * Run the full Artha → SETU pipeline for a single raw signal.
  *
  * @param {object} rawSignal  Raw signal from DB or signalEngine
- * @returns {{ ok: boolean, stage: string, payload?: object, body?: string, headers?: object, error?: string, warnings?: string[] }}
+ * @param {object} options    Pipeline options: { attemptNumber, originalDispatchTime, parentDispatchId }
+ * @returns {{ ok: boolean, stage: string, payload?: object, body?: string, headers?: object, dispatchId?: string, idempotencyKey?: string, contentHash?: string, error?: string, warnings?: string[] }}
  */
-export function runPipeline(rawSignal) {
+export function runPipeline(rawSignal, options = {}) {
   // Stage 1: Normalize
   let normalized;
   try {
@@ -377,8 +496,8 @@ export function runPipeline(rawSignal) {
     return { ok: false, stage: 'MAP', error: err.message };
   }
 
-  // Stage 4: Serialize
-  const serialized = serializeForSetu(setuPayload);
+  // Stage 4: Serialize (with retry metadata)
+  const serialized = serializeForSetu(setuPayload, options);
   if (!serialized.ok) {
     return { ok: false, stage: 'SERIALIZE', error: serialized.error };
   }
@@ -389,6 +508,9 @@ export function runPipeline(rawSignal) {
     payload:  setuPayload,
     body:     serialized.body,
     headers:  serialized.headers,
+    dispatchId: serialized.dispatchId,
+    idempotencyKey: serialized.idempotencyKey,
+    contentHash: serialized.contentHash,
     warnings: validation.warnings,
   };
 }

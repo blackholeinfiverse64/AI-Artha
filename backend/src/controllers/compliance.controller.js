@@ -12,6 +12,10 @@ import {
   toCsv,
 } from '../services/compliance/export.service.js';
 import logger from '../config/logger.js';
+import { randomUUID } from 'crypto';
+import auditService from '../services/audit.service.js';
+import evidenceAutomationService from '../services/evidenceAutomation.service.js';
+import tantraService from '../services/tantra.service.js';
 
 const respondWithCsv = (res, filename, csv) => {
   res.setHeader('Content-Type', 'text/csv');
@@ -39,6 +43,39 @@ export const generateGSTR1 = async (req, res) => {
       filingId, filingType: 'GSTR-1', period, traceId,
       filing_ready: validation.filing_ready,
       errors: validation.errors,
+    });
+
+    // Audit trail
+    await auditService.recordEvent({
+      eventType: 'GSTR1_GENERATED',
+      entityType: 'ComplianceFiling',
+      entityId: filingId,
+      traceId,
+      userId: req.user?._id,
+      details: {
+        period,
+        filingType: 'GSTR-1',
+        filing_ready: validation.filing_ready,
+        errors: validation.errors,
+      },
+    });
+
+    // Capture evidence
+    await evidenceAutomationService.captureAPIResponse({
+      operation: 'generateGSTR1',
+      entityType: 'ComplianceFiling',
+      entityId: filingId,
+      request: { period, gstin, format },
+      response: { success: true, filing_ready: validation.filing_ready, errors: validation.errors },
+      traceId,
+    });
+
+    // Emit TANTRA event
+    await tantraService.emitEvent({
+      event: 'GSTR1_GENERATED',
+      entityType: 'ComplianceFiling',
+      entityId: filingId,
+      details: { period, filing_ready: validation.filing_ready },
     });
 
     if (format === 'csv') {
@@ -75,6 +112,39 @@ export const generateGSTR3B = async (req, res) => {
       errors: validation.errors,
     });
 
+    // Audit trail
+    await auditService.recordEvent({
+      eventType: 'GSTR3B_GENERATED',
+      entityType: 'ComplianceFiling',
+      entityId: filingId,
+      traceId,
+      userId: req.user?._id,
+      details: {
+        period,
+        filingType: 'GSTR-3B',
+        filing_ready: validation.filing_ready,
+        errors: validation.errors,
+      },
+    });
+
+    // Capture evidence
+    await evidenceAutomationService.captureAPIResponse({
+      operation: 'generateGSTR3B',
+      entityType: 'ComplianceFiling',
+      entityId: filingId,
+      request: { period, gstin, format },
+      response: { success: true, filing_ready: validation.filing_ready, errors: validation.errors },
+      traceId,
+    });
+
+    // Emit TANTRA event
+    await tantraService.emitEvent({
+      event: 'GSTR3B_GENERATED',
+      entityType: 'ComplianceFiling',
+      entityId: filingId,
+      details: { period, filing_ready: validation.filing_ready },
+    });
+
     if (format === 'csv') {
       const rows = flattenGSTR3BRows(filing);
       const headers = ['section', 'taxable_value', 'cgst', 'sgst', 'igst', 'tax', 'total', 'total_payable'];
@@ -109,6 +179,40 @@ export const generateForm26Q = async (req, res) => {
       errors: validation.errors,
     });
 
+    // Audit trail
+    await auditService.recordEvent({
+      eventType: 'FORM26Q_GENERATED',
+      entityType: 'ComplianceFiling',
+      entityId: filingId,
+      traceId,
+      userId: req.user?._id,
+      details: {
+        quarter,
+        financialYear,
+        filingType: 'FORM-26Q',
+        filing_ready: validation.filing_ready,
+        errors: validation.errors,
+      },
+    });
+
+    // Capture evidence
+    await evidenceAutomationService.captureAPIResponse({
+      operation: 'generateForm26Q',
+      entityType: 'ComplianceFiling',
+      entityId: filingId,
+      request: { quarter, financialYear, format },
+      response: { success: true, filing_ready: validation.filing_ready, errors: validation.errors },
+      traceId,
+    });
+
+    // Emit TANTRA event
+    await tantraService.emitEvent({
+      event: 'FORM26Q_GENERATED',
+      entityType: 'ComplianceFiling',
+      entityId: filingId,
+      details: { quarter, financialYear, filing_ready: validation.filing_ready },
+    });
+
     if (format === 'csv') {
       const rows = flattenTdsRows(filing, 'FORM-26Q');
       const headers = ['pan', 'name', 'section', 'amount_paid', 'tds_deducted', 'entry_number', 'transaction_date', 'challan_number', 'challan_date', 'bank_bsr'];
@@ -141,6 +245,40 @@ export const generateForm24Q = async (req, res) => {
       filingId, filingType: 'FORM-24Q', period: `${quarter}-${financialYear}`, traceId,
       filing_ready: validation.filing_ready,
       errors: validation.errors,
+    });
+
+    // Audit trail
+    await auditService.recordEvent({
+      eventType: 'FORM24Q_GENERATED',
+      entityType: 'ComplianceFiling',
+      entityId: filingId,
+      traceId,
+      userId: req.user?._id,
+      details: {
+        quarter,
+        financialYear,
+        filingType: 'FORM-24Q',
+        filing_ready: validation.filing_ready,
+        errors: validation.errors,
+      },
+    });
+
+    // Capture evidence
+    await evidenceAutomationService.captureAPIResponse({
+      operation: 'generateForm24Q',
+      entityType: 'ComplianceFiling',
+      entityId: filingId,
+      request: { quarter, financialYear, format },
+      response: { success: true, filing_ready: validation.filing_ready, errors: validation.errors },
+      traceId,
+    });
+
+    // Emit TANTRA event
+    await tantraService.emitEvent({
+      event: 'FORM24Q_GENERATED',
+      entityType: 'ComplianceFiling',
+      entityId: filingId,
+      details: { quarter, financialYear, filing_ready: validation.filing_ready },
     });
 
     if (format === 'csv') {

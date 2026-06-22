@@ -5,6 +5,10 @@ import Decimal from 'decimal.js';
 import logger from '../config/logger.js';
 import fs from 'fs';
 import { calculateGSTBreakdown } from './gstEngine.service.js';
+import { randomUUID } from 'crypto';
+import auditService from './audit.service.js';
+import evidenceAutomationService from './evidenceAutomation.service.js';
+import tantraService from './tantra.service.js';
 
 class GSTFilingService {
   /**
@@ -101,7 +105,43 @@ class GSTFilingService {
         totalInvoices: invoices.length,
         totalTax: packet.summary.totalTaxCollected,
       });
-
+      
+      // Audit trail
+      await auditService.recordEvent({
+        eventType: 'GSTR1_FILING_GENERATED',
+        entityType: 'GSTFiling',
+        entityId: randomUUID(),
+        traceId: randomUUID(),
+        userId: null,
+        details: {
+          period,
+          filingType: 'GSTR-1',
+          totalInvoices: invoices.length,
+          totalTaxCollected: packet.summary.totalTaxCollected,
+          totalCGST: packet.summary.totalCGST,
+          totalSGST: packet.summary.totalSGST,
+          totalIGST: packet.summary.totalIGST,
+        },
+      });
+      
+      // Capture evidence
+      await evidenceAutomationService.captureAPIResponse({
+        operation: 'generateGSTR1FilingPacket',
+        entityType: 'GSTFiling',
+        entityId: randomUUID(),
+        request: { period },
+        response: { success: true, totalInvoices: invoices.length, totalTaxCollected: packet.summary.totalTaxCollected },
+        traceId: randomUUID(),
+      });
+      
+      // Emit TANTRA event
+      await tantraService.emitEvent({
+        event: 'GSTR1_FILING_GENERATED',
+        entityType: 'GSTFiling',
+        entityId: randomUUID(),
+        details: { period, totalTaxCollected: packet.summary.totalTaxCollected },
+      });
+      
       return packet;
     } catch (error) {
       logger.error('Generate GSTR-1 packet error:', error);
@@ -227,7 +267,43 @@ class GSTFilingService {
         inputCredit: packet.inwardSupplies.totalInputCredit,
         netPayable: packet.netLiability.totalPayable,
       });
-
+      
+      // Audit trail
+      await auditService.recordEvent({
+        eventType: 'GSTR3B_FILING_GENERATED',
+        entityType: 'GSTFiling',
+        entityId: randomUUID(),
+        traceId: randomUUID(),
+        userId: null,
+        details: {
+          period,
+          filingType: 'GSTR-3B',
+          totalInvoices: invoices.length,
+          totalExpenses: expenses.length,
+          outwardTax: packet.outwardSupplies.totalTax,
+          inputCredit: packet.inwardSupplies.totalInputCredit,
+          netPayable: packet.netLiability.totalPayable,
+        },
+      });
+      
+      // Capture evidence
+      await evidenceAutomationService.captureAPIResponse({
+        operation: 'generateGSTR3BFilingPacket',
+        entityType: 'GSTFiling',
+        entityId: randomUUID(),
+        request: { period },
+        response: { success: true, totalInvoices: invoices.length, totalExpenses: expenses.length, netPayable: packet.netLiability.totalPayable },
+        traceId: randomUUID(),
+      });
+      
+      // Emit TANTRA event
+      await tantraService.emitEvent({
+        event: 'GSTR3B_FILING_GENERATED',
+        entityType: 'GSTFiling',
+        entityId: randomUUID(),
+        details: { period, netPayable: packet.netLiability.totalPayable },
+      });
+      
       return packet;
     } catch (error) {
       logger.error('Generate GSTR-3B packet error:', error);

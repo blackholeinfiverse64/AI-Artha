@@ -5,6 +5,9 @@ import TDSEntry from '../models/TDSEntry.js';
 import ChartOfAccounts from '../models/ChartOfAccounts.js';
 import ledgerService from './ledger.service.js';
 import logger from '../config/logger.js';
+import auditService from './audit.service.js';
+import evidenceAutomationService from './evidenceAutomation.service.js';
+import tantraService from './tantra.service.js';
 
 class TDSService {
   /**
@@ -74,6 +77,43 @@ class TDSService {
         quarter,
         financialYear,
         createdBy: userId,
+      });
+      
+      // Audit trail
+      await auditService.recordEvent({
+        eventType: 'TDS_ENTRY_CREATED',
+        entityType: 'TDSEntry',
+        entityId: tdsEntry._id,
+        traceId: tdsEntry.trace_id || randomUUID(),
+        userId,
+        details: {
+          entryNumber: tdsEntry.entryNumber,
+          deducteeName: tdsEntry.deducteeName,
+          section: tdsEntry.section,
+          paymentAmount: tdsEntry.paymentAmount,
+          tdsAmount: tdsEntry.tdsAmount,
+          tdsRate: tdsEntry.tdsRate,
+          quarter,
+          financialYear,
+        },
+      });
+      
+      // Capture evidence
+      await evidenceAutomationService.captureAPIResponse({
+        operation: 'createTDSEntry',
+        entityType: 'TDSEntry',
+        entityId: tdsEntry._id,
+        request: { entryData, userId },
+        response: { success: true, entryNumber: tdsEntry.entryNumber },
+        traceId: tdsEntry.trace_id || randomUUID(),
+      });
+      
+      // Emit TANTRA event
+      await tantraService.emitEvent({
+        event: 'TDS_ENTRY_CREATED',
+        entityType: 'TDSEntry',
+        entityId: tdsEntry._id,
+        details: { entryNumber: tdsEntry.entryNumber, tdsAmount: tdsEntry.tdsAmount },
       });
       
       logger.info(`TDS entry created: ${tdsEntry.entryNumber}`);
@@ -183,6 +223,42 @@ class TDSService {
       
       await session.commitTransaction();
       
+      // Audit trail
+      await auditService.recordEvent({
+        eventType: 'TDS_DEDUCTION_RECORDED',
+        entityType: 'TDSEntry',
+        entityId: tdsEntry._id,
+        traceId,
+        userId,
+        details: {
+          entryNumber: tdsEntry.entryNumber,
+          deducteeName: tdsEntry.deducteeName,
+          section: tdsEntry.section,
+          paymentAmount: tdsEntry.paymentAmount,
+          tdsAmount: tdsEntry.tdsAmount,
+          netPayable: tdsEntry.netPayable,
+          journalEntryId: journalEntry._id,
+        },
+      });
+      
+      // Capture evidence
+      await evidenceAutomationService.captureAPIResponse({
+        operation: 'recordTDSDeduction',
+        entityType: 'TDSEntry',
+        entityId: tdsEntry._id,
+        request: { tdsId, userId },
+        response: { success: true, entryNumber: tdsEntry.entryNumber, journalEntryId: journalEntry._id },
+        traceId,
+      });
+      
+      // Emit TANTRA event
+      await tantraService.emitEvent({
+        event: 'TDS_DEDUCTION_RECORDED',
+        entityType: 'TDSEntry',
+        entityId: tdsEntry._id,
+        details: { entryNumber: tdsEntry.entryNumber, tdsAmount: tdsEntry.tdsAmount },
+      });
+      
       logger.info(`TDS deduction recorded: ${tdsEntry.entryNumber}`);
       
       return tdsEntry;
@@ -215,6 +291,40 @@ class TDSService {
     tdsEntry.status = 'deposited';
     
     await tdsEntry.save();
+    
+    // Audit trail
+    await auditService.recordEvent({
+      eventType: 'TDS_CHALLAN_DEPOSITED',
+      entityType: 'TDSEntry',
+      entityId: tdsEntry._id,
+      traceId: tdsEntry.trace_id || randomUUID(),
+      userId,
+      details: {
+        entryNumber: tdsEntry.entryNumber,
+        challanNumber: challanData.challanNumber,
+        challanDate: challanData.challanDate,
+        bankBSR: challanData.bankBSR,
+        status: tdsEntry.status,
+      },
+    });
+    
+    // Capture evidence
+    await evidenceAutomationService.captureAPIResponse({
+      operation: 'recordChallanDeposit',
+      entityType: 'TDSEntry',
+      entityId: tdsEntry._id,
+      request: { tdsId, challanData, userId },
+      response: { success: true, entryNumber: tdsEntry.entryNumber, status: tdsEntry.status },
+      traceId: tdsEntry.trace_id || randomUUID(),
+    });
+    
+    // Emit TANTRA event
+    await tantraService.emitEvent({
+      event: 'TDS_CHALLAN_DEPOSITED',
+      entityType: 'TDSEntry',
+      entityId: tdsEntry._id,
+      details: { entryNumber: tdsEntry.entryNumber, challanNumber: challanData.challanNumber },
+    });
     
     logger.info(`TDS challan recorded: ${tdsEntry.entryNumber}`);
     

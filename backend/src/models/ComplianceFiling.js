@@ -63,11 +63,48 @@ const complianceFilingSchema = new mongoose.Schema({
     csvRows: Number,
     csvHeaders: [String],
   },
+
+  // Submission tracking
+  submission_status: {
+    type: String,
+    enum: ['DRAFT', 'VALIDATED', 'SUBMITTED', 'ACCEPTED', 'REJECTED', 'RESUBMISSION_REQUIRED'],
+    default: 'DRAFT',
+    index: true,
+  },
+  submitted_at: Date,
+  submitted_by: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  },
+  setu_reference: String,
+  setu_ack_status: {
+    type: String,
+    enum: ['PENDING', 'ACCEPTED', 'REJECTED', 'TIMEOUT', 'UNKNOWN'],
+    default: 'PENDING',
+  },
+  setu_dispatch_id: String,
+
+  // Submission attempts
+  submission_attempts: [{
+    attempt_number: Number,
+    attempted_at: Date,
+    status: String,
+    response_status: Number,
+    response_body: mongoose.Schema.Types.Mixed,
+    proof_id: String,
+  }],
+  retry_count: { type: Number, default: 0 },
+  max_retries: { type: Number, default: 3 },
+
+  // Immutable snapshot at submission time
+  submitted_json_snapshot: mongoose.Schema.Types.Mixed,
 }, {
   timestamps: true,
 });
 
 complianceFilingSchema.index({ filingType: 1, 'period.year': 1, 'period.month': 1 });
 complianceFilingSchema.index({ gstin: 1, tan: 1 });
+complianceFilingSchema.index({ submission_status: 1 });
+complianceFilingSchema.index({ traceId: 1, submission_status: 1 });
 
 export default mongoose.model('ComplianceFiling', complianceFilingSchema);

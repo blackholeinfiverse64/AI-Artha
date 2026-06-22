@@ -1,6 +1,10 @@
 import financialReportsService from '../services/financialReports.service.js';
 import statutoryReportsService from '../services/statutoryReports.service.js';
 import logger from '../config/logger.js';
+import { randomUUID } from 'crypto';
+import auditService from '../services/audit.service.js';
+import evidenceAutomationService from '../services/evidenceAutomation.service.js';
+import tantraService from '../services/tantra.service.js';
 
 // @desc    Generate Profit & Loss
 // @route   GET /api/v1/reports/profit-loss
@@ -17,6 +21,41 @@ export const getProfitLoss = async (req, res) => {
     }
 
     const report = await financialReportsService.generateProfitLoss(startDate, endDate);
+    
+    const traceId = randomUUID();
+    
+    // Audit trail
+    await auditService.recordEvent({
+      eventType: 'PROFIT_LOSS_GENERATED',
+      entityType: 'Report',
+      entityId: randomUUID(),
+      traceId,
+      userId: req.user?._id,
+      details: {
+        reportType: 'Profit & Loss',
+        startDate,
+        endDate,
+        netIncome: report.netIncome,
+      },
+    });
+    
+    // Capture evidence
+    await evidenceAutomationService.captureAPIResponse({
+      operation: 'generateProfitLoss',
+      entityType: 'Report',
+      entityId: randomUUID(),
+      request: { startDate, endDate },
+      response: { success: true, netIncome: report.netIncome },
+      traceId,
+    });
+    
+    // Emit TANTRA event
+    await tantraService.emitEvent({
+      event: 'PROFIT_LOSS_GENERATED',
+      entityType: 'Report',
+      entityId: randomUUID(),
+      details: { startDate, endDate, netIncome: report.netIncome },
+    });
 
     res.json({
       success: true,
@@ -46,6 +85,42 @@ export const getBalanceSheet = async (req, res) => {
     }
 
     const report = await financialReportsService.generateBalanceSheet(asOfDate);
+    
+    const traceId = randomUUID();
+    
+    // Audit trail
+    await auditService.recordEvent({
+      eventType: 'BALANCE_SHEET_GENERATED',
+      entityType: 'Report',
+      entityId: randomUUID(),
+      traceId,
+      userId: req.user?._id,
+      details: {
+        reportType: 'Balance Sheet',
+        asOfDate,
+        totalAssets: report.totalAssets,
+        totalLiabilities: report.totalLiabilities,
+        totalEquity: report.totalEquity,
+      },
+    });
+    
+    // Capture evidence
+    await evidenceAutomationService.captureAPIResponse({
+      operation: 'generateBalanceSheet',
+      entityType: 'Report',
+      entityId: randomUUID(),
+      request: { asOfDate },
+      response: { success: true, totalAssets: report.totalAssets },
+      traceId,
+    });
+    
+    // Emit TANTRA event
+    await tantraService.emitEvent({
+      event: 'BALANCE_SHEET_GENERATED',
+      entityType: 'Report',
+      entityId: randomUUID(),
+      details: { asOfDate, totalAssets: report.totalAssets },
+    });
 
     res.json({
       success: true,
@@ -75,6 +150,41 @@ export const getCashFlow = async (req, res) => {
     }
 
     const report = await financialReportsService.generateCashFlow(startDate, endDate);
+    
+    const traceId = randomUUID();
+    
+    // Audit trail
+    await auditService.recordEvent({
+      eventType: 'CASH_FLOW_GENERATED',
+      entityType: 'Report',
+      entityId: randomUUID(),
+      traceId,
+      userId: req.user?._id,
+      details: {
+        reportType: 'Cash Flow',
+        startDate,
+        endDate,
+        netCashFlow: report.netCashFlow,
+      },
+    });
+    
+    // Capture evidence
+    await evidenceAutomationService.captureAPIResponse({
+      operation: 'generateCashFlow',
+      entityType: 'Report',
+      entityId: randomUUID(),
+      request: { startDate, endDate },
+      response: { success: true, netCashFlow: report.netCashFlow },
+      traceId,
+    });
+    
+    // Emit TANTRA event
+    await tantraService.emitEvent({
+      event: 'CASH_FLOW_GENERATED',
+      entityType: 'Report',
+      entityId: randomUUID(),
+      details: { startDate, endDate, netCashFlow: report.netCashFlow },
+    });
 
     res.json({
       success: true,
@@ -104,6 +214,41 @@ export const getTrialBalance = async (req, res) => {
     }
 
     const report = await financialReportsService.generateTrialBalance(asOfDate);
+    
+    const traceId = randomUUID();
+    
+    // Audit trail
+    await auditService.recordEvent({
+      eventType: 'TRIAL_BALANCE_GENERATED',
+      entityType: 'Report',
+      entityId: randomUUID(),
+      traceId,
+      userId: req.user?._id,
+      details: {
+        reportType: 'Trial Balance',
+        asOfDate,
+        totalDebits: report.totalDebits,
+        totalCredits: report.totalCredits,
+      },
+    });
+    
+    // Capture evidence
+    await evidenceAutomationService.captureAPIResponse({
+      operation: 'generateTrialBalance',
+      entityType: 'Report',
+      entityId: randomUUID(),
+      request: { asOfDate },
+      response: { success: true, totalDebits: report.totalDebits, totalCredits: report.totalCredits },
+      traceId,
+    });
+    
+    // Emit TANTRA event
+    await tantraService.emitEvent({
+      event: 'TRIAL_BALANCE_GENERATED',
+      entityType: 'Report',
+      entityId: randomUUID(),
+      details: { asOfDate, totalDebits: report.totalDebits },
+    });
 
     res.json({
       success: true,

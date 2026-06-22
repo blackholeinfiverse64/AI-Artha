@@ -8,6 +8,9 @@ import ChartOfAccounts from '../models/ChartOfAccounts.js';
 import logger from '../config/logger.js';
 import cacheService from './cache.service.js';
 import { calculateGSTBreakdown, buildGSTValidationError } from './gstEngine.service.js';
+import auditService from './audit.service.js';
+import evidenceAutomationService from './evidenceAutomation.service.js';
+import tantraService from './tantra.service.js';
 
 class InvoiceService {
   /**
@@ -21,6 +24,40 @@ class InvoiceService {
       });
       
       await invoice.save();
+      
+      // Audit trail
+      await auditService.recordEvent({
+        eventType: 'INVOICE_CREATED',
+        entityType: 'Invoice',
+        entityId: invoice._id,
+        traceId: randomUUID(),
+        userId,
+        details: {
+          invoiceNumber: invoice.invoiceNumber,
+          customerName: invoice.customerName,
+          totalAmount: invoice.totalAmount,
+          status: invoice.status,
+        },
+      });
+      
+      // Capture evidence
+      await evidenceAutomationService.captureAPIResponse({
+        operation: 'createInvoice',
+        entityType: 'Invoice',
+        entityId: invoice._id,
+        request: { invoiceData, userId },
+        response: { success: true, invoiceNumber: invoice.invoiceNumber },
+        traceId: invoice.trace_id || randomUUID(),
+      });
+      
+      // Emit TANTRA event
+      await tantraService.emitEvent({
+        event: 'INVOICE_CREATED',
+        entityType: 'Invoice',
+        entityId: invoice._id,
+        details: { invoiceNumber: invoice.invoiceNumber, totalAmount: invoice.totalAmount },
+      });
+      
       logger.info(`Invoice created: ${invoice.invoiceNumber}`);
       
       return invoice;
@@ -221,6 +258,41 @@ class InvoiceService {
       // Invalidate related caches
       await cacheService.invalidateInvoiceCaches();
       await cacheService.invalidateLedgerCaches();
+      
+      // Audit trail
+      await auditService.recordEvent({
+        eventType: 'INVOICE_PAYMENT_RECORDED',
+        entityType: 'Invoice',
+        entityId: invoice._id,
+        traceId: traceId,
+        userId,
+        details: {
+          invoiceNumber: invoice.invoiceNumber,
+          paymentAmount: paymentAmount.toString(),
+          paymentMethod: paymentData.paymentMethod,
+          paymentDate: paymentData.paymentDate,
+          newAmountPaid: invoice.amountPaid,
+          newAmountDue: invoice.amountDue,
+        },
+      });
+      
+      // Capture evidence
+      await evidenceAutomationService.captureAPIResponse({
+        operation: 'recordPayment',
+        entityType: 'Invoice',
+        entityId: invoice._id,
+        request: { invoiceId, paymentData, userId },
+        response: { success: true, invoiceNumber: invoice.invoiceNumber, paymentAmount: paymentAmount.toString() },
+        traceId,
+      });
+      
+      // Emit TANTRA event
+      await tantraService.emitEvent({
+        event: 'INVOICE_PAYMENT_RECORDED',
+        entityType: 'Invoice',
+        entityId: invoice._id,
+        details: { invoiceNumber: invoice.invoiceNumber, paymentAmount: paymentAmount.toString() },
+      });
       
       logger.info(`Payment recorded for invoice: ${invoice.invoiceNumber}`);
       
@@ -480,6 +552,40 @@ class InvoiceService {
       invoice.status = 'sent';
       await invoice.save({ session });
       
+      // Audit trail
+      await auditService.recordEvent({
+        eventType: 'INVOICE_SENT',
+        entityType: 'Invoice',
+        entityId: invoice._id,
+        traceId: traceId,
+        userId,
+        details: {
+          invoiceNumber: invoice.invoiceNumber,
+          customerName: invoice.customerName,
+          totalAmount: invoice.totalAmount,
+          status: invoice.status,
+          gstDetails: invoice.gstBreakdown,
+        },
+      });
+      
+      // Capture evidence
+      await evidenceAutomationService.captureAPIResponse({
+        operation: 'sendInvoice',
+        entityType: 'Invoice',
+        entityId: invoice._id,
+        request: { invoiceId, userId },
+        response: { success: true, invoiceNumber: invoice.invoiceNumber, totalAmount: invoice.totalAmount },
+        traceId,
+      });
+      
+      // Emit TANTRA event
+      await tantraService.emitEvent({
+        event: 'INVOICE_SENT',
+        entityType: 'Invoice',
+        entityId: invoice._id,
+        details: { invoiceNumber: invoice.invoiceNumber, totalAmount: invoice.totalAmount },
+      });
+      
       logger.info(`Invoice sent: ${invoice.invoiceNumber}`);
       
       return invoice;
@@ -500,9 +606,45 @@ class InvoiceService {
       throw new Error('Cannot cancel an invoice with payments');
     }
     
+    const traceId = invoice.trace_id || randomUUID();
+    
     invoice.status = 'cancelled';
     invoice.notes = (invoice.notes || '') + `\nCancelled: ${reason}`;
     await invoice.save();
+    
+    // Audit trail
+    await auditService.recordEvent({
+      eventType: 'INVOICE_CANCELLED',
+      entityType: 'Invoice',
+      entityId: invoice._id,
+      traceId,
+      userId,
+      details: {
+        invoiceNumber: invoice.invoiceNumber,
+        customerName: invoice.customerName,
+        totalAmount: invoice.totalAmount,
+        reason,
+        status: invoice.status,
+      },
+    });
+    
+    // Capture evidence
+    await evidenceAutomationService.captureAPIResponse({
+      operation: 'cancelInvoice',
+      entityType: 'Invoice',
+      entityId: invoice._id,
+      request: { invoiceId, reason, userId },
+      response: { success: true, invoiceNumber: invoice.invoiceNumber, status: invoice.status },
+      traceId,
+    });
+    
+    // Emit TANTRA event
+    await tantraService.emitEvent({
+      event: 'INVOICE_CANCELLED',
+      entityType: 'Invoice',
+      entityId: invoice._id,
+      details: { invoiceNumber: invoice.invoiceNumber, reason },
+    });
     
     logger.info(`Invoice cancelled: ${invoice.invoiceNumber}`);
     

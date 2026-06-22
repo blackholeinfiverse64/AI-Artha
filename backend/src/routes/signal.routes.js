@@ -8,6 +8,7 @@ import {
   reconstructTrace,
   pipelineCheck,
   dispatchSignal,
+  cleanupDuplicateSignals,
 } from '../controllers/signal.controller.js';
 
 const router = express.Router();
@@ -32,5 +33,8 @@ router.post('/:signalId/dispatch', authorize('admin', 'accountant'), dispatchSig
 
 // Overdue invoice evaluation
 router.post('/evaluate/overdue-invoices', authorize('admin', 'accountant'), evaluateOverdueInvoices);
+
+// Cleanup duplicate signals
+router.post('/cleanup', authorize('admin'), cleanupDuplicateSignals);
 
 export default router;

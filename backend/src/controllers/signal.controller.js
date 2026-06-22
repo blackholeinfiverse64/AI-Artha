@@ -296,3 +296,47 @@ export const dispatchSignal = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+// @desc    Clean up duplicate signals (keep only newest per type+entity per day)
+// @route   POST /api/v1/signals/cleanup
+// @access  Private (admin)
+export const cleanupDuplicateSignals = async (req, res) => {
+  try {
+    // Group signals by type + entity_id + day, keep only the newest
+    const duplicates = await ComplianceSignal.aggregate([
+      {
+        $addFields: {
+          day: { $dateToString: { format: '%Y-%m-%d', date: '$created_at' } },
+          entityId: '$context.source.entity_id',
+        },
+      },
+      {
+        $group: {
+          _id: { type: '$type', entityId: '$entityId', day: '$day' },
+          ids: { $push: '$_id' },
+          count: { $sum: 1 },
+          newest: { $max: '$created_at' },
+        },
+      },
+      {
+        $match: { count: { $gt: 1 } },
+      },
+    ]);
+
+    let totalRemoved = 0;
+    for (const group of duplicates) {
+      // Keep the newest, remove the rest
+      const toRemove = group.ids.slice(0, -1);
+      if (toRemove.length > 0) {
+        await ComplianceSignal.deleteMany({ _id: { $in: toRemove } });
+        totalRemoved += toRemove.length;
+      }
+    }
+
+    logger.info(`Signal cleanup: removed ${totalRemoved} duplicate signals`);
+    res.json({ success: true, data: { groupsFound: duplicates.length, signalsRemoved: totalRemoved } });
+  } catch (error) {
+    logger.error('Signal cleanup error:', error);
+    res.status(500).json({ success: false, message: error.message });
+  }
+};

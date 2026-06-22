@@ -10,6 +10,9 @@ import fs from 'fs/promises';
 import path from 'path';
 import cacheService from './cache.service.js';
 import { calculateGSTBreakdown, buildGSTValidationError } from './gstEngine.service.js';
+import auditService from './audit.service.js';
+import evidenceAutomationService from './evidenceAutomation.service.js';
+import tantraService from './tantra.service.js';
 
 class ExpenseService {
   /**
@@ -33,6 +36,41 @@ class ExpenseService {
       }
       
       await expense.save();
+      
+      // Audit trail
+      await auditService.recordEvent({
+        eventType: 'EXPENSE_CREATED',
+        entityType: 'Expense',
+        entityId: expense._id,
+        traceId: expense.trace_id || randomUUID(),
+        userId,
+        details: {
+          expenseNumber: expense.expenseNumber,
+          vendor: expense.vendor,
+          amount: expense.amount,
+          category: expense.category,
+          status: expense.status,
+        },
+      });
+      
+      // Capture evidence
+      await evidenceAutomationService.captureAPIResponse({
+        operation: 'createExpense',
+        entityType: 'Expense',
+        entityId: expense._id,
+        request: { expenseData, userId },
+        response: { success: true, expenseNumber: expense.expenseNumber },
+        traceId: expense.trace_id || randomUUID(),
+      });
+      
+      // Emit TANTRA event
+      await tantraService.emitEvent({
+        event: 'EXPENSE_CREATED',
+        entityType: 'Expense',
+        entityId: expense._id,
+        details: { expenseNumber: expense.expenseNumber, amount: expense.amount },
+      });
+      
       logger.info(`Expense created: ${expense.expenseNumber}`);
       
       return expense;
@@ -185,6 +223,39 @@ class ExpenseService {
     expense.approvedAt = new Date();
     
     await expense.save();
+    
+    // Audit trail
+    await auditService.recordEvent({
+      eventType: 'EXPENSE_APPROVED',
+      entityType: 'Expense',
+      entityId: expense._id,
+      traceId: expense.trace_id || randomUUID(),
+      userId,
+      details: {
+        expenseNumber: expense.expenseNumber,
+        vendor: expense.vendor,
+        amount: expense.amount,
+        status: expense.status,
+      },
+    });
+    
+    // Capture evidence
+    await evidenceAutomationService.captureAPIResponse({
+      operation: 'approveExpense',
+      entityType: 'Expense',
+      entityId: expense._id,
+      request: { expenseId, userId },
+      response: { success: true, expenseNumber: expense.expenseNumber, status: expense.status },
+      traceId: expense.trace_id || randomUUID(),
+    });
+    
+    // Emit TANTRA event
+    await tantraService.emitEvent({
+      event: 'EXPENSE_APPROVED',
+      entityType: 'Expense',
+      entityId: expense._id,
+      details: { expenseNumber: expense.expenseNumber, amount: expense.amount },
+    });
     
     logger.info(`Expense approved: ${expense.expenseNumber}`);
 
@@ -466,6 +537,40 @@ class ExpenseService {
       // Invalidate related caches
       await cacheService.invalidateExpenseCaches();
       await cacheService.invalidateLedgerCaches();
+      
+      // Audit trail
+      await auditService.recordEvent({
+        eventType: 'EXPENSE_RECORDED',
+        entityType: 'Expense',
+        entityId: expense._id,
+        traceId,
+        userId,
+        details: {
+          expenseNumber: expense.expenseNumber,
+          vendor: expense.vendor,
+          amount: expense.amount,
+          totalAmount: expense.totalAmount,
+          journalEntryId: journalEntry._id,
+        },
+      });
+      
+      // Capture evidence
+      await evidenceAutomationService.captureAPIResponse({
+        operation: 'recordExpense',
+        entityType: 'Expense',
+        entityId: expense._id,
+        request: { expenseId, userId },
+        response: { success: true, expenseNumber: expense.expenseNumber, journalEntryId: journalEntry._id },
+        traceId,
+      });
+      
+      // Emit TANTRA event
+      await tantraService.emitEvent({
+        event: 'EXPENSE_RECORDED',
+        entityType: 'Expense',
+        entityId: expense._id,
+        details: { expenseNumber: expense.expenseNumber, journalEntryId: journalEntry._id },
+      });
       
       logger.info(`Expense recorded: ${expense.expenseNumber}`);
       

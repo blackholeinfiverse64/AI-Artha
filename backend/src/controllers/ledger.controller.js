@@ -1,6 +1,10 @@
 import ledgerService from '../services/ledger.service.js';
 import JournalEntry from '../models/JournalEntry.js';
 import logger from '../config/logger.js';
+import { randomUUID } from 'crypto';
+import auditService from '../services/audit.service.js';
+import evidenceAutomationService from '../services/evidenceAutomation.service.js';
+import tantraService from '../services/tantra.service.js';
 
 // @desc    Create journal entry
 // @route   POST /api/v1/ledger/entries
@@ -8,6 +12,40 @@ import logger from '../config/logger.js';
 export const createEntry = async (req, res) => {
   try {
     const entry = await ledgerService.createJournalEntry(req.body, req.user._id);
+
+    // Audit trail
+    await auditService.recordEvent({
+      eventType: 'JOURNAL_ENTRY_CREATED',
+      entityType: 'JournalEntry',
+      entityId: entry._id,
+      traceId: entry.trace_id || randomUUID(),
+      userId: req.user._id,
+      details: {
+        entryNumber: entry.entryNumber,
+        description: entry.description,
+        totalDebit: entry.totalDebit,
+        totalCredit: entry.totalCredit,
+        status: entry.status,
+      },
+    });
+
+    // Capture evidence
+    await evidenceAutomationService.captureAPIResponse({
+      operation: 'createJournalEntry',
+      entityType: 'JournalEntry',
+      entityId: entry._id,
+      request: { body: req.body, userId: req.user._id },
+      response: { success: true, entryNumber: entry.entryNumber },
+      traceId: entry.trace_id || randomUUID(),
+    });
+
+    // Emit TANTRA event
+    await tantraService.emitEvent({
+      event: 'JOURNAL_ENTRY_CREATED',
+      entityType: 'JournalEntry',
+      entityId: entry._id,
+      details: { entryNumber: entry.entryNumber, totalDebit: entry.totalDebit },
+    });
 
     res.status(201).json({
       success: true,
@@ -102,6 +140,38 @@ export const validateEntry = async (req, res) => {
   try {
     const entry = await ledgerService.validateJournalEntry(req.params.id, req.user._id);
 
+    // Audit trail
+    await auditService.recordEvent({
+      eventType: 'JOURNAL_ENTRY_VALIDATED',
+      entityType: 'JournalEntry',
+      entityId: entry._id,
+      traceId: entry.trace_id || randomUUID(),
+      userId: req.user._id,
+      details: {
+        entryNumber: entry.entryNumber,
+        description: entry.description,
+        status: entry.status,
+      },
+    });
+
+    // Capture evidence
+    await evidenceAutomationService.captureAPIResponse({
+      operation: 'validateJournalEntry',
+      entityType: 'JournalEntry',
+      entityId: entry._id,
+      request: { entryId: req.params.id, userId: req.user._id },
+      response: { success: true, entryNumber: entry.entryNumber, status: entry.status },
+      traceId: entry.trace_id || randomUUID(),
+    });
+
+    // Emit TANTRA event
+    await tantraService.emitEvent({
+      event: 'JOURNAL_ENTRY_VALIDATED',
+      entityType: 'JournalEntry',
+      entityId: entry._id,
+      details: { entryNumber: entry.entryNumber, status: entry.status },
+    });
+
     res.json({
       success: true,
       data: entry,
@@ -124,6 +194,40 @@ export const validateEntry = async (req, res) => {
 export const postEntry = async (req, res) => {
   try {
     const entry = await ledgerService.postJournalEntry(req.params.id, req.user._id);
+
+    // Audit trail
+    await auditService.recordEvent({
+      eventType: 'JOURNAL_ENTRY_POSTED',
+      entityType: 'JournalEntry',
+      entityId: entry._id,
+      traceId: entry.trace_id || randomUUID(),
+      userId: req.user._id,
+      details: {
+        entryNumber: entry.entryNumber,
+        description: entry.description,
+        totalDebit: entry.totalDebit,
+        totalCredit: entry.totalCredit,
+        status: entry.status,
+      },
+    });
+
+    // Capture evidence
+    await evidenceAutomationService.captureAPIResponse({
+      operation: 'postJournalEntry',
+      entityType: 'JournalEntry',
+      entityId: entry._id,
+      request: { entryId: req.params.id, userId: req.user._id },
+      response: { success: true, entryNumber: entry.entryNumber, status: entry.status },
+      traceId: entry.trace_id || randomUUID(),
+    });
+
+    // Emit TANTRA event
+    await tantraService.emitEvent({
+      event: 'JOURNAL_ENTRY_POSTED',
+      entityType: 'JournalEntry',
+      entityId: entry._id,
+      details: { entryNumber: entry.entryNumber, totalDebit: entry.totalDebit },
+    });
 
     res.json({
       success: true,
