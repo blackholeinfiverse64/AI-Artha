@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Environment Variables
+.env
+.env.local
+.env.production
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data.db*
+
+# Logs
+*.log
+logs/
+bucket/logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project Specific
+uploads/
+temp/
+bucket/
+docs/
+docker/
+tests/
+scripts/
+config/
+.github/
+app/templates/
+requirements_backup.txt
+test_moviepy_complete.py
+alembic.ini
+pytest.ini
+.python-version
+deployment_validation_summary.md
+
+# Sensitive Files
+*credentials*
+*secrets*
+*keys*
