@@ -5,6 +5,7 @@ import ComplianceValidationLog from '../models/ComplianceValidationLog.js';
 import JournalEntry from '../models/JournalEntry.js';
 import LedgerEntry from '../models/LedgerEntry.js';
 import { runPipeline } from '../services/setu.pipeline.js';
+import { toSampadaEnvelope, parseSampadaAcknowledge, sampadaIngestEndpoint } from '../services/sampadaAdapter.js';
 import logger from '../config/logger.js';
 import axios from 'axios';
 
@@ -243,21 +244,27 @@ export const dispatchSignal = async (req, res) => {
       });
     }
 
+    const sampadaEndpoint = sampadaIngestEndpoint(setuBaseUrl);
+    const sampadaBody = toSampadaEnvelope(pipeline.payload, {
+      correlation_id: process.env.SAMPADA_SETU_CORRELATION_ID,
+    });
+
     // Real dispatch attempt
     const timeoutMs = parseInt(process.env.SETU_TIMEOUT_MS || '5000', 10);
     const dispatchedAt = new Date().toISOString();
 
     try {
       const setuRes = await axios.post(
-        `${setuBaseUrl}/api/v1/signals/ingest`,
-        JSON.parse(pipeline.body),
+        sampadaEndpoint,
+        sampadaBody,
         {
-          headers: { ...pipeline.headers, Authorization: `Bearer ${setuApiKey}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${setuApiKey}` },
           timeout: timeoutMs,
         }
       );
 
-      logger.info(`Signal dispatched to SETU: ${signal.signal_id} trace=${signal.trace_id}`);
+      const ack = parseSampadaAcknowledge(setuRes.data);
+      logger.info(`Signal dispatched to Sampada SETU: ${signal.signal_id} trace=${signal.trace_id} ref=${ack.setuReference}`);
 
       return res.json({
         success: true,
@@ -266,8 +273,11 @@ export const dispatchSignal = async (req, res) => {
         dispatched_at: dispatchedAt,
         setu_status: setuRes.status,
         setu_response: setuRes.data,
+        setu_ack: ack,
+        sampada_endpoint: sampadaEndpoint,
         pipeline_stage: 'COMPLETE',
         payload: pipeline.payload,
+        sampada_envelope: sampadaBody,
         headers: pipeline.headers,
         warnings: pipeline.warnings || [],
       });
@@ -287,6 +297,7 @@ export const dispatchSignal = async (req, res) => {
         setu_status: setuErr.response?.status || null,
         pipeline_stage: 'COMPLETE',
         payload: pipeline.payload,
+        sampada_envelope: sampadaBody,
         headers: pipeline.headers,
         warnings: pipeline.warnings || [],
       });

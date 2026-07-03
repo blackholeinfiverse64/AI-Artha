@@ -116,7 +116,8 @@ async function dispatchToSetu(payload) {
   }
 
   // Run the full Normalize → Validate → Map → Serialize pipeline
-  const { runPipeline, parseSetuAcknowledge, buildDeliveryEvidence, shouldRetry, computeRetryDelay } = await import('./setu.pipeline.js');
+  const { runPipeline, buildDeliveryEvidence, shouldRetry, computeRetryDelay } = await import('./setu.pipeline.js');
+  const { toSampadaEnvelope, parseSampadaAcknowledge, sampadaIngestEndpoint } = await import('./sampadaAdapter.js');
   const result = runPipeline(payload, { attemptNumber: 1 });
 
   if (!result.ok) {
@@ -128,6 +129,12 @@ async function dispatchToSetu(payload) {
     logger.warn(`SETU pipeline warnings for ${payload.signal_id}: ${result.warnings.join('; ')}`);
   }
 
+  const sampadaEndpoint = sampadaIngestEndpoint(baseUrl);
+  const sampadaBody = toSampadaEnvelope(result.payload, {
+    correlation_id: process.env.SAMPADA_SETU_CORRELATION_ID,
+  });
+  const wireBody = JSON.stringify(sampadaBody);
+
   // Create dispatch record
   const dispatchRecord = await SetuDispatch.create({
     signal_id: payload.signal_id,
@@ -137,11 +144,11 @@ async function dispatchToSetu(payload) {
     attempt_number: 1,
     max_retries: 3,
     request: {
-      endpoint: `${baseUrl}/api/v1/signals/ingest`,
+      endpoint: sampadaEndpoint,
       method: 'POST',
       headers: result.headers,
       body_hash: result.contentHash,
-      body: JSON.parse(result.body),
+      body: sampadaBody,
     },
     idempotency_key: result.idempotencyKey,
     dispatch_id: result.dispatchId,
@@ -155,16 +162,16 @@ async function dispatchToSetu(payload) {
   
   try {
     const { default: axios } = await import('axios');
-    const response = await axios.post(`${baseUrl}/api/v1/signals/ingest`, result.body, {
+    const response = await axios.post(sampadaEndpoint, sampadaBody, {
       headers: {
-        ...result.headers,
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
       timeout: parseInt(process.env.SETU_TIMEOUT_MS || '5000', 10),
     });
     
     const latencyMs = Date.now() - startTime;
-    const ack = parseSetuAcknowledge(response.data);
+    const ack = parseSampadaAcknowledge(response.data);
     
     // Update dispatch record with response
     await SetuDispatch.findByIdAndUpdate(dispatchRecord._id, {
@@ -189,7 +196,7 @@ async function dispatchToSetu(payload) {
       traceId: payload.trace_id,
       attemptNumber: 1,
       request: {
-        endpoint: `${baseUrl}/api/v1/signals/ingest`,
+        endpoint: sampadaEndpoint,
         method: 'POST',
         headers: result.headers,
         contentHash: result.contentHash,
@@ -251,7 +258,7 @@ async function dispatchToSetu(payload) {
       traceId: payload.trace_id,
       attemptNumber: 1,
       request: {
-        endpoint: `${baseUrl}/api/v1/signals/ingest`,
+        endpoint: sampadaEndpoint,
         method: 'POST',
         headers: result.headers,
         contentHash: result.contentHash,
