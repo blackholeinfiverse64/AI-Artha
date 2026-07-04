@@ -43,11 +43,18 @@ class GlobalAuthMiddleware(BaseHTTPMiddleware):
             r"^/docs.*",
             r"^/redoc.*",
             r"^/openapi\.json$",
+            r"^/?$",  # root endpoint
+            r"^/test$",
+            r"^/test-data-saving$",
+            r"^/debug-auth$",
+            r"^/debug-routes$",
+            r"^/health.*",
+            r"^/monitoring-status$",
+            r"^/metrics.*",
             # Phase IV: Platform contract patterns
             r"^/platform/.*",
             r"^/observability/.*",
             r"^/bucket-validation/.*",
-            r"^/health/platform$"
         ]
     
     def is_public_path(self, path: str) -> bool:

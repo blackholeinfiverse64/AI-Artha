@@ -1,12 +1,68 @@
-import os, time, json, hashlib, uuid
+import os
+import time
+import json
+import hashlib
+import uuid
+import re
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Request, Depends
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 from typing import Optional
 import asyncio
 import logging
+from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
+
+SCHEMA_VERSION = os.getenv("PLATFORM_SCHEMA_VERSION", "1.0.0")
+
+def get_trace_context(request: Request) -> dict:
+    """Extract trace context from request state (injected by TracePropagationMiddleware)."""
+    return {
+        "trace_id": getattr(request.state, "trace_id", None) or str(uuid.uuid4()),
+        "execution_id": getattr(request.state, "execution_id", None) or str(uuid.uuid4()),
+        "schema_version": getattr(request.state, "schema_version", SCHEMA_VERSION),
+    }
+
+def platform_response(request: Request, module: str, status: str, data: dict, 
+                      duration_ms: float = 0, error: dict = None) -> dict:
+    """Wrap response in platform envelope per PLATFORM_ENTRY.md contract."""
+    ctx = get_trace_context(request)
+    response = {
+        "trace_id": ctx["trace_id"],
+        "schema_version": ctx["schema_version"],
+        "status": status,
+        "module": module,
+        "execution_id": ctx["execution_id"],
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "duration_ms": round(duration_ms, 2),
+        "data": data,
+    }
+    if error:
+        response["error"] = error
+    return response
+
+def platform_error_response(request: Request, module: str, code: str, message: str,
+                            details: dict = None, status_code: int = 500):
+    """Create platform error response per PLATFORM_ENTRY.md contract."""
+    ctx = get_trace_context(request)
+    return HTTPException(
+        status_code=status_code,
+        detail={
+            "trace_id": ctx["trace_id"],
+            "schema_version": ctx["schema_version"],
+            "status": "error",
+            "module": module,
+            "execution_id": ctx["execution_id"],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "duration_ms": 0,
+            "error": {
+                "code": code,
+                "message": message,
+                "details": details or {}
+            }
+        }
+    )
 
 # MongoDB database manager
 from core.database import DatabaseManager, db
@@ -2131,28 +2187,6 @@ def get_bhiv_analytics(current_user = Depends(get_current_user)):
             'total_feedback': 0,
             'average_rating': 0.0,
             'sentiment_breakdown': {},
-            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
-        }
-
-@step6_router.get('/observability/health')
-def get_observability_health_endpoint():
-    """STEP 6I: Get observability system health status - PUBLIC ACCESS"""
-    try:
-        from .observability import get_observability_health, performance_monitor
-        
-        health_status = get_observability_health()
-        performance_summary = performance_monitor.get_performance_summary()
-        
-        return {
-            'observability_health': health_status,
-            'performance_metrics': performance_summary,
-            'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
-            'status': 'healthy' if health_status['sentry']['enabled'] or health_status['posthog']['enabled'] else 'limited'
-        }
-    except Exception as e:
-        return {
-            'error': str(e),
-            'observability_health': {'status': 'error'},
             'timestamp': time.strftime('%Y-%m-%d %H:%M:%S')
         }
 

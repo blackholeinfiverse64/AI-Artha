@@ -9,6 +9,7 @@ load_dotenv()
 
 import os
 import time
+import json
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -124,7 +125,7 @@ try:
 except Exception as e:
     print(f"Database initialization warning: {e}")
     pass
-from .routes import router, step1_router, step3_router, step4_router, step5_router, step6_router
+from .routes import router, step1_router, step2_router, step3_router, step4_router, step5_router, step6_router
 from .cdn_fixed import router as cdn_router
 from .simple_feedback_route import router as simple_feedback_router
 
@@ -700,12 +701,49 @@ async def monitoring_status():
         return {"status": "error", "error": str(e), "timestamp": time.strftime('%Y-%m-%d %H:%M:%S')}
 
 @app.middleware("http")
-async def simple_middleware(request: Request, call_next):
-    """Simple middleware for performance tracking"""
+async def response_enrichment_middleware(request: Request, call_next):
+    """Middleware to ensure every JSON response carries trace_id, schema_version, status.
+    This satisfies the PLATFORM_ENTRY.md contract: every response MUST include these fields."""
     start_time = time.time()
     response = await call_next(request)
     process_time = time.time() - start_time
+    
+    # Always add process time header
     response.headers["X-Process-Time"] = str(process_time)
+    
+    # Enrich JSON responses with platform envelope fields if missing
+    content_type = response.headers.get("content-type", "")
+    if "application/json" in content_type:
+        try:
+            # Read response body
+            body = b""
+            async for chunk in response.body_iterator:
+                body += chunk if isinstance(chunk, bytes) else chunk.encode()
+            
+            import json as _json
+            data = _json.loads(body)
+            
+            # Only enrich if top-level trace_id/status are missing (don't overwrite platform endpoints)
+            needs_enrichment = not isinstance(data, dict) or "trace_id" not in data
+            
+            if needs_enrichment and isinstance(data, dict):
+                trace_id = getattr(request.state, "trace_id", None) or str(uuid.uuid4())
+                schema_version = getattr(request.state, "schema_version", None) or SCHEMA_VERSION
+                data["trace_id"] = trace_id
+                data["schema_version"] = schema_version
+                if "status" not in data:
+                    data["status"] = "success"
+                
+                # Rebuild response with enriched data
+                from starlette.responses import JSONResponse
+                response = JSONResponse(
+                    content=data,
+                    status_code=response.status_code,
+                    headers=dict(response.headers)
+                )
+        except Exception:
+            pass  # Non-JSON or unparseable responses pass through unchanged
+    
     return response
 
 # Include routes in proper systematic sequential order
@@ -714,6 +752,7 @@ app.include_router(router)         # Backwards compatibility (included first)
 app.include_router(step1_router)   # STEP 1: System Health & Demo Access
 if auth_router:                    # STEP 2: User Authentication
     app.include_router(auth_router)
+app.include_router(step2_router)  # STEP 2: User Authentication (invitations, verification)
 app.include_router(step3_router)   # STEP 3: Content Upload & Video Generation
 app.include_router(step4_router)   # STEP 4: Content Access & Streaming
 app.include_router(step5_router)   # STEP 5: AI Feedback & Tag Recommendations

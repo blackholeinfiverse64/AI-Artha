@@ -58,7 +58,6 @@ bucket/
 docs/
 docker/
 tests/
-scripts/
 config/
 .github/
 app/templates/

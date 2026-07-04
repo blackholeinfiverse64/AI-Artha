@@ -314,6 +314,25 @@ async def list_modules():
         }
     }
 
+@platform_router.get("/schema")
+async def get_schema():
+    """Return the current platform schema version."""
+    return {
+        "trace_id": str(uuid.uuid4()),
+        "schema_version": SCHEMA_VERSION,
+        "status": "success",
+        "module": "platform",
+        "execution_id": str(uuid.uuid4()),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "duration_ms": 0,
+        "data": {
+            "schema_version": SCHEMA_VERSION,
+            "status": "frozen",
+            "frozen_at": "2026-07-04T00:00:00Z",
+            "owner": "Ashmit Pandey"
+        }
+    }
+
 # ─── Internal Routing ─────────────────────────────────────────────────
 
 async def _route_to_module(module: str, action: str, payload: Dict[str, Any],
