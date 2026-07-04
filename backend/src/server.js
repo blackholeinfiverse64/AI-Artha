@@ -34,6 +34,15 @@ import {
 import { memoryMonitor } from './middleware/performance.js';
 import { authorityEnforcement, capabilityGuard } from './middleware/authorityBoundary.js';
 
+// ─── BHIV Ecosystem Integration Services ────────────────────────────────
+import capabilityRegistry from './services/capabilityRegistry.service.js';
+import provenanceChain from './services/provenanceChain.service.js';
+import deterministicReplay from './services/deterministicReplay.service.js';
+import circuitBreaker from './services/circuitBreaker.service.js';
+import independentVerifier from './services/independentVerifier.service.js';
+import deploymentEvidence from './services/deploymentEvidence.service.js';
+import { policyEnforcement } from './middleware/policyEngine.js';
+
 import ledgerRoutes from './routes/ledger.routes.js';
 import accountsRoutes from './routes/accounts.routes.js';
 import reportsRoutes from './routes/reports.routes.js';
@@ -59,6 +68,7 @@ import caWorkflowRoutes from './routes/caWorkflow.routes.js';
 import tallyRoutes from './routes/tally.routes.js';
 import multiCompanyRoutes from './routes/multiCompany.routes.js';
 import tantraRoutes from './routes/tantra.routes.js';
+import governanceRoutes from './routes/governance.routes.js';
 import observabilityService from './services/observability.service.js';
 import bankingService from './services/banking.service.js';
 import auditService from './services/audit.service.js';
@@ -94,7 +104,14 @@ connectDB();
     await bankingService.init();
     await caWorkflowService.init();
     await observabilityService.getSystemHealth();
-    logger.info('All services initialized');
+
+    // Initialize BHIV ecosystem services
+    capabilityRegistry.loadContracts();
+    await provenanceChain.initialize();
+    deterministicReplay.initialize();
+    deploymentEvidence.initialize({ version: '0.1.0' });
+
+    logger.info('All services initialized (including BHIV ecosystem services)');
   } catch (err) {
     logger.warn('Some services failed to initialize:', err.message);
   }
@@ -153,6 +170,12 @@ app.use('/uploads', express.static('uploads'));
 // It loads authority definitions from contracts/capability_contracts/*.json.
 // It is NOT optional — it runs on every request before any route handler.
 app.use(authorityEnforcement);
+// ────────────────────────────────────────────────────────────────
+
+// ─── POLICY ENGINE ENFORCEMENT ────────────────────────────────
+// Runtime policy engine — enforces capability boundaries with deterministic
+// policy decisions and audit recording. Runs AFTER authority enforcement.
+app.use(policyEnforcement);
 // ────────────────────────────────────────────────────────────────
 
 app.use('/', healthRoutes);
@@ -256,6 +279,7 @@ app.use('/api/v1/ca-workflow', caWorkflowRoutes);
 app.use('/api/v1/tally', tallyRoutes);
 app.use('/api/v1/multi-company', multiCompanyRoutes);
 app.use('/api/v1/tantra', tantraRoutes);
+app.use('/api/v1/governance', governanceRoutes);
 
 // SETU callback webhook endpoint
 app.post('/api/v1/setu/callback', async (req, res) => {
@@ -330,10 +354,39 @@ if (process.env.NODE_ENV !== 'test') {
     logger.info(`Server running on port ${PORT}`);
     logger.info(`SPA (public app): ${SPA_URL}`);
     logger.info(`API public URL: ${API_PUBLIC_URL}`);
+
+    // Log governance status
+    const registryMetadata = capabilityRegistry.getRegistryMetadata();
+    logger.info(`Capability Registry: ${registryMetadata.capability_count} capabilities, ${registryMetadata.route_count} routes`);
+    logger.info(`Registration ID: ${registryMetadata.registration_id}`);
+    logger.info(`Provenance Chain: initialized`);
+    logger.info(`Circuit Breakers: ${Object.keys(circuitBreaker.getStatus()).length} registered`);
+    logger.info(`Governance Routes: GET /api/v1/governance/status`);
+
     const enforcedAppId = process.env.APP_ID || process.env.BHIV_APP_ID;
     if (enforcedAppId) {
       logger.info(`allowedApps enforced for APP_ID: ${enforcedAppId}`);
     }
+
+    // Record deployment evidence
+    deploymentEvidence.recordEvidence({
+      type: 'SERVER_STARTED',
+      category: 'startup',
+      details: {
+        port: PORT,
+        spa_url: SPA_URL,
+        api_url: API_PUBLIC_URL,
+        capabilities_loaded: registryMetadata.capability_count,
+        routes_registered: registryMetadata.route_count,
+      },
+    });
+
+    provenanceChain.recordDeployment({
+      action: 'START',
+      version: '0.1.0',
+      environment: process.env.NODE_ENV || 'development',
+      details: { port: PORT },
+    });
   });
 }
 

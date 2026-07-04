@@ -141,3 +141,69 @@ npm run dev
 ## Status: READY ✅
 
 All frontend-backend integration issues resolved.
+
+## BHIV Ecosystem Integration: COMPLETE ✅
+
+### Backend Integration
+- **Capability Registry**: Canonical single source of truth for capability contracts
+- **Policy Engine**: Runtime enforcement with deterministic ALLOW/DENY decisions
+- **Provenance Chain**: Immutable, append-only, hash-linked governance decision chain
+- **Deterministic Replay**: Replay system with SHA-256 hash verification for 100% reproducibility
+- **Circuit Breakers**: 6 configurable breakers (mongodb, redis, setu_api, tantra_runtime, ocr_service, evidence_pipeline)
+- **Independent Verification**: 10 independent verification tests for BHIV compliance
+- **Deployment Evidence**: Complete evidence generation for 9 deployment scenarios
+- **Adversarial Testing**: 12 genuine adversarial attack vectors for security validation
+- **Governance API**: 19 endpoints under `/api/v1/governance/`
+
+### API Endpoints
+```
+GET    /api/v1/governance/capabilities          # List all capabilities
+GET    /api/v1/governance/capabilities/:id      # Get specific capability
+POST   /api/v1/governance/policy/evaluate       # Evaluate policy
+GET    /api/v1/governance/policy/status         # Get policy engine status
+GET    /api/v1/governance/provenance            # Get full provenance chain
+GET    /api/v1/governance/provenance/verify     # Verify chain integrity
+POST   /api/v1/governance/replay/deterministic  # Run deterministic replay
+GET    /api/v1/governance/replay/status         # Get replay status
+GET    /api/v1/governance/circuit-breakers      # Get all breaker states
+POST   /api/v1/governance/circuit-breakers/:service/reset  # Reset breaker
+POST   /api/v1/governance/verify/independent    # Run independent verification
+GET    /api/v1/governance/verify/results        # Get verification results
+POST   /api/v1/governance/deployment/evidence   # Generate deployment evidence
+GET    /api/v1/governance/deployment/history    # Get deployment history
+POST   /api/v1/governance/security/adversarial  # Run adversarial tests
+GET    /api/v1/governance/security/results      # Get security results
+GET    /api/v1/governance/status                # Get comprehensive status
+GET    /api/v1/governance/health                # Governance health check
+```
+
+### Testing BHIV Endpoints
+```bash
+# Get token
+TOKEN=$(curl -s -X POST http://localhost:5000/api/v1/auth/login \
+-H "Content-Type: application/json" \
+-d '{"email":"admin@artha.local","password":"Admin@123456"}' \
+| jq -r '.data.token')
+
+# Get governance status
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/api/v1/governance/status | jq
+
+# Get capabilities
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/api/v1/governance/capabilities | jq
+
+# Get circuit breakers
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/api/v1/governance/circuit-breakers | jq
+
+# Verify provenance chain
+curl -H "Authorization: Bearer $TOKEN" http://localhost:5000/api/v1/governance/provenance/verify | jq
+```
+
+### Documentation
+- `docs/RUNTIME_ARCHITECTURE.md` — BHIV runtime architecture
+- `docs/INTEGRATION_GUIDE.md` — BHIV integration guide
+- `docs/DEPLOYMENT_GUIDE.md` — BHIV deployment guide
+- `docs/OPERATIONS_GUIDE.md` — BHIV operations guide
+- `docs/INCIDENT_RECOVERY_GUIDE.md` — Incident recovery procedures
+- `docs/AUTHORITY_BOUNDARY_GUIDE.md` — Authority boundaries
+- `docs/CAPABILITY_REGISTRATION_GUIDE.md` — Capability registration
+

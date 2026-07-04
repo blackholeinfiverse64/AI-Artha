@@ -116,6 +116,13 @@ npm run test:gst         # GST filing
 | DEPLOYMENT.md | Production deployment |
 | docs/PRAVAH_DEPLOYMENT.md | Pravah-specific guide |
 | docs/DEMO_SCENARIOS.md | Demo walkthrough |
+| docs/RUNTIME_ARCHITECTURE.md | BHIV runtime architecture |
+| docs/INTEGRATION_GUIDE.md | BHIV integration guide |
+| docs/DEPLOYMENT_GUIDE.md | BHIV deployment guide |
+| docs/OPERATIONS_GUIDE.md | BHIV operations guide |
+| docs/INCIDENT_RECOVERY_GUIDE.md | Incident recovery procedures |
+| docs/AUTHORITY_BOUNDARY_GUIDE.md | Authority boundaries |
+| docs/CAPABILITY_REGISTRATION_GUIDE.md | Capability registration |
 | QUICK_REFERENCE.md | This file |
 
 ## 🎯 Demo Flow (25 mins)

@@ -1,12 +1,14 @@
-# ARTHA v0.1 - Production-Ready Accounting System
+# ARTHA v0.1 - BHIV Ecosystem Production Runtime Participant
 
 [![License](https://img.shields.io/badge/license-Proprietary-red.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-18+-blue.svg)](https://reactjs.org/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-7+-green.svg)](https://www.mongodb.com/)
 [![Integrity](https://img.shields.io/badge/Integrity-Verified-brightgreen.svg)]()
+[![Governance](https://img.shields.io/badge/Governance-Enforced-blue.svg)]()
+[![BHIV](https://img.shields.io/badge/BHIV-Ecosystem-Integrated-green.svg)]()
 
-**ARTHA** is a comprehensive, India-compliant accounting and financial management system built on modern web technologies with full double-entry bookkeeping integrity.
+**ARTHA** is a comprehensive, India-compliant accounting and financial management system built on modern web technologies with full double-entry bookkeeping integrity. It operates as a governed runtime participant within the BHIV ecosystem with deterministic execution, replayability, observability, and authority enforcement.
 
 ## 🎯 Key Features
 
@@ -70,6 +72,17 @@
 - **Backup & Restore**: Automated MongoDB backups with recovery scripts
 - **Monitoring**: Real-time system health dashboard
 - **Performance Optimization**: Database indexing and query optimization
+
+### ✅ BHIV Ecosystem Integration
+- **Capability Registry**: Canonical single source of truth for capability contracts
+- **Policy Engine**: Runtime enforcement with deterministic ALLOW/DENY decisions
+- **Provenance Chain**: Immutable, append-only, hash-linked governance decision chain
+- **Deterministic Replay**: Replay system with SHA-256 hash verification for 100% reproducibility
+- **Circuit Breakers**: 6 configurable breakers (mongodb, redis, setu_api, tantra_runtime, ocr_service, evidence_pipeline)
+- **Independent Verification**: 10 independent verification tests for BHIV compliance
+- **Deployment Evidence**: Complete evidence generation for 9 deployment scenarios
+- **Adversarial Testing**: 12 genuine adversarial attack vectors for security validation
+- **Governance API**: 19 endpoints under `/api/v1/governance/`
 
 ### ✅ Security
 - JWT authentication with refresh tokens
@@ -297,6 +310,45 @@ GET /ready
 GET /live
 ```
 
+### BHIV Governance API (19 Endpoints)
+```bash
+# Capability Management
+GET    /api/v1/governance/capabilities          # List all capabilities
+GET    /api/v1/governance/capabilities/:id      # Get specific capability
+
+# Policy Engine
+POST   /api/v1/governance/policy/evaluate       # Evaluate policy
+GET    /api/v1/governance/policy/status         # Get policy engine status
+
+# Provenance Chain
+GET    /api/v1/governance/provenance            # Get full provenance chain
+GET    /api/v1/governance/provenance/verify     # Verify chain integrity
+
+# Deterministic Replay
+POST   /api/v1/governance/replay/deterministic  # Run deterministic replay
+GET    /api/v1/governance/replay/status         # Get replay status
+
+# Circuit Breakers
+GET    /api/v1/governance/circuit-breakers      # Get all breaker states
+POST   /api/v1/governance/circuit-breakers/:service/reset  # Reset breaker
+
+# Independent Verification
+POST   /api/v1/governance/verify/independent    # Run independent verification
+GET    /api/v1/governance/verify/results        # Get verification results
+
+# Deployment Evidence
+POST   /api/v1/governance/deployment/evidence   # Generate deployment evidence
+GET    /api/v1/governance/deployment/history    # Get deployment history
+
+# Adversarial Testing
+POST   /api/v1/governance/security/adversarial  # Run adversarial tests
+GET    /api/v1/governance/security/results      # Get security results
+
+# System Status
+GET    /api/v1/governance/status                # Get comprehensive status
+GET    /api/v1/governance/health                # Governance health check
+```
+
 ## 🔄 Data Flow & Integrity
 
 ### Invoice Workflow
@@ -386,7 +438,7 @@ This verifies:
 10. FinancialYear
 11. InsightFlowExperience
 
-### Key Services (20+)
+### Key Services (36)
 - Authentication Service
 - Ledger Service
 - Invoice Service
@@ -397,6 +449,13 @@ This verifies:
 - Export Service
 - Health Service
 - Performance Service
+- **Capability Registry Service** (BHIV)
+- **Provenance Chain Service** (BHIV)
+- **Deterministic Replay Service** (BHIV)
+- **Circuit Breaker Service** (BHIV)
+- **Deployment Evidence Service** (BHIV)
+- **Independent Verifier Service** (BHIV)
+- **Adversarial Suite Service** (BHIV)
 
 ## 📊 Sample Data
 
@@ -438,7 +497,9 @@ For issues and support:
 
 ---
 
-**Last Updated**: February 19, 2025  
+**Last Updated**: July 04, 2026  
 **Version**: 0.1  
-**Status**: Production Ready ✓  
-**Integrity**: Verified ✓
+**Status**: BHIV Ecosystem Production Participant ✓  
+**Integrity**: Verified ✓  
+**Governance**: Enforced ✓  
+**BHIV Integration**: Complete ✓

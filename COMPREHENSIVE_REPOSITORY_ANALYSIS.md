@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-**ARTHA** is a production-ready, enterprise-grade accounting system built with modern MERN stack architecture. The system implements blockchain-inspired tamper-evident ledger technology with comprehensive India statutory compliance (GST, TDS), making it suitable for Indian businesses requiring robust financial management.
+**ARTHA** is a production-ready, enterprise-grade accounting system operating as a governed runtime participant within the BHIV ecosystem. Built with modern MERN stack architecture, it implements blockchain-inspired tamper-evident ledger technology with comprehensive India statutory compliance (GST, TDS). The system features deterministic execution, replayability, observability, authority enforcement, and immutable provenance chain for complete governance and audit trail.
 
 ## 🏗️ Architecture Overview
 
@@ -13,6 +13,7 @@
 - **Security**: Helmet, JWT, HMAC-SHA256, Rate Limiting
 - **Testing**: Jest, Supertest (85%+ coverage)
 - **Monitoring**: Winston logging, Performance metrics, Health checks
+- **BHIV Integration**: Capability Registry, Policy Engine, Provenance Chain, Circuit Breakers
 
 ### System Architecture Pattern
 ```
@@ -24,6 +25,11 @@
          │              ┌─────────────────┐              │
          └──────────────│   Redis Cache   │──────────────┘
                         │   (Optional)    │
+                        └─────────────────┘
+                               │
+                        ┌─────────────────┐
+                        │  BHIV Ecosystem │
+                        │  (Governance)   │
                         └─────────────────┘
 ```
 
@@ -277,7 +283,7 @@ backend/src/
 - **Status codes**: Proper HTTP response codes
 - **Error handling**: Standardized error responses
 
-### API Endpoints (50+ Total)
+### API Endpoints (69 Total)
 ```
 Authentication (8):    /api/v1/auth/*
 Ledger (12):          /api/v1/ledger/*
@@ -288,7 +294,18 @@ Reports (7):          /api/v1/reports/*
 GST (5):              /api/v1/gst/*
 TDS (4):              /api/v1/tds/*
 Health (6):           /health, /ready, /live, etc.
+BHIV Governance (19): /api/v1/governance/*
 ```
+
+### BHIV Ecosystem Integration
+- **Capability Registry**: Canonical single source of truth for capability contracts
+- **Policy Engine**: Runtime enforcement with deterministic ALLOW/DENY decisions
+- **Provenance Chain**: Immutable, append-only, hash-linked governance decision chain
+- **Deterministic Replay**: Replay system with SHA-256 hash verification for 100% reproducibility
+- **Circuit Breakers**: 6 configurable breakers (mongodb, redis, setu_api, tantra_runtime, ocr_service, evidence_pipeline)
+- **Independent Verification**: 10 independent verification tests for BHIV compliance
+- **Deployment Evidence**: Complete evidence generation for 9 deployment scenarios
+- **Adversarial Testing**: 12 genuine adversarial attack vectors for security validation
 
 ### Backward Compatibility
 - **Legacy routes** maintained alongside V1 API

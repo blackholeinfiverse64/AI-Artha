@@ -203,3 +203,63 @@ ComplianceFiling (persisted)
 - New users default to `viewer` role — cannot create invoices or expenses without admin role upgrade
 - No refresh token endpoint implemented (listed in README but not in code)
 - `routes/index.js` is dead code — never imported in `server.js`
+
+---
+
+## 7. BHIV Ecosystem Integration (Complete)
+
+### Runtime Convergence
+- **Capability Registry**: Canonical single source of truth for capability contracts
+- **Policy Engine**: Runtime enforcement with deterministic ALLOW/DENY decisions
+- **Route Mapping**: Capability route map updated to v1.1.0 with governance route mapping
+
+### Provenance & Replay
+- **Provenance Chain**: Immutable, append-only, hash-linked governance decision chain
+- **Deterministic Replay**: Replay system with SHA-256 hash verification for 100% reproducibility
+- **Genesis Block**: Initialized at startup with timestamp, hash, and metadata
+
+### Resilience
+- **Circuit Breakers**: 6 configurable breakers (mongodb, redis, setu_api, tantra_runtime, ocr_service, evidence_pipeline)
+- **Thresholds**: mongodb(3/30s), redis(3/30s), setu_api(3/120s)
+- **States**: CLOSED (normal), OPEN (failing), HALF_OPEN (testing recovery)
+
+### Governance API (19 Endpoints)
+```
+GET    /api/v1/governance/capabilities
+GET    /api/v1/governance/capabilities/:id
+POST   /api/v1/governance/policy/evaluate
+GET    /api/v1/governance/policy/status
+GET    /api/v1/governance/provenance
+GET    /api/v1/governance/provenance/verify
+POST   /api/v1/governance/replay/deterministic
+GET    /api/v1/governance/replay/status
+GET    /api/v1/governance/circuit-breakers
+POST   /api/v1/governance/circuit-breakers/:service/reset
+POST   /api/v1/governance/verify/independent
+GET    /api/v1/governance/verify/results
+POST   /api/v1/governance/deployment/evidence
+GET    /api/v1/governance/deployment/history
+POST   /api/v1/governance/security/adversarial
+GET    /api/v1/governance/security/results
+GET    /api/v1/governance/status
+GET    /api/v1/governance/health
+```
+
+### New Services (10)
+1. capabilityRegistry.service.js — canonical capability registry
+2. policyEngine.js — runtime policy enforcement
+3. provenanceChain.service.js — immutable provenance chain
+4. deterministicReplay.service.js — replay system
+5. circuitBreaker.service.js — circuit breaker pattern
+6. independentVerifier.service.js — independent verification engine
+7. deploymentEvidence.service.js — deployment evidence generator
+8. adversarialSuite.service.js — adversarial test suite
+9. governance.routes.js — governance API endpoints
+10. tantra.service.js — TANTRA integration (existing)
+
+### New Middleware
+- **policyEnforcement** — runs AFTER existing authorityEnforcement
+
+### Integration Point
+- **File**: `backend/src/server.js`
+- **Additions**: service initialization, policy engine middleware, governance routes, deployment evidence recording
