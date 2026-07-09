@@ -3,7 +3,7 @@
  *
  * Runtime governance API routes.
  * Exposes verification, replay, provenance, adversarial testing,
- * and deployment evidence endpoints.
+ * deployment evidence, decision ledger, and SETU dispatch endpoints.
  *
  * All routes require authentication.
  */
@@ -17,6 +17,9 @@ import circuitBreaker from '../services/circuitBreaker.service.js';
 import independentVerifier from '../services/independentVerifier.service.js';
 import deploymentEvidence from '../services/deploymentEvidence.service.js';
 import adversarialSuite from '../services/adversarialSuite.service.js';
+import decisionLedger from '../services/decisionLedger.service.js';
+import lineage from '../services/lineage.service.js';
+import setuDispatch from '../services/setuDispatch.service.js';
 import logger from '../config/logger.js';
 
 const router = express.Router();
@@ -246,12 +249,14 @@ router.get('/evidence/:category', protect, (req, res) => {
 
 router.get('/status', protect, async (req, res) => {
   try {
-    const [verification, circuitStatus, replayStats, provenance, capabilities] = await Promise.all([
+    const [verification, circuitStatus, replayStats, provenance, capabilities, decisionStats, lineageStats] = await Promise.all([
       independentVerifier.runVerificationSuite({ triggered_by: 'governance-status' }).catch(() => null),
       circuitBreaker.getStatus(),
       deterministicReplay.getStatistics(),
       provenanceChain.verifyIntegrity().catch(() => ({ valid: false, error: 'Not initialized' })),
       capabilityRegistry.getRegistryMetadata(),
+      decisionLedger.getDecisionStats().catch(() => ({ total: 0, by_type: [] })),
+      lineage.getLineageStats().catch(() => ({ total: 0 })),
     ]);
 
     res.json({
@@ -263,6 +268,8 @@ router.get('/status', protect, async (req, res) => {
         circuit_breakers: circuitStatus,
         replay_statistics: replayStats,
         provenance_integrity: provenance,
+        decision_ledger: decisionStats,
+        lineage: lineageStats,
         last_verification: verification ? {
           suite_id: verification.suite_id,
           overall: verification.overall,
@@ -273,6 +280,157 @@ router.get('/status', protect, async (req, res) => {
     });
   } catch (err) {
     logger.error('Governance status error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── Decision Ledger ─────────────────────────────────────────────────────
+
+router.get('/decision-ledger/history', protect, async (req, res) => {
+  try {
+    const filters = {
+      decision_type: req.query.decision_type,
+      outcome: req.query.outcome,
+      capability_id: req.query.capability_id,
+      limit: parseInt(req.query.limit) || 100,
+    };
+    const history = await decisionLedger.getDecisionHistory(filters);
+    res.json({ success: true, data: history });
+  } catch (err) {
+    logger.error('Decision ledger history error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.get('/decision-ledger/stats', protect, async (req, res) => {
+  try {
+    const stats = await decisionLedger.getDecisionStats();
+    res.json({ success: true, data: stats });
+  } catch (err) {
+    logger.error('Decision ledger stats error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.get('/decision-ledger/verify', protect, async (req, res) => {
+  try {
+    const result = await decisionLedger.verifyChainIntegrity();
+    res.json({ success: true, data: result });
+  } catch (err) {
+    logger.error('Decision ledger verify error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── Distributed Replay ──────────────────────────────────────────────────
+
+router.get('/replay/distributed/:replayId', protect, (req, res) => {
+  try {
+    const data = deterministicReplay.getReplayData(req.params.replayId);
+    if (!data.found) {
+      return res.status(404).json({ success: false, message: data.error });
+    }
+    res.json({ success: true, data });
+  } catch (err) {
+    logger.error('Distributed replay get error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.post('/replay/distributed/:replayId/verify', protect, (req, res) => {
+  try {
+    const { actualState } = req.body;
+    const result = deterministicReplay.verifyDistributedReplay(req.params.replayId, actualState);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    logger.error('Distributed replay verify error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── Lineage ─────────────────────────────────────────────────────────────
+
+router.get('/lineage/stats', protect, async (req, res) => {
+  try {
+    const stats = await lineage.getLineageStats();
+    res.json({ success: true, data: stats });
+  } catch (err) {
+    logger.error('Lineage stats error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.get('/lineage/entity/:entityType/:entityId', protect, async (req, res) => {
+  try {
+    const lineageData = await lineage.getEntityLineage(req.params.entityType, req.params.entityId);
+    res.json({ success: true, data: lineageData });
+  } catch (err) {
+    logger.error('Lineage entity error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.get('/lineage/trace/:traceId', protect, async (req, res) => {
+  try {
+    const lineageData = await lineage.getTraceLineage(req.params.traceId);
+    res.json({ success: true, data: lineageData });
+  } catch (err) {
+    logger.error('Lineage trace error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.get('/lineage/verify/:traceId', protect, async (req, res) => {
+  try {
+    const result = await lineage.verifyTraceLineageIntegrity(req.params.traceId);
+    res.json({ success: true, data: result });
+  } catch (err) {
+    logger.error('Lineage verify error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ─── SETU Dispatch ───────────────────────────────────────────────────────
+
+router.get('/setu/stats', protect, async (req, res) => {
+  try {
+    const stats = await setuDispatch.getDispatchStats();
+    res.json({ success: true, data: stats });
+  } catch (err) {
+    logger.error('SETU stats error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.get('/setu/dispatch/:dispatchId', protect, async (req, res) => {
+  try {
+    const dispatch = await setuDispatch.getDispatch(req.params.dispatchId);
+    if (!dispatch) {
+      return res.status(404).json({ success: false, message: 'Dispatch not found' });
+    }
+    res.json({ success: true, data: dispatch });
+  } catch (err) {
+    logger.error('SETU dispatch error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.get('/setu/trace/:traceId', protect, async (req, res) => {
+  try {
+    const dispatches = await setuDispatch.getDispatchesByTrace(req.params.traceId);
+    res.json({ success: true, data: dispatches });
+  } catch (err) {
+    logger.error('SETU trace error:', err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+router.post('/setu/retry/:dispatchId', protect, async (req, res) => {
+  try {
+    const result = await setuDispatch.retryDispatch(req.params.dispatchId);
+    res.json({ success: result.success, data: result });
+  } catch (err) {
+    logger.error('SETU retry error:', err);
     res.status(500).json({ success: false, message: err.message });
   }
 });

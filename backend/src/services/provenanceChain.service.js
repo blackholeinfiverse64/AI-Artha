@@ -1,52 +1,43 @@
-/**
- * provenanceChain.service.js
- *
- * Immutable provenance chain for governance decisions.
- * Creates a tamper-proof, append-only log of all governance-relevant events.
- * Each entry is hash-linked to the previous, forming a blockchain-like chain.
- *
- * This is the MISSING immutable provenance chain identified in the gap analysis.
- */
-
 import crypto from 'crypto';
 import { randomUUID } from 'crypto';
+import ProvenanceBlock from '../models/ProvenanceBlock.js';
 import logger from '../config/logger.js';
 
 class ProvenanceChainService {
   constructor() {
-    this.chain = [];
     this.chainTip = null;
+    this.chainPosition = 0;
     this.initialized = false;
   }
 
-  /**
-   * Initialize the provenance chain.
-   * If existing chain state is provided, restore it; otherwise start fresh.
-   */
   async initialize(existingState = null) {
-    if (existingState && existingState.chainTip) {
-      this.chainTip = existingState.chainTip;
+    try {
+      const lastBlock = await ProvenanceBlock.findOne({}).sort({ chain_position: -1 }).lean();
+      if (lastBlock) {
+        this.chainTip = lastBlock.hash;
+        this.chainPosition = lastBlock.chain_position;
+        this.initialized = true;
+        logger.info(`[PROVENANCE] Restored chain from tip: ${this.chainTip} at position ${this.chainPosition}`);
+        return;
+      }
+
+      const genesis = await this._createGenesisBlock();
+      this.chainTip = genesis.hash;
+      this.chainPosition = genesis.chain_position;
       this.initialized = true;
-      logger.info(`[PROVENANCE] Restored chain from tip: ${this.chainTip.hash}`);
-      return;
+
+      logger.info(`[PROVENANCE] Initialized with genesis block: ${genesis.hash}`);
+    } catch (error) {
+      logger.error('[PROVENANCE] Initialization failed:', error);
+      throw error;
     }
-
-    // Genesis block
-    const genesis = this._createGenesisBlock();
-    this.chainTip = genesis;
-    this.initialized = true;
-
-    logger.info(`[PROVENANCE] Initialized with genesis block: ${genesis.hash}`);
   }
 
-  /**
-   * Create the genesis (first) block of the provenance chain.
-   */
-  _createGenesisBlock() {
+  async _createGenesisBlock() {
     const block = {
       block_id: `PRV-${Date.now()}-GENESIS`,
       type: 'GENESIS',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(),
       data: {
         message: 'Provenance chain initialized',
         version: '1.0.0',
@@ -54,61 +45,56 @@ class ProvenanceChainService {
       },
       previous_hash: '0'.repeat(64),
       nonce: 0,
-      hash: null,
+      chain_position: 0,
     };
 
     block.hash = this._computeHash(block);
-    return block;
+    const saved = await ProvenanceBlock.create(block);
+    return saved;
   }
 
-  /**
-   * Append a governance event to the provenance chain.
-   * Returns the new chain tip.
-   */
-  append(event) {
+  async append(event) {
     if (!this.initialized) {
       throw new Error('[PROVENANCE] Chain not initialized. Call initialize() first.');
     }
 
+    this.chainPosition++;
     const block = {
       block_id: `PRV-${Date.now()}-${randomUUID().slice(0, 8)}`,
       type: event.type || 'GOVERNANCE_EVENT',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(),
       data: {
         ...event,
         recorded_at: new Date().toISOString(),
       },
-      previous_hash: this.chainTip.hash,
+      previous_hash: this.chainTip,
       nonce: 0,
-      hash: null,
+      chain_position: this.chainPosition,
+      lineage_anchor: event.lineage_anchor || null,
     };
 
     block.hash = this._computeHash(block);
-    this.chainTip = block;
+    const saved = await ProvenanceBlock.create(block);
+    this.chainTip = block.hash;
 
-    logger.debug(`[PROVENANCE] Appended block: ${block.block_id} type=${block.type}`);
-    return block;
+    logger.debug(`[PROVENANCE] Appended block: ${block.block_id} type=${block.type} position=${block.chain_position}`);
+    return saved;
   }
 
-  /**
-   * Record a capability enforcement decision.
-   */
-  recordCapabilityDecision(decision) {
+  async recordCapabilityDecision(decision) {
     return this.append({
       type: 'CAPABILITY_DECISION',
       capability_id: decision.capability_id,
       method: decision.method,
       path: decision.path,
-      outcome: decision.outcome, // ALLOW or DENY
+      outcome: decision.outcome,
       user_id: decision.user_id,
       reason: decision.reason,
+      lineage_anchor: decision.lineage_anchor || null,
     });
   }
 
-  /**
-   * Record a policy enforcement event.
-   */
-  recordPolicyEvent(event) {
+  async recordPolicyEvent(event) {
     return this.append({
       type: 'POLICY_EVENT',
       policy: event.policy,
@@ -116,13 +102,11 @@ class ProvenanceChainService {
       target: event.target,
       outcome: event.outcome,
       details: event.details,
+      lineage_anchor: event.lineage_anchor || null,
     });
   }
 
-  /**
-   * Record a contract integrity verification.
-   */
-  recordContractVerification(verification) {
+  async recordContractVerification(verification) {
     return this.append({
       type: 'CONTRACT_VERIFICATION',
       capability_id: verification.capability_id,
@@ -130,26 +114,21 @@ class ProvenanceChainService {
       actual_hash: verification.actual_hash,
       valid: verification.valid,
       verified_by: verification.verified_by || 'system',
+      lineage_anchor: verification.lineage_anchor || null,
     });
   }
 
-  /**
-   * Record a deployment event.
-   */
-  recordDeployment(event) {
+  async recordDeployment(event) {
     return this.append({
       type: 'DEPLOYMENT_EVENT',
-      action: event.action, // DEPLOY, ROLLBACK, RESTART
+      action: event.action,
       version: event.version,
       environment: event.environment,
       details: event.details,
     });
   }
 
-  /**
-   * Record an adversarial attempt.
-   */
-  recordAdversarialAttempt(attempt) {
+  async recordAdversarialAttempt(attempt) {
     return this.append({
       type: 'ADVERSARIAL_ATTEMPT',
       attack_type: attempt.attack_type,
@@ -159,10 +138,7 @@ class ProvenanceChainService {
     });
   }
 
-  /**
-   * Record a replay verification.
-   */
-  recordReplayVerification(verification) {
+  async recordReplayVerification(verification) {
     return this.append({
       type: 'REPLAY_VERIFICATION',
       trace_id: verification.trace_id,
@@ -170,88 +146,115 @@ class ProvenanceChainService {
       input_hash: verification.input_hash,
       output_hash: verification.output_hash,
       match: verification.match,
+      lineage_anchor: verification.lineage_anchor || null,
     });
   }
 
-  /**
-   * Verify the integrity of the provenance chain.
-   * Walks the chain from tip to genesis, verifying each hash link.
-   */
-  verifyIntegrity() {
-    if (!this.chainTip) {
-      return { valid: false, error: 'Chain is empty' };
-    }
+  async recordDecisionLedger(decision) {
+    return this.append({
+      type: 'DECISION_LEDGER',
+      decision_id: decision.decision_id,
+      outcome: decision.outcome,
+      reason: decision.reason,
+      lineage_anchor: decision.lineage_anchor || null,
+    });
+  }
 
-    let current = this.chainTip;
-    let blockCount = 0;
-    const errors = [];
+  async recordLineageAnchor(anchor) {
+    return this.append({
+      type: 'LINEAGE_ANCHOR',
+      trace_id: anchor.trace_id,
+      entity_type: anchor.entity_type,
+      entity_id: anchor.entity_id,
+      lineage_anchor: {
+        trace_id: anchor.trace_id,
+        entity_type: anchor.entity_type,
+        entity_id: anchor.entity_id,
+      },
+    });
+  }
 
-    while (current) {
-      blockCount++;
+  async verifyIntegrity() {
+    try {
+      const blocks = await ProvenanceBlock.find({}).sort({ chain_position: 1 }).lean();
+      if (blocks.length === 0) return { valid: true, block_count: 0 };
 
-      // Verify hash
-      const expectedHash = this._computeHash({
-        ...current,
-        hash: null,
-      });
+      const errors = [];
+      for (let i = 1; i < blocks.length; i++) {
+        if (blocks[i].previous_hash !== blocks[i - 1].hash) {
+          errors.push({
+            block_id: blocks[i].block_id,
+            position: blocks[i].chain_position,
+            error: 'Chain link broken',
+            expected_prev: blocks[i - 1].hash,
+            actual_prev: blocks[i].previous_hash,
+          });
+        }
 
-      if (current.hash !== expectedHash) {
-        errors.push({
-          block_id: current.block_id,
-          error: 'Hash mismatch',
-          expected: expectedHash,
-          actual: current.hash,
+        const expectedHash = this._computeHash({
+          ...blocks[i],
+          hash: undefined,
         });
+        if (blocks[i].hash !== expectedHash) {
+          errors.push({
+            block_id: blocks[i].block_id,
+            position: blocks[i].chain_position,
+            error: 'Hash mismatch',
+            expected: expectedHash,
+            actual: blocks[i].hash,
+          });
+        }
       }
 
-      // Verify chain link
-      if (current.previous_hash === '0'.repeat(64)) {
-        // Genesis block — chain complete
-        break;
-      }
-
-      // Move to previous block
-      current = current.previous_block || null;
-      if (!current && blockCount < 1000) {
-        // In a real implementation, we'd load from persistent storage
-        // For now, we verify what we have in memory
-        break;
-      }
+      return {
+        valid: errors.length === 0,
+        block_count: blocks.length,
+        chain_tip: blocks[blocks.length - 1].hash,
+        errors,
+      };
+    } catch (error) {
+      return { valid: false, error: error.message };
     }
-
-    return {
-      valid: errors.length === 0,
-      block_count: blockCount,
-      chain_tip: this.chainTip.hash,
-      errors,
-    };
   }
 
-  /**
-   * Get the full provenance chain (for export/verification).
-   */
-  getChain() {
+  async getChain(options = {}) {
+    const { limit = 100, offset = 0, type = null } = options;
+    const query = {};
+    if (type) query.type = type;
+
+    const blocks = await ProvenanceBlock.find(query)
+      .sort({ chain_position: -1 })
+      .skip(offset)
+      .limit(limit)
+      .lean();
+
+    const total = await ProvenanceBlock.countDocuments(query);
+
     return {
+      blocks,
+      total,
       chain_tip: this.chainTip,
+      chain_position: this.chainPosition,
       initialized: this.initialized,
-      block_count: this.chain ? this.chain.length : 0,
     };
   }
 
-  /**
-   * Get provenance for a specific capability.
-   */
-  getCapabilityProvenance(capabilityId) {
-    if (!this.chain) return [];
-
-    return this.chain.filter(
-      block => block.data?.capability_id === capabilityId
-    );
+  async getCapabilityProvenance(capabilityId) {
+    return ProvenanceBlock.find({
+      'data.capability_id': capabilityId,
+    }).sort({ chain_position: -1 }).lean();
   }
 
-  /**
-   * Compute SHA-256 hash of a block.
-   */
+  async getLineageProvenance(traceId) {
+    return ProvenanceBlock.find({
+      'lineage_anchor.trace_id': traceId,
+    }).sort({ chain_position: -1 }).lean();
+  }
+
+  async getRecentBlocks(count = 10) {
+    return ProvenanceBlock.find({}).sort({ chain_position: -1 }).limit(count).lean();
+  }
+
   _computeHash(block) {
     const payload = JSON.stringify({
       block_id: block.block_id,
@@ -260,23 +263,12 @@ class ProvenanceChainService {
       data: block.data,
       previous_hash: block.previous_hash,
       nonce: block.nonce,
+      chain_position: block.chain_position,
     });
 
     return crypto.createHash('sha256').update(payload).digest('hex');
   }
-
-  /**
-   * Get chain state for persistence.
-   */
-  getState() {
-    return {
-      chain_tip: this.chainTip,
-      initialized: this.initialized,
-      version: '1.0.0',
-    };
-  }
 }
 
-// Singleton
 const provenanceChain = new ProvenanceChainService();
 export default provenanceChain;

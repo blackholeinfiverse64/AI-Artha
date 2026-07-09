@@ -73,8 +73,9 @@ import observabilityService from './services/observability.service.js';
 import bankingService from './services/banking.service.js';
 import auditService from './services/audit.service.js';
 import caWorkflowService from './services/caWorkflow.service.js';
-import SetuDispatch from './models/SetuDispatch.js';
-import ComplianceSignal from './models/ComplianceSignal.js';
+import setuDispatch from './services/setuDispatch.service.js';
+import decisionLedger from './services/decisionLedger.service.js';
+import tantraExecutionChain from './services/tantraExecutionChain.service.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -108,8 +109,11 @@ connectDB();
     // Initialize BHIV ecosystem services
     capabilityRegistry.loadContracts();
     await provenanceChain.initialize();
+    await decisionLedger.initialize();
     deterministicReplay.initialize();
     deploymentEvidence.initialize({ version: '0.1.0' });
+    setuDispatch.initialize();
+    tantraExecutionChain.initialize();
 
     logger.info('All services initialized (including BHIV ecosystem services)');
   } catch (err) {
@@ -281,55 +285,67 @@ app.use('/api/v1/multi-company', multiCompanyRoutes);
 app.use('/api/v1/tantra', tantraRoutes);
 app.use('/api/v1/governance', governanceRoutes);
 
-// SETU callback webhook endpoint
+// SETU callback webhook endpoint (delegated to setuDispatch service)
+// Protected by HMAC signature verification for external webhook security
 app.post('/api/v1/setu/callback', async (req, res) => {
   try {
-    const { dispatch_id, signal_id, trace_id, status, setu_reference, processing_time_ms, error } = req.body;
-    
-    if (!dispatch_id || !signal_id) {
-      return res.status(400).json({ success: false, message: 'Missing required fields: dispatch_id, signal_id' });
+    // Verify SETU webhook signature if HMAC_SECRET is configured
+    const hmacSecret = process.env.SETU_HMAC_SECRET || process.env.HMAC_SECRET;
+    if (hmacSecret) {
+      const signature = req.headers['x-setu-signature'] || req.headers['x-hmac-signature'];
+      if (!signature) {
+        logger.warn('SETU callback missing signature');
+        return res.status(401).json({ success: false, message: 'Missing webhook signature' });
+      }
+
+      const crypto = await import('crypto');
+      const expectedSig = crypto.createHmac('sha256', hmacSecret)
+        .update(JSON.stringify(req.body))
+        .digest('hex');
+
+      if (signature !== expectedSig) {
+        logger.warn('SETU callback invalid signature');
+        return res.status(401).json({ success: false, message: 'Invalid webhook signature' });
+      }
     }
-    
-    // Find the dispatch record
-    const dispatch = await SetuDispatch.findOne({ dispatch_id, signal_id });
-    if (!dispatch) {
-      logger.warn(`SETU callback for unknown dispatch: ${dispatch_id}`);
-      return res.status(404).json({ success: false, message: 'Dispatch not found' });
+
+    const result = await setuDispatch.processAcknowledgement(req.body);
+    if (result.success) {
+      res.json({ success: true, message: 'Callback processed' });
+    } else {
+      res.status(result.message === 'Dispatch not found' ? 404 : 400).json({
+        success: false,
+        message: result.message,
+      });
     }
-    
-    // Update dispatch with acknowledgement
-    await SetuDispatch.findByIdAndUpdate(dispatch._id, {
-      $set: {
-        'ack.status': status,
-        'ack.setu_reference': setu_reference,
-        'ack.processing_time_ms': processing_time_ms,
-        'ack.error': error,
-        'ack.received_at': new Date(),
-        status: status === 'ACCEPTED' ? 'dispatched' : 'failed',
-      },
-      $push: {
-        acknowledgement: {
-          status,
-          setu_reference,
-          processing_time_ms,
-          error,
-          received_at: new Date(),
-        },
-      },
-    });
-    
-    // Update compliance signal if exists
-    if (trace_id) {
-      await ComplianceSignal.updateOne(
-        { trace_id },
-        { $set: { dispatch_status: status === 'ACCEPTED' ? 'acknowledged' : 'rejected', setu_reference, ack_received_at: new Date(), ack_payload: req.body } }
-      );
-    }
-    
-    logger.info(`SETU callback processed: dispatch_id=${dispatch_id} status=${status}`);
-    res.json({ success: true, message: 'Callback processed' });
   } catch (err) {
     logger.error(`SETU callback error: ${err.message}`);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// SETU dispatch endpoint
+app.post('/api/v1/setu/dispatch', protect, async (req, res) => {
+  try {
+    const result = await setuDispatch.dispatchSignal(req.body.signal, req.body.options);
+    if (result.success) {
+      res.json({ success: true, data: result });
+    } else {
+      res.status(400).json({ success: false, error: result.error, stage: result.stage });
+    }
+  } catch (err) {
+    logger.error(`SETU dispatch error: ${err.message}`);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+// SETU dispatch stats
+app.get('/api/v1/setu/stats', protect, async (req, res) => {
+  try {
+    const stats = await setuDispatch.getDispatchStats();
+    res.json({ success: true, data: stats });
+  } catch (err) {
+    logger.error(`SETU stats error: ${err.message}`);
     res.status(500).json({ success: false, message: 'Internal server error' });
   }
 });
@@ -386,7 +402,7 @@ if (process.env.NODE_ENV !== 'test') {
       version: '0.1.0',
       environment: process.env.NODE_ENV || 'development',
       details: { port: PORT },
-    });
+    }).catch(() => {});
   });
 }
 

@@ -170,7 +170,6 @@
       }
     }
   },
-  "output_schemas": {},
   "authentication": {
     "type": "JWT",
     "header": "Authorization: Bearer <token>"

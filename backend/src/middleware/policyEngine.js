@@ -5,9 +5,11 @@
  * Unlike the declarative authorityBoundary.js, this middleware:
  * 1. Validates requests against capability contract schemas
  * 2. Enforces mutation restrictions at the middleware level
- * 3. Records policy decisions for audit
- * 4. Blocks unauthorized operations before they reach controllers
- * 5. Provides deterministic enforcement (not advisory)
+ * 3. Records policy decisions for audit trail AND decision ledger
+ * 4. Anchors governance evidence into provenance chain
+ * 5. Blocks unauthorized operations before they reach controllers
+ * 6. Provides deterministic enforcement (not advisory)
+ * 7. Produces complete constitutional decision ledger artifacts
  *
  * This is the MISSING policy engine identified in the gap analysis.
  */
@@ -15,12 +17,37 @@
 import capabilityRegistry from '../services/capabilityRegistry.service.js';
 import logger from '../config/logger.js';
 
+// Lazy-loaded services to avoid circular imports at module load time
+let _decisionLedger = null;
+let _provenanceChain = null;
+
+async function getDecisionLedger() {
+  if (!_decisionLedger) {
+    try {
+      const mod = await import('../services/decisionLedger.service.js');
+      _decisionLedger = mod.default;
+    } catch { /* not yet initialized */ }
+  }
+  return _decisionLedger;
+}
+
+async function getProvenanceChain() {
+  if (!_provenanceChain) {
+    try {
+      const mod = await import('../services/provenanceChain.service.js');
+      _provenanceChain = mod.default;
+    } catch { /* not yet initialized */ }
+  }
+  return _provenanceChain;
+}
+
 // ─── Policy Decision Record ──────────────────────────────────────────────
 
 /**
- * Record a policy decision for audit trail.
+ * Record a policy decision for audit trail AND decision ledger.
+ * Produces complete constitutional decision ledger artifacts on DENY.
  */
-function recordPolicyDecision(req, decision) {
+async function recordPolicyDecision(req, decision) {
   const record = {
     timestamp: new Date().toISOString(),
     request_id: req.id || req.headers['x-request-id'] || 'unknown',
@@ -42,6 +69,50 @@ function recordPolicyDecision(req, decision) {
     logger.error('[POLICY_ENGINE] DENY', JSON.stringify(record));
   } else {
     logger.debug('[POLICY_ENGINE] ALLOW', JSON.stringify(record));
+  }
+
+  // Anchor DENY decisions into decision ledger + provenance chain
+  if (decision === 'DENY') {
+    try {
+      const ledger = await getDecisionLedger();
+      if (ledger && ledger.initialized) {
+        const decisionRecord = await ledger.recordPolicyDecision({
+          capability_id: req.capability || 'UNMAPPED',
+          method: req.method,
+          path: record.path,
+          outcome: 'DENY',
+          reason: `Policy enforcement: ${req.capability || 'UNMAPPED'} denied ${req.method} ${record.path}`,
+          evidence: {
+            request_id: record.request_id,
+            ip: record.ip,
+            user_agent: record.user_agent,
+            user: record.user,
+          },
+          user_id: req.user?._id || req.user?.user_id,
+          policy_name: 'policy-engine-enforcement',
+          policy_version: '1.0.0',
+          enforcement_point: 'policyEngine-middleware',
+        });
+
+        // Anchor into provenance chain
+        const provenance = await getProvenanceChain();
+        if (provenance && provenance.initialized) {
+          await provenance.recordPolicyEvent({
+            policy: 'policy-engine-enforcement',
+            action: `${req.method} ${record.path}`,
+            target: req.capability || 'UNMAPPED',
+            outcome: 'DENY',
+            details: {
+              decision_id: decisionRecord.decision_id,
+              request_id: record.request_id,
+              ip: record.ip,
+            },
+          });
+        }
+      }
+    } catch (err) {
+      logger.error('[POLICY_ENGINE] Failed to record DENY to decision ledger:', err.message);
+    }
   }
 
   return record;
@@ -91,7 +162,7 @@ export function policyEnforcement(req, res, next) {
   if (!resolution) {
     // Route not mapped to any capability
     if (process.env.NODE_ENV === 'production') {
-      const decision = recordPolicyDecision(req, 'DENY');
+      recordPolicyDecision(req, 'DENY').catch(() => {});
       return res.status(403).json({
         success: false,
         error: 'POLICY_VIOLATION',
@@ -112,7 +183,7 @@ export function policyEnforcement(req, res, next) {
 
   // ─── Enforce read-only capabilities ───────────────────────────────────
   if (resolution.capability?.read_only && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
-    const decision = recordPolicyDecision(req, 'DENY');
+    recordPolicyDecision(req, 'DENY').catch(() => {});
     return res.status(403).json({
       success: false,
       error: 'POLICY_VIOLATION',
@@ -135,7 +206,7 @@ export function policyEnforcement(req, res, next) {
       const lowerHint = hint.toLowerCase();
       for (const [collection, reason] of Object.entries(blocked)) {
         if (lowerHint.includes(collection.slice(0, -1)) || lowerHint === collection) {
-          const decision = recordPolicyDecision(req, 'DENY');
+          recordPolicyDecision(req, 'DENY').catch(() => {});
           return res.status(403).json({
             success: false,
             error: 'POLICY_VIOLATION',
@@ -150,7 +221,7 @@ export function policyEnforcement(req, res, next) {
   }
 
   // ─── Policy decision: ALLOW ───────────────────────────────────────────
-  recordPolicyDecision(req, 'ALLOW');
+  recordPolicyDecision(req, 'ALLOW').catch(() => {});
   next();
 }
 
