@@ -13,6 +13,7 @@
 
 ## Day 1: Ledger Hash-Chain ✅
 
+
 - [x] Hash-chain implemented in JournalEntry model
 - [x] prevHash and hash fields added
 - [x] computeHash() static method working

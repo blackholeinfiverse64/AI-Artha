@@ -1,3 +1,4 @@
+
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "Route-to-capability mapping. Loaded by authorityBoundary middleware at startup. Longest prefix first for correct matching.",

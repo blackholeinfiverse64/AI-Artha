@@ -10,7 +10,7 @@ No metric on any dashboard is cosmetic, hardcoded, or derived from assumptions.
 Every number displayed is the result of a real API call to a real backend query.
 If the API fails, the metric shows 0 or an error — never a fake value.
 
----
+--
 
 ## Dashboard 1 — Financial Intelligence Dashboard (/dashboard)
 

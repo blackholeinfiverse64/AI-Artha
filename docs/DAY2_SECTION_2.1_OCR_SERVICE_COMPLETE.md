@@ -19,7 +19,7 @@ Successfully implemented OCR service for receipt text extraction and parsing wit
 - **backend/package.json** (MODIFIED)
   - Added `tesseract.js@^5.0.4` as optional dependency
   - Won't break installation if Tesseract fails
-
+  
 - **backend/.env** (MODIFIED)
   - Added `OCR_ENABLED=false` configuration
 

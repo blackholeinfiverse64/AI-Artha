@@ -6,7 +6,8 @@ Step 5 of India Compliance (Controllers & Routes) has been successfully implemen
 
 ## ✅ Implemented Controllers
 
-### 1. GST Controller (`backend/src/controllers/gst.controller.js`)
+### 1. GST Controller (`backend/src/controllers/gst.controller.js`
+
 **Complete GST return management and validation endpoints**
 
 #### Methods Implemented:
