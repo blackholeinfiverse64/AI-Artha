@@ -734,12 +734,16 @@ async def response_enrichment_middleware(request: Request, call_next):
                 if "status" not in data:
                     data["status"] = "success"
                 
-                # Rebuild response with enriched data
+                # Rebuild response — exclude content-length and content-type (JSONResponse sets them)
                 from starlette.responses import JSONResponse
+                safe_headers = {
+                    k: v for k, v in response.headers.items()
+                    if k.lower() not in ("content-length", "content-type")
+                }
                 response = JSONResponse(
                     content=data,
                     status_code=response.status_code,
-                    headers=dict(response.headers)
+                    headers=safe_headers
                 )
         except Exception:
             pass  # Non-JSON or unparseable responses pass through unchanged
