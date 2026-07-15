@@ -256,9 +256,23 @@ class TallyCompatibilityService {
       const voucherNumber = record.VoucherNumber || record.Voucher_Number || record.number || '';
       const voucherType = record.VoucherType || record.Voucher_Type || record.type || 'Journal';
       const ledgerName = record.LedgerName || record.Ledger_Name || record.ledger || '';
-      const amount = parseFloat((record.Amount || record.amount || '0').replace(/,/g, '')) || 0;
       const narration = record.Narration || record.narration || '';
       const party = record.PartyName || record.Party || record.party || '';
+
+      let amount = 0;
+      let isDebit = true;
+
+      const debitVal = parseFloat((record.Debit || record.debit || '0').replace(/,/g, '')) || 0;
+      const creditVal = parseFloat((record.Credit || record.credit || '0').replace(/,/g, '')) || 0;
+
+      if (debitVal > 0 || creditVal > 0) {
+        amount = debitVal > 0 ? debitVal : creditVal;
+        isDebit = debitVal > 0;
+      } else {
+        const rawAmount = parseFloat((record.Amount || record.amount || '0').replace(/,/g, '')) || 0;
+        amount = Math.abs(rawAmount);
+        isDebit = rawAmount >= 0;
+      }
 
       const key = `${voucherDate}|${voucherNumber}|${voucherType}`;
       if (!voucherMap.has(key)) {
@@ -277,10 +291,16 @@ class TallyCompatibilityService {
       if (ledgerName) {
         voucher.ledgerEntries.push({
           ledgerName,
-          amount: Math.abs(amount),
-          isDebit: amount >= 0,
+          amount,
+          isDebit,
         });
       }
+    }
+
+    for (const voucher of voucherMap.values()) {
+      const totalDebit = voucher.ledgerEntries.filter(e => e.isDebit).reduce((s, e) => s + e.amount, 0);
+      const totalCredit = voucher.ledgerEntries.filter(e => !e.isDebit).reduce((s, e) => s + e.amount, 0);
+      voucher.amount = String(Math.max(totalDebit, totalCredit));
     }
 
     return Array.from(voucherMap.values());
@@ -359,7 +379,7 @@ class TallyCompatibilityService {
             tags: ['tally-import', mappedType],
           }, userId);
 
-          await ledgerService.validateJournalEntry(journalEntry._id, userId);
+          await JournalEntry.findByIdAndUpdate(journalEntry._id, { status: 'VALIDATED' });
           await ledgerService.postJournalEntry(journalEntry._id, userId);
           results.journalEntriesCreated++;
           results.created++;
