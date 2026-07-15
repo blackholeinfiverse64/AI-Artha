@@ -242,11 +242,20 @@ class TallyCompatibilityService {
   }
 
   parseTallyCSV(csvContent) {
-    const records = parse(csvContent, {
+    const cleanContent = csvContent.replace(/^\uFEFF/, '');
+
+    let delimiter = ',';
+    const firstLine = cleanContent.split('\n')[0] || '';
+    if (firstLine.includes(';') && !firstLine.includes(',')) {
+      delimiter = ';';
+    }
+
+    const records = parse(cleanContent, {
       columns: true,
       skip_empty_lines: true,
       trim: true,
       relax_column_count: true,
+      delimiter,
     });
 
     const voucherMap = new Map();
@@ -255,21 +264,24 @@ class TallyCompatibilityService {
       const voucherDate = record.Date || record.date || record.DATE || '';
       const voucherNumber = record.VoucherNumber || record.Voucher_Number || record.number || '';
       const voucherType = record.VoucherType || record.Voucher_Type || record.type || 'Journal';
-      const ledgerName = record.LedgerName || record.Ledger_Name || record.ledger || '';
+      const ledgerName = record.LedgerName || record.Ledger_Name || record.ledger || record.Ledger || '';
       const narration = record.Narration || record.narration || '';
       const party = record.PartyName || record.Party || record.party || '';
 
       let amount = 0;
       let isDebit = true;
 
-      const debitVal = parseFloat((record.Debit || record.debit || '0').replace(/,/g, '')) || 0;
-      const creditVal = parseFloat((record.Credit || record.credit || '0').replace(/,/g, '')) || 0;
+      const debitCol = record.Debit || record.debit || record.DEBIT || record.dr || record.Dr || '';
+      const creditCol = record.Credit || record.credit || record.CREDIT || record.cr || record.Cr || '';
+      const debitVal = parseFloat(String(debitCol).replace(/,/g, '')) || 0;
+      const creditVal = parseFloat(String(creditCol).replace(/,/g, '')) || 0;
 
       if (debitVal > 0 || creditVal > 0) {
         amount = debitVal > 0 ? debitVal : creditVal;
         isDebit = debitVal > 0;
       } else {
-        const rawAmount = parseFloat((record.Amount || record.amount || '0').replace(/,/g, '')) || 0;
+        const amtCol = record.Amount || record.amount || record.AMOUNT || record.amt || '';
+        const rawAmount = parseFloat(String(amtCol).replace(/,/g, '')) || 0;
         amount = Math.abs(rawAmount);
         isDebit = rawAmount >= 0;
       }
@@ -288,18 +300,73 @@ class TallyCompatibilityService {
       }
 
       const voucher = voucherMap.get(key);
-      if (ledgerName) {
+      if (ledgerName && ledgerName.trim()) {
         voucher.ledgerEntries.push({
-          ledgerName,
+          ledgerName: ledgerName.trim(),
           amount,
           isDebit,
         });
+      } else {
+        logger.warn(`Tally CSV: skipping row with empty LedgerName in voucher ${voucherNumber}`);
       }
     }
 
     for (const voucher of voucherMap.values()) {
-      const totalDebit = voucher.ledgerEntries.filter(e => e.isDebit).reduce((s, e) => s + e.amount, 0);
-      const totalCredit = voucher.ledgerEntries.filter(e => !e.isDebit).reduce((s, e) => s + e.amount, 0);
+      let totalDebit = voucher.ledgerEntries.filter(e => e.isDebit).reduce((s, e) => s + e.amount, 0);
+      let totalCredit = voucher.ledgerEntries.filter(e => !e.isDebit).reduce((s, e) => s + e.amount, 0);
+
+      if (Math.abs(totalDebit - totalCredit) > 0.01 && voucher.ledgerEntries.length >= 2) {
+        const expectedDebitSide = (name) => {
+          const lower = name.toLowerCase();
+          if (lower.includes('payable') || lower.includes('liability') || lower.includes('capital') ||
+              lower.includes('equity') || lower.includes('retained') || lower.includes('output') ||
+              lower.includes('duty') || lower.includes('gst payable') || lower.includes('tds payable') ||
+              lower.includes('income') || lower.includes('revenue') || lower.includes('sales')) {
+            return false;
+          }
+          return true;
+        };
+
+        let flipped = false;
+        for (const entry of voucher.ledgerEntries) {
+          const shouldBeDebit = expectedDebitSide(entry.ledgerName);
+          if (shouldBeDebit && !entry.isDebit) {
+            entry.isDebit = true;
+            totalDebit += entry.amount;
+            totalCredit -= entry.amount;
+            flipped = true;
+            logger.info(`Tally CSV: flipped ${entry.ledgerName} from credit to debit (account-type heuristic) for voucher ${voucher.number}`);
+          } else if (!shouldBeDebit && entry.isDebit) {
+            entry.isDebit = false;
+            totalCredit += entry.amount;
+            totalDebit -= entry.amount;
+            flipped = true;
+            logger.info(`Tally CSV: flipped ${entry.ledgerName} from debit to credit (account-type heuristic) for voucher ${voucher.number}`);
+          }
+        }
+
+        if (!flipped) {
+          const diff = totalDebit - totalCredit;
+          for (const entry of voucher.ledgerEntries) {
+            if (diff > 0 && !entry.isDebit && Math.abs(entry.amount - Math.abs(diff)) < 0.01) {
+              entry.isDebit = true;
+              totalDebit += entry.amount;
+              totalCredit -= entry.amount;
+              flipped = true;
+              logger.info(`Tally CSV: flipped ${entry.ledgerName} from credit to debit (exact-match) for voucher ${voucher.number}`);
+              break;
+            } else if (diff < 0 && entry.isDebit && Math.abs(entry.amount - Math.abs(diff)) < 0.01) {
+              entry.isDebit = false;
+              totalCredit += entry.amount;
+              totalDebit -= entry.amount;
+              flipped = true;
+              logger.info(`Tally CSV: flipped ${entry.ledgerName} from debit to credit (exact-match) for voucher ${voucher.number}`);
+              break;
+            }
+          }
+        }
+      }
+
       voucher.amount = String(Math.max(totalDebit, totalCredit));
     }
 
