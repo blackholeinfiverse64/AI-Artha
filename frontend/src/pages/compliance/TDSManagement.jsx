@@ -49,6 +49,16 @@ const TDSManagement = () => {
   const [paying, setPaying] = useState(false);
   const [challanNumber, setChallanNumber] = useState('');
   const [challanDate, setChallanDate] = useState(new Date().toISOString().split('T')[0]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    deducteeName: '',
+    deducteePan: '',
+    section: '194J',
+    nature: '',
+    paymentAmount: '',
+    transactionDate: new Date().toISOString().split('T')[0],
+  });
 
   useEffect(() => {
     fetchTDSData();
@@ -206,6 +216,65 @@ const TDSManagement = () => {
     setShowPaymentModal(true);
   };
 
+  const sectionRates = {
+    '194A': { rate: 10, name: 'Interest' },
+    '194C': { rate: 2, name: 'Contractor' },
+    '194H': { rate: 5, name: 'Commission' },
+    '194I': { rate: 10, name: 'Rent' },
+    '194J': { rate: 10, name: 'Professional/Technical' },
+    '192': { rate: 0, name: 'Salary' },
+    '194Q': { rate: 0.1, name: 'Purchase of Goods' },
+  };
+
+  const handleCreateEntry = async () => {
+    if (!createForm.deducteeName.trim()) {
+      toast.error('Deductee name is required');
+      return;
+    }
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(createForm.deducteePan)) {
+      toast.error('Invalid PAN format (e.g., ABCDE1234F)');
+      return;
+    }
+    if (!createForm.paymentAmount || parseFloat(createForm.paymentAmount) <= 0) {
+      toast.error('Payment amount must be greater than 0');
+      return;
+    }
+    if (!createForm.nature.trim()) {
+      toast.error('Nature of payment is required');
+      return;
+    }
+
+    setCreating(true);
+    try {
+      await api.post('/tds/entries', {
+        deductee: {
+          name: createForm.deducteeName.trim(),
+          pan: createForm.deducteePan.toUpperCase().trim(),
+        },
+        section: createForm.section,
+        nature: createForm.nature.trim(),
+        paymentAmount: createForm.paymentAmount,
+        transactionDate: createForm.transactionDate,
+      });
+      toast.success('TDS entry created successfully');
+      setShowCreateModal(false);
+      setCreateForm({
+        deducteeName: '',
+        deducteePan: '',
+        section: '194J',
+        nature: '',
+        paymentAmount: '',
+        transactionDate: new Date().toISOString().split('T')[0],
+      });
+      fetchTDSData();
+    } catch (error) {
+      console.error('Create TDS entry error:', error);
+      toast.error(error.response?.data?.message || 'Failed to create TDS entry');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const filteredEntries = data?.entries?.filter((entry) => {
     const matchesSearch =
       entry.deductee?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -244,6 +313,9 @@ const TDSManagement = () => {
               onChange={(e) => setYear(e.target.value)}
               className="w-36"
             />
+            <Button variant="primary" icon={Plus} onClick={() => setShowCreateModal(true)}>
+              Create Entry
+            </Button>
             <Button variant="secondary" icon={Download} onClick={handleExportForm26Q}>
               Download Form 26Q
             </Button>
@@ -442,7 +514,9 @@ const TDSManagement = () => {
             <EmptyState
               icon={FileText}
               title="No TDS entries found"
-              description="No entries match your search criteria."
+              description="Create your first TDS entry to start tracking Tax Deducted at Source."
+              actionLabel="Create TDS Entry"
+              onAction={() => setShowCreateModal(true)}
             />
           </div>
         ) : (
@@ -556,6 +630,102 @@ const TDSManagement = () => {
             </Button>
             <Button onClick={handlePayTDS} loading={paying}>
               Record Payment
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Create TDS Entry Modal */}
+      <Modal
+        isOpen={showCreateModal}
+        onClose={() => setShowCreateModal(false)}
+        title="Create TDS Entry"
+      >
+        <div className="space-y-4">
+          <Input
+            label="Deductee Name"
+            placeholder="e.g., ABC Consultants Pvt Ltd"
+            value={createForm.deducteeName}
+            onChange={(e) => setCreateForm({ ...createForm, deducteeName: e.target.value })}
+          />
+
+          <Input
+            label="PAN"
+            placeholder="e.g., ABCDE1234F"
+            value={createForm.deducteePan}
+            onChange={(e) => setCreateForm({ ...createForm, deducteePan: e.target.value.toUpperCase() })}
+            maxLength={10}
+          />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1">Section</label>
+              <Select
+                options={Object.entries(sectionRates).map(([code, { name }]) => ({
+                  value: code,
+                  label: `${code} - ${name}`,
+                }))}
+                value={createForm.section}
+                onChange={(e) => setCreateForm({ ...createForm, section: e.target.value })}
+              />
+            </div>
+            <Input
+              label="Transaction Date"
+              type="date"
+              value={createForm.transactionDate}
+              onChange={(e) => setCreateForm({ ...createForm, transactionDate: e.target.value })}
+            />
+          </div>
+
+          <Input
+            label="Nature of Payment"
+            placeholder="e.g., Professional Fees, Rent, Commission"
+            value={createForm.nature}
+            onChange={(e) => setCreateForm({ ...createForm, nature: e.target.value })}
+          />
+
+          <Input
+            label="Payment Amount"
+            type="number"
+            placeholder="0.00"
+            value={createForm.paymentAmount}
+            onChange={(e) => setCreateForm({ ...createForm, paymentAmount: e.target.value })}
+            min="0"
+            step="0.01"
+          />
+
+          {createForm.paymentAmount && parseFloat(createForm.paymentAmount) > 0 && (
+            <div className="p-3 bg-muted rounded-lg">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">TDS Rate ({createForm.section}):</span>
+                <span className="font-medium">{sectionRates[createForm.section]?.rate || 0}%</span>
+              </div>
+              <div className="flex justify-between text-sm mt-1">
+                <span className="text-muted-foreground">TDS Amount:</span>
+                <span className="font-bold text-foreground">
+                  {formatCurrency(
+                    (parseFloat(createForm.paymentAmount) * (sectionRates[createForm.section]?.rate || 0)) / 100
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm mt-1">
+                <span className="text-muted-foreground">Net Payable:</span>
+                <span className="font-bold text-foreground">
+                  {formatCurrency(
+                    parseFloat(createForm.paymentAmount) -
+                      (parseFloat(createForm.paymentAmount) * (sectionRates[createForm.section]?.rate || 0)) / 100
+                  )}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="secondary" onClick={() => setShowCreateModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateEntry} loading={creating}>
+              Create Entry
             </Button>
           </div>
         </div>

@@ -47,36 +47,44 @@ class FinancialReportsService {
       endDate: { $gte: rangeStart, $lte: rangeEnd },
     };
 
-    const [summaryStats, monthlyStats] = await Promise.all([
-      BankStatement.aggregate([
-        { $match: match },
-        {
-          $group: {
-            _id: null,
-            totalCredits: { $sum: { $toDouble: '$totalCredits' } },
-            totalDebits: { $sum: { $toDouble: '$totalDebits' } },
-            statementCount: { $sum: 1 },
-            transactionCount: { $sum: '$transactionCount' },
-          },
-        },
-      ]),
-      BankStatement.aggregate([
-        { $match: match },
-        {
-          $group: {
-            _id: {
-              year: { $year: '$endDate' },
-              month: { $month: '$endDate' },
+    let summaryStats = [];
+    let monthlyStats = [];
+    try {
+      [summaryStats, monthlyStats] = await Promise.all([
+        BankStatement.aggregate([
+          { $match: match },
+          {
+            $group: {
+              _id: null,
+              totalCredits: { $sum: { $toDouble: '$totalCredits' } },
+              totalDebits: { $sum: { $toDouble: '$totalDebits' } },
+              statementCount: { $sum: 1 },
+              transactionCount: { $sum: '$transactionCount' },
             },
-            totalCredits: { $sum: { $toDouble: '$totalCredits' } },
-            totalDebits: { $sum: { $toDouble: '$totalDebits' } },
-            statementCount: { $sum: 1 },
-            transactionCount: { $sum: '$transactionCount' },
           },
-        },
-        { $sort: { '_id.year': 1, '_id.month': 1 } },
-      ]),
-    ]);
+        ]),
+        BankStatement.aggregate([
+          { $match: match },
+          {
+            $group: {
+              _id: {
+                year: { $year: '$endDate' },
+                month: { $month: '$endDate' },
+              },
+              totalCredits: { $sum: { $toDouble: '$totalCredits' } },
+              totalDebits: { $sum: { $toDouble: '$totalDebits' } },
+              statementCount: { $sum: 1 },
+              transactionCount: { $sum: '$transactionCount' },
+            },
+          },
+          { $sort: { '_id.year': 1, '_id.month': 1 } },
+        ]),
+      ]);
+    } catch (err) {
+      logger.warn('BankStatement flow query failed (returning zeros):', err.message);
+      summaryStats = [];
+      monthlyStats = [];
+    }
 
     const totalCredits = new Decimal(summaryStats?.[0]?.totalCredits || 0);
     const totalDebits = new Decimal(summaryStats?.[0]?.totalDebits || 0);
@@ -256,6 +264,7 @@ class FinancialReportsService {
 
       entries.forEach(entry => {
         entry.lines.forEach(line => {
+          if (!line.account) return;
           const accountId = line.account._id.toString();
           const account = accountMap[accountId];
 
@@ -901,23 +910,29 @@ class FinancialReportsService {
    */
   async generateRevenueExpensesChart(year) {
     try {
-      const targetYear = year || new Date().getFullYear();
+      const targetYear = parseInt(year, 10) || new Date().getFullYear();
       const monthlyData = [];
 
       for (let month = 0; month < 12; month++) {
         const startDate = new Date(targetYear, month, 1);
         const endDate = new Date(targetYear, month + 1, 0);
 
-        const pl = await this.generateProfitLoss(startDate, endDate).catch(() => ({
-          income: { total: '0' },
-          expenses: { total: '0' },
-        }));
+        try {
+          const pl = await this.generateProfitLoss(startDate, endDate);
 
-        monthlyData.push({
-          month: new Date(targetYear, month).toLocaleString('default', { month: 'short' }),
-          revenue: parseFloat(pl.income.total),
-          expenses: parseFloat(pl.expenses.total),
-        });
+          monthlyData.push({
+            month: new Date(targetYear, month).toLocaleString('default', { month: 'short' }),
+            revenue: parseFloat(pl.income.total) || 0,
+            expenses: parseFloat(pl.expenses.total) || 0,
+          });
+        } catch (monthError) {
+          logger.warn(`Chart: failed to generate P&L for ${targetYear}-${String(month + 1).padStart(2, '0')}:`, monthError.message);
+          monthlyData.push({
+            month: new Date(targetYear, month).toLocaleString('default', { month: 'short' }),
+            revenue: 0,
+            expenses: 0,
+          });
+        }
       }
 
       return monthlyData;

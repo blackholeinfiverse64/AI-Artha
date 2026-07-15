@@ -14,10 +14,10 @@ const connectRedis = async () => {
     // Configure Redis client
     redisClient = createClient({
       socket: {
-        host: process.env.REDIS_HOST || 'redis-17252.c265.us-east-1-2.ec2.cloud.redislabs.com',
-        port: parseInt(process.env.REDIS_PORT) || 17252
+        host: process.env.REDIS_HOST,
+        port: parseInt(process.env.REDIS_PORT) || 6379
       },
-      password: process.env.REDIS_PASSWORD || 'gK22JxYlv9HCpBBuNWpizNT1YjBOOoAD'
+      password: process.env.REDIS_PASSWORD
     });
 
     redisClient.on('error', (err) => {
