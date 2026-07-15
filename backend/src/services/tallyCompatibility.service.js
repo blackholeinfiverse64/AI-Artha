@@ -303,6 +303,17 @@ class TallyCompatibilityService {
       voucher.amount = String(Math.max(totalDebit, totalCredit));
     }
 
+    logger.info(`Tally CSV parsed: ${voucherMap.size} vouchers`, {
+      vouchers: Array.from(voucherMap.values()).map(v => ({
+        number: v.number,
+        type: v.type,
+        entries: v.ledgerEntries.length,
+        amount: v.amount,
+        debitTotal: v.ledgerEntries.filter(e => e.isDebit).reduce((s, e) => s + e.amount, 0),
+        creditTotal: v.ledgerEntries.filter(e => !e.isDebit).reduce((s, e) => s + e.amount, 0),
+      })),
+    });
+
     return Array.from(voucherMap.values());
   }
 
@@ -360,6 +371,14 @@ class TallyCompatibilityService {
           const totalDebit = journalLines.lines.reduce((s, l) => s + parseFloat(l.debit || 0), 0);
           const totalCredit = journalLines.lines.reduce((s, l) => s + parseFloat(l.credit || 0), 0);
           if (Math.abs(totalDebit - totalCredit) > 0.01) {
+            logger.error(`Tally import: voucher ${voucher.number} not balanced`, {
+              voucherNumber: voucher.number,
+              voucherType: voucher.type,
+              entries: voucher.ledgerEntries.map(e => ({ name: e.ledgerName, amount: e.amount, isDebit: e.isDebit })),
+              journalLines: journalLines.lines.map(l => ({ account: String(l.account), debit: l.debit, credit: l.credit })),
+              totalDebit: totalDebit.toFixed(2),
+              totalCredit: totalCredit.toFixed(2),
+            });
             results.failed++;
             results.errors.push({
               voucher: voucher.number || voucher.id,
@@ -379,7 +398,10 @@ class TallyCompatibilityService {
             tags: ['tally-import', mappedType],
           }, userId);
 
-          await JournalEntry.findByIdAndUpdate(journalEntry._id, { status: 'VALIDATED' });
+          const entryDoc = await JournalEntry.findById(journalEntry._id);
+          entryDoc.status = 'VALIDATED';
+          await entryDoc.save();
+
           await ledgerService.postJournalEntry(journalEntry._id, userId);
           results.journalEntriesCreated++;
           results.created++;
