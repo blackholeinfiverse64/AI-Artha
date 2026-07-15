@@ -431,25 +431,33 @@ class TallyCompatibilityService {
 
           if (journalLines.lines.length < 2) {
             results.skipped++;
-            results.warnings.push({ voucher: voucher.number, warning: 'Could not resolve enough accounts for journal lines' });
+            const skippedNames = (journalLines.skippedEntries || []).map(e => e.ledgerName).join(', ');
+            results.warnings.push({ voucher: voucher.number, warning: `Could not resolve enough accounts for journal lines${skippedNames ? ` (unresolved: ${skippedNames})` : ''}` });
             continue;
+          }
+
+          if (journalLines.skippedEntries && journalLines.skippedEntries.length > 0) {
+            const skippedDetails = journalLines.skippedEntries.map(e => `${e.ledgerName}(${e.isDebit ? 'Dr' : 'Cr'} ${e.amount})`).join(', ');
+            logger.warn(`Tally import: voucher ${voucher.number} has ${journalLines.skippedEntries.length} unresolvable account(s): ${skippedDetails}`);
           }
 
           const totalDebit = journalLines.lines.reduce((s, l) => s + parseFloat(l.debit || 0), 0);
           const totalCredit = journalLines.lines.reduce((s, l) => s + parseFloat(l.credit || 0), 0);
           if (Math.abs(totalDebit - totalCredit) > 0.01) {
+            const skippedNames = (journalLines.skippedEntries || []).map(e => `${e.ledgerName}(${e.isDebit ? 'Dr' : 'Cr'} ${e.amount})`).join(', ');
             logger.error(`Tally import: voucher ${voucher.number} not balanced`, {
               voucherNumber: voucher.number,
               voucherType: voucher.type,
               entries: voucher.ledgerEntries.map(e => ({ name: e.ledgerName, amount: e.amount, isDebit: e.isDebit })),
               journalLines: journalLines.lines.map(l => ({ account: String(l.account), debit: l.debit, credit: l.credit })),
+              skippedEntries: journalLines.skippedEntries,
               totalDebit: totalDebit.toFixed(2),
               totalCredit: totalCredit.toFixed(2),
             });
             results.failed++;
             results.errors.push({
               voucher: voucher.number || voucher.id,
-              error: `Journal not balanced (debit: ${totalDebit.toFixed(2)}, credit: ${totalCredit.toFixed(2)})`,
+              error: `Journal not balanced (debit: ${totalDebit.toFixed(2)}, credit: ${totalCredit.toFixed(2)})${skippedNames ? `. Unresolved accounts: ${skippedNames}` : '. Check CSV debit/credit columns'}`,
             });
             continue;
           }
@@ -497,10 +505,15 @@ class TallyCompatibilityService {
 
   async buildJournalLinesFromVoucher(voucher, accountCache) {
     const lines = [];
+    const skippedEntries = [];
 
     for (const entry of voucher.ledgerEntries) {
       const account = await this.resolveAccount(entry.ledgerName, accountCache);
-      if (!account) continue;
+      if (!account) {
+        skippedEntries.push({ ledgerName: entry.ledgerName, amount: entry.amount, isDebit: entry.isDebit });
+        logger.warn(`Tally import: skipping unresolvable account "${entry.ledgerName}" for voucher ${voucher.number}`);
+        continue;
+      }
 
       const absAmount = Math.abs(entry.amount).toFixed(2);
       if (entry.isDebit) {
@@ -520,7 +533,7 @@ class TallyCompatibilityService {
       }
     }
 
-    return { lines };
+    return { lines, skippedEntries };
   }
 
   async resolveAccount(ledgerName, accountCache) {
@@ -539,27 +552,52 @@ class TallyCompatibilityService {
     }
 
     if (!account) {
-      try {
-        const inferredType = this.inferAccountType(ledgerName);
-        const maxCode = await ChartOfAccounts.findOne({ type: inferredType }).sort({ code: -1 }).select('code');
-        const nextCode = maxCode ? String(parseInt(maxCode.code) + 1) : this.getDefaultCode(inferredType);
+      const inferredType = this.inferAccountType(ledgerName);
+      const normalBalance = this.MASTERS_MAP[inferredType]?.normalBalance || 'debit';
 
-        account = new ChartOfAccounts({
-          code: nextCode,
-          name: ledgerName,
-          type: inferredType,
-          normalBalance: this.MASTERS_MAP[inferredType]?.normalBalance || 'debit',
-          description: `Auto-created from Tally import: ${ledgerName}`,
-        });
-        await account.save();
-        logger.info(`Auto-created account: ${ledgerName} (${nextCode})`);
-      } catch (createErr) {
-        logger.error(`Failed to auto-create account "${ledgerName}": ${createErr.message}`);
-        return null;
+      for (let attempt = 0; attempt < 5; attempt++) {
+        try {
+          const existingCodes = await ChartOfAccounts.find({ type: inferredType }).select('code');
+          let maxNum = existingCodes.reduce((max, a) => {
+            const n = parseInt(a.code) || 0;
+            return n > max ? n : max;
+          }, 0);
+          if (maxNum === 0) maxNum = parseInt(this.getDefaultCode(inferredType)) - 1;
+          const nextCode = String(maxNum + 1 + attempt);
+
+          account = await ChartOfAccounts.findOneAndUpdate(
+            { code: nextCode },
+            {
+              $setOnInsert: {
+                code: nextCode,
+                name: ledgerName,
+                type: inferredType,
+                normalBalance,
+                description: `Auto-created from Tally import: ${ledgerName}`,
+              },
+            },
+            { upsert: true, new: true, rawResult: true },
+          );
+
+          if (account.lastErrorObject?.updatedExisting) {
+            account = await ChartOfAccounts.findById(account.value._id);
+          } else {
+            account = account.value;
+            logger.info(`Auto-created account: ${ledgerName} (${nextCode})`);
+          }
+          break;
+        } catch (createErr) {
+          if (attempt === 4) {
+            logger.error(`Failed to auto-create account "${ledgerName}" after 5 attempts: ${createErr.message}`);
+            account = null;
+          }
+        }
       }
     }
 
-    accountCache.set(ledgerName, account);
+    if (account) {
+      accountCache.set(ledgerName, account);
+    }
     return account;
   }
 
