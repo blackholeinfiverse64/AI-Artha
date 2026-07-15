@@ -38,6 +38,7 @@ const JournalEntryCreate = () => {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [accounts, setAccounts] = useState([]);
+  const [entryStatus, setEntryStatus] = useState(null);
 
   const {
     register,
@@ -104,6 +105,7 @@ const JournalEntryCreate = () => {
     try {
       const response = await api.get(`/ledger/entries/${id}`);
       const entry = response.data.data;
+      setEntryStatus(entry.status);
       setValue('date', entry.date?.split('T')[0] || '');
       setValue('description', entry.description);
       setValue('reference', entry.reference || '');
@@ -382,7 +384,7 @@ const JournalEntryCreate = () => {
           <Button type="submit" loading={saving} icon={Save}>
             Save as Draft
           </Button>
-          {isEditing && (
+          {isEditing && entryStatus !== 'POSTED' && entryStatus !== 'posted' && (
             <Button
               type="button"
               variant="success"
@@ -393,6 +395,12 @@ const JournalEntryCreate = () => {
             >
               Post Entry
             </Button>
+          )}
+          {isEditing && (entryStatus === 'POSTED' || entryStatus === 'posted') && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-success/10 text-success text-sm font-medium">
+              <Check className="w-4 h-4" />
+              Already Posted
+            </span>
           )}
         </div>
       </form>
