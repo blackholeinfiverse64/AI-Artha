@@ -270,6 +270,7 @@ class TallyCompatibilityService {
 
       let amount = 0;
       let isDebit = true;
+      let hasExplicitDebitCredit = false;
 
       const debitCol = record.Debit || record.debit || record.DEBIT || record.dr || record.Dr || '';
       const creditCol = record.Credit || record.credit || record.CREDIT || record.cr || record.Cr || '';
@@ -279,6 +280,7 @@ class TallyCompatibilityService {
       if (debitVal > 0 || creditVal > 0) {
         amount = debitVal > 0 ? debitVal : creditVal;
         isDebit = debitVal > 0;
+        hasExplicitDebitCredit = true;
       } else {
         const amtCol = record.Amount || record.amount || record.AMOUNT || record.amt || '';
         const rawAmount = parseFloat(String(amtCol).replace(/,/g, '')) || 0;
@@ -296,10 +298,12 @@ class TallyCompatibilityService {
           party,
           ledgerEntries: [],
           amount: '0',
+          hasExplicitDebitCredit: false,
         });
       }
 
       const voucher = voucherMap.get(key);
+      if (hasExplicitDebitCredit) voucher.hasExplicitDebitCredit = true;
       if (ledgerName && ledgerName.trim()) {
         voucher.ledgerEntries.push({
           ledgerName: ledgerName.trim(),
@@ -315,7 +319,11 @@ class TallyCompatibilityService {
       let totalDebit = voucher.ledgerEntries.filter(e => e.isDebit).reduce((s, e) => s + e.amount, 0);
       let totalCredit = voucher.ledgerEntries.filter(e => !e.isDebit).reduce((s, e) => s + e.amount, 0);
 
-      if (Math.abs(totalDebit - totalCredit) > 0.01 && voucher.ledgerEntries.length >= 2) {
+      if (Math.abs(totalDebit - totalCredit) > 0.01 && voucher.ledgerEntries.length >= 2 && voucher.hasExplicitDebitCredit) {
+        logger.warn(`Tally CSV: voucher ${voucher.number} has explicit Debit/Credit columns but debits (${totalDebit.toFixed(2)}) != credits (${totalCredit.toFixed(2)}). Check source data.`);
+      }
+
+      if (Math.abs(totalDebit - totalCredit) > 0.01 && voucher.ledgerEntries.length >= 2 && !voucher.hasExplicitDebitCredit) {
         const expectedDebitSide = (name) => {
           const lower = name.toLowerCase();
           if (lower.includes('payable') || lower.includes('liability') || lower.includes('capital') ||
@@ -553,9 +561,10 @@ class TallyCompatibilityService {
 
     if (!account) {
       const inferredType = this.inferAccountType(ledgerName);
-      const normalBalance = this.MASTERS_MAP[inferredType]?.normalBalance || 'debit';
+      const normalBalance = this.getNormalBalanceForType(inferredType);
 
       for (let attempt = 0; attempt < 5; attempt++) {
+        account = null;
         try {
           const existingCodes = await ChartOfAccounts.find({ type: inferredType }).select('code');
           let maxNum = existingCodes.reduce((max, a) => {
@@ -565,7 +574,7 @@ class TallyCompatibilityService {
           if (maxNum === 0) maxNum = parseInt(this.getDefaultCode(inferredType)) - 1;
           const nextCode = String(maxNum + 1 + attempt);
 
-          account = await ChartOfAccounts.findOneAndUpdate(
+          await ChartOfAccounts.findOneAndUpdate(
             { code: nextCode },
             {
               $setOnInsert: {
@@ -579,10 +588,8 @@ class TallyCompatibilityService {
             { upsert: true, new: true, rawResult: true },
           );
 
-          if (account.lastErrorObject?.updatedExisting) {
-            account = await ChartOfAccounts.findById(account.value._id);
-          } else {
-            account = account.value;
+          account = await ChartOfAccounts.findOne({ code: nextCode });
+          if (account) {
             logger.info(`Auto-created account: ${ledgerName} (${nextCode})`);
           }
           break;
@@ -611,6 +618,11 @@ class TallyCompatibilityService {
     if (lower.includes('sales') || lower.includes('revenue') || lower.includes('income') || lower.includes('service')) return 'Income';
     if (lower.includes('purchase') || lower.includes('expense') || lower.includes('salary') || lower.includes('rent') || lower.includes('depreciation')) return 'Expense';
     return 'Expense';
+  }
+
+  getNormalBalanceForType(type) {
+    const normalized = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+    return this.MASTERS_MAP[normalized]?.normalBalance || 'debit';
   }
 
   getDefaultCode(type) {

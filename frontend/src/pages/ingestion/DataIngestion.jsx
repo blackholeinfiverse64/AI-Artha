@@ -67,6 +67,7 @@ export default function DataIngestion() {
   const [createJournals, setCreateJournals] = useState(true);
   const [selectedSource, setSelectedSource] = useState('tally');
   const [expandedPreview, setExpandedPreview] = useState(false);
+  const [previewMode, setPreviewMode] = useState('aggregated');
   const fileInputRef = useRef(null);
 
   const handleFileSelect = useCallback(async (e) => {
@@ -181,6 +182,7 @@ export default function DataIngestion() {
     setSelectedFile(null);
     setPreviewData(null);
     setImportResult(null);
+    setPreviewMode('aggregated');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -278,47 +280,106 @@ export default function DataIngestion() {
 
         {previewData && (
           <div className="mt-4">
-            <button
-              onClick={() => setExpandedPreview(!expandedPreview)}
-              className="flex items-center gap-2 text-sm text-primary hover:underline"
-            >
-              <Eye className="w-4 h-4" />
-              Preview ({previewData.totalRecords} records)
-              {expandedPreview ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            </button>
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setExpandedPreview(!expandedPreview)}
+                className="flex items-center gap-2 text-sm text-primary hover:underline"
+              >
+                <Eye className="w-4 h-4" />
+                Preview ({previewData.totalRecords} records)
+                {expandedPreview ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+              {expandedPreview && previewData.format === 'csv' && (
+                <div className="flex gap-1 p-0.5 bg-muted/50 rounded-lg">
+                  <button
+                    onClick={() => setPreviewMode('aggregated')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                      previewMode === 'aggregated' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                    }`}
+                  >
+                    Grouped
+                  </button>
+                  <button
+                    onClick={() => setPreviewMode('raw')}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
+                      previewMode === 'raw' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
+                    }`}
+                  >
+                    Raw CSV
+                  </button>
+                </div>
+              )}
+            </div>
 
             {expandedPreview && previewData.preview && (
               <div className="mt-3 overflow-x-auto">
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2 font-medium">#</th>
-                      <th className="text-left p-2 font-medium">Date</th>
-                      <th className="text-left p-2 font-medium">Type</th>
-                      <th className="text-left p-2 font-medium">Number</th>
-                      <th className="text-left p-2 font-medium">Narration</th>
-                      <th className="text-right p-2 font-medium">Amount</th>
-                      <th className="text-center p-2 font-medium">Entries</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {previewData.preview.map((voucher, idx) => (
-                      <tr key={idx} className="border-b last:border-0 hover:bg-muted/30">
-                        <td className="p-2 text-muted-foreground">{idx + 1}</td>
-                        <td className="p-2">{voucher.date || '-'}</td>
-                        <td className="p-2">
-                          <span className="px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary">
-                            {voucher.type || 'Journal'}
-                          </span>
-                        </td>
-                        <td className="p-2 font-mono text-xs">{voucher.number || '-'}</td>
-                        <td className="p-2 max-w-[200px] truncate">{voucher.narration || voucher.party || '-'}</td>
-                        <td className="p-2 text-right font-mono">{voucher.amount || '-'}</td>
-                        <td className="p-2 text-center">{voucher.ledgerEntries?.length || '-'}</td>
+                {previewMode === 'aggregated' ? (
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2 font-medium">#</th>
+                        <th className="text-left p-2 font-medium">Date</th>
+                        <th className="text-left p-2 font-medium">Type</th>
+                        <th className="text-left p-2 font-medium">Number</th>
+                        <th className="text-left p-2 font-medium">Narration</th>
+                        <th className="text-right p-2 font-medium">Amount</th>
+                        <th className="text-center p-2 font-medium">Entries</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {previewData.preview.map((voucher, idx) => (
+                        <tr key={idx} className="border-b last:border-0 hover:bg-muted/30">
+                          <td className="p-2 text-muted-foreground">{idx + 1}</td>
+                          <td className="p-2">{voucher.date || '-'}</td>
+                          <td className="p-2">
+                            <span className="px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary">
+                              {voucher.type || 'Journal'}
+                            </span>
+                          </td>
+                          <td className="p-2 font-mono text-xs">{voucher.number || '-'}</td>
+                          <td className="p-2 max-w-[200px] truncate">{voucher.narration || voucher.party || '-'}</td>
+                          <td className="p-2 text-right font-mono">{voucher.amount || '-'}</td>
+                          <td className="p-2 text-center">{voucher.ledgerEntries?.length || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <table className="w-full text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2 font-medium">#</th>
+                        <th className="text-left p-2 font-medium">Date</th>
+                        <th className="text-left p-2 font-medium">Voucher#</th>
+                        <th className="text-left p-2 font-medium">Type</th>
+                        <th className="text-left p-2 font-medium">Ledger</th>
+                        <th className="text-right p-2 font-medium">Debit</th>
+                        <th className="text-right p-2 font-medium">Credit</th>
+                        <th className="text-left p-2 font-medium">Narration</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {previewData.preview.flatMap((voucher, vIdx) =>
+                        (voucher.ledgerEntries || []).map((entry, eIdx) => (
+                          <tr key={`${vIdx}-${eIdx}`} className="border-b last:border-0 hover:bg-muted/30">
+                            <td className="p-2 text-muted-foreground">{vIdx + 1}.{eIdx + 1}</td>
+                            <td className="p-2">{voucher.date || '-'}</td>
+                            <td className="p-2 font-mono text-xs">{voucher.number || '-'}</td>
+                            <td className="p-2">
+                              <span className="px-2 py-0.5 rounded-full text-xs bg-primary/10 text-primary">
+                                {voucher.type || 'Journal'}
+                              </span>
+                            </td>
+                            <td className="p-2">{entry.ledgerName || '-'}</td>
+                            <td className="p-2 text-right font-mono">{entry.isDebit ? entry.amount : ''}</td>
+                            <td className="p-2 text-right font-mono">{!entry.isDebit ? entry.amount : ''}</td>
+                            <td className="p-2 max-w-[200px] truncate">{voucher.narration || '-'}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                )}
                 {previewData.totalRecords > 10 && (
                   <p className="text-xs text-muted-foreground text-center mt-2">
                     Showing 10 of {previewData.totalRecords} records
