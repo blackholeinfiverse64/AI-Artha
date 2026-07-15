@@ -494,7 +494,11 @@ class TallyCompatibilityService {
       } catch (err) {
         results.failed++;
         results.errors.push({ voucher: voucher.number || voucher.id, error: err.message });
-        logger.error(`Tally voucher import error: ${err.message}`, { voucher });
+        logger.error(`Tally voucher import error: ${err.message}`, {
+          voucher,
+          stack: err.stack,
+          ledgerEntries: voucher.ledgerEntries?.map(e => ({ name: e.ledgerName, amount: e.amount, isDebit: e.isDebit })),
+        });
       }
     }
 
@@ -523,6 +527,7 @@ class TallyCompatibilityService {
         continue;
       }
 
+      logger.info(`Tally import: resolved "${entry.ledgerName}" -> ${account.name} (${account.code}, type=${account.type}) for voucher ${voucher.number}`);
       const absAmount = Math.abs(entry.amount).toFixed(2);
       if (entry.isDebit) {
         lines.push({
