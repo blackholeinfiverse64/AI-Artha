@@ -220,14 +220,15 @@ class TallyCompatibilityService {
         if (ledgerName) {
           voucher.ledgerEntries.push({
             ledgerName,
-            amount,
-            isDebit: amount > 0,
+            amount: Math.abs(amount),
+            isDebit: amount >= 0,
           });
         }
       }
 
-      const totalAmount = voucher.ledgerEntries.reduce((sum, e) => sum + Math.abs(e.amount), 0);
-      voucher.amount = String(totalAmount);
+      const totalDebit = voucher.ledgerEntries.filter(e => e.isDebit).reduce((s, e) => s + e.amount, 0);
+      const totalCredit = voucher.ledgerEntries.filter(e => !e.isDebit).reduce((s, e) => s + e.amount, 0);
+      voucher.amount = String(Math.max(totalDebit, totalCredit));
 
       vouchers.push(voucher);
     }
@@ -277,7 +278,7 @@ class TallyCompatibilityService {
         voucher.ledgerEntries.push({
           ledgerName,
           amount: Math.abs(amount),
-          isDebit: amount > 0,
+          isDebit: amount >= 0,
         });
       }
     }
@@ -329,29 +330,39 @@ class TallyCompatibilityService {
 
         if (createJournals && ledgerService) {
           const journalLines = await this.buildJournalLinesFromVoucher(voucher, accountCache);
-          if (journalLines.lines.length >= 2) {
-            const traceId = `TRC-TALLY-${Date.now()}-${randomUUID().slice(0, 8)}`;
-            const journalEntry = await ledgerService.createJournalEntry({
-              date: this.parseTallyDate(voucher.date) || new Date(),
-              description: voucher.narration || voucher.party || `Tally import: ${voucher.type} ${voucher.number || ''}`,
-              lines: journalLines.lines,
-              reference: voucher.number || voucher.reference || `TALLY-${randomUUID().slice(0, 8)}`,
-              source: 'SYSTEM',
-              trace_id: traceId,
-              tags: ['tally-import', mappedType],
-            }, userId);
 
-            if (ledgerService.validateDoubleEntry(journalLines.lines)) {
-              await ledgerService.validateJournalEntry(journalEntry._id, userId);
-              await ledgerService.postJournalEntry(journalEntry._id, userId);
-              results.journalEntriesCreated++;
-            }
-
-            results.created++;
-          } else {
+          if (journalLines.lines.length < 2) {
             results.skipped++;
             results.warnings.push({ voucher: voucher.number, warning: 'Could not resolve enough accounts for journal lines' });
+            continue;
           }
+
+          const totalDebit = journalLines.lines.reduce((s, l) => s + parseFloat(l.debit || 0), 0);
+          const totalCredit = journalLines.lines.reduce((s, l) => s + parseFloat(l.credit || 0), 0);
+          if (Math.abs(totalDebit - totalCredit) > 0.01) {
+            results.failed++;
+            results.errors.push({
+              voucher: voucher.number || voucher.id,
+              error: `Journal not balanced (debit: ${totalDebit.toFixed(2)}, credit: ${totalCredit.toFixed(2)})`,
+            });
+            continue;
+          }
+
+          const traceId = `TRC-TALLY-${Date.now()}-${randomUUID().slice(0, 8)}`;
+          const journalEntry = await ledgerService.createJournalEntry({
+            date: this.parseTallyDate(voucher.date) || new Date(),
+            description: voucher.narration || voucher.party || `Tally import: ${voucher.type} ${voucher.number || ''}`,
+            lines: journalLines.lines,
+            reference: voucher.number || voucher.reference || `TALLY-${randomUUID().slice(0, 8)}`,
+            source: 'SYSTEM',
+            trace_id: traceId,
+            tags: ['tally-import', mappedType],
+          }, userId);
+
+          await ledgerService.validateJournalEntry(journalEntry._id, userId);
+          await ledgerService.postJournalEntry(journalEntry._id, userId);
+          results.journalEntriesCreated++;
+          results.created++;
         } else {
           results.created++;
         }
@@ -383,7 +394,7 @@ class TallyCompatibilityService {
       if (!account) continue;
 
       const absAmount = Math.abs(entry.amount).toFixed(2);
-      if (entry.isDebit || entry.amount > 0) {
+      if (entry.isDebit) {
         lines.push({
           account: account._id,
           debit: absAmount,
@@ -397,22 +408,6 @@ class TallyCompatibilityService {
           credit: absAmount,
           description: entry.ledgerName,
         });
-      }
-    }
-
-    if (lines.length === 0 && voucher.ledgerEntries.length >= 2) {
-      const first = voucher.ledgerEntries[0];
-      const second = voucher.ledgerEntries[1];
-      const amount = Math.abs(first.amount || second.amount || voucher.amount || 0).toFixed(2);
-
-      const debitAccount = await this.resolveAccount(first.ledgerName, accountCache);
-      const creditAccount = await this.resolveAccount(second.ledgerName, accountCache);
-
-      if (debitAccount && creditAccount) {
-        lines.push(
-          { account: debitAccount._id, debit: amount, credit: '0', description: first.ledgerName },
-          { account: creditAccount._id, debit: '0', credit: amount, description: second.ledgerName }
-        );
       }
     }
 
@@ -435,19 +430,24 @@ class TallyCompatibilityService {
     }
 
     if (!account) {
-      const inferredType = this.inferAccountType(ledgerName);
-      const maxCode = await ChartOfAccounts.findOne({ type: inferredType }).sort({ code: -1 }).select('code');
-      const nextCode = maxCode ? String(parseInt(maxCode.code) + 1) : this.getDefaultCode(inferredType);
+      try {
+        const inferredType = this.inferAccountType(ledgerName);
+        const maxCode = await ChartOfAccounts.findOne({ type: inferredType }).sort({ code: -1 }).select('code');
+        const nextCode = maxCode ? String(parseInt(maxCode.code) + 1) : this.getDefaultCode(inferredType);
 
-      account = new ChartOfAccounts({
-        code: nextCode,
-        name: ledgerName,
-        type: inferredType,
-        normalBalance: this.MASTERS_MAP[inferredType]?.normalBalance || 'debit',
-        description: `Auto-created from Tally import: ${ledgerName}`,
-      });
-      await account.save();
-      logger.info(`Auto-created account: ${ledgerName} (${nextCode})`);
+        account = new ChartOfAccounts({
+          code: nextCode,
+          name: ledgerName,
+          type: inferredType,
+          normalBalance: this.MASTERS_MAP[inferredType]?.normalBalance || 'debit',
+          description: `Auto-created from Tally import: ${ledgerName}`,
+        });
+        await account.save();
+        logger.info(`Auto-created account: ${ledgerName} (${nextCode})`);
+      } catch (createErr) {
+        logger.error(`Failed to auto-create account "${ledgerName}": ${createErr.message}`);
+        return null;
+      }
     }
 
     accountCache.set(ledgerName, account);
@@ -456,6 +456,8 @@ class TallyCompatibilityService {
 
   inferAccountType(name) {
     const lower = name.toLowerCase();
+    if (lower.includes('input cgst') || lower.includes('input sgst') || lower.includes('input igst') || lower.includes('tds receivable')) return 'Asset';
+    if (lower.includes('output cgst') || lower.includes('output sgst') || lower.includes('output igst') || lower.includes('tds payable') || lower.includes('gst payable')) return 'Liability';
     if (lower.includes('cash') || lower.includes('bank') || lower.includes('receivable') || lower.includes('asset')) return 'Asset';
     if (lower.includes('payable') || lower.includes('liability') || lower.includes('loan') || lower.includes('duty') || lower.includes('tax')) return 'Liability';
     if (lower.includes('capital') || lower.includes('equity') || lower.includes('retained')) return 'Equity';
