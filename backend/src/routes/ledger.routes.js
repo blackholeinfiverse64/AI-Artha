@@ -67,7 +67,7 @@ router.use(protect);
 // Routes
 router
   .route('/entries')
-  .get(cacheMiddleware(300), getEntries)
+  .get(getEntries)
   .post(
     authorize('accountant', 'admin'),
     createEntryValidation,
