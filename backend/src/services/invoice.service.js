@@ -327,11 +327,18 @@ class InvoiceService {
       }
       
       // Create journal entry to record AR
-      const arAccount = await ChartOfAccounts.findOne({ code: '1100' }).session(session);
-      const revenueAccount = await ChartOfAccounts.findOne({ code: '4000' }).session(session);
+      let arAccount = await ChartOfAccounts.findOne({ code: '1100' }).session(session);
+      let revenueAccount = await ChartOfAccounts.findOne({ code: '4000' }).session(session);
       let outputCGST = await ChartOfAccounts.findOne({ code: '2311' }).session(session);
       let outputSGST = await ChartOfAccounts.findOne({ code: '2312' }).session(session);
       let outputIGST = await ChartOfAccounts.findOne({ code: '2313' }).session(session);
+
+      if (!arAccount) {
+        arAccount = (await ChartOfAccounts.create([{ code: '1100', name: 'Accounts Receivable', type: 'Asset', subtype: 'Current Asset', normalBalance: 'debit' }], { session }))[0];
+      }
+      if (!revenueAccount) {
+        revenueAccount = (await ChartOfAccounts.create([{ code: '4000', name: 'Sales Revenue', type: 'Income', subtype: 'Operating Revenue', normalBalance: 'credit' }], { session }))[0];
+      }
 
       const settings = await CompanySettings.findById('company_settings').session(session);
       const companyState = settings?.address?.state || (settings?.gstin ? settings.gstin.substring(0, 2) : null);
@@ -399,8 +406,8 @@ class InvoiceService {
         outputIGST = outputIGST[0];
       }
       
-      if (!arAccount || !revenueAccount || !outputCGST || !outputSGST || !outputIGST) {
-        throw new Error('Required accounts not found');
+      if (!outputCGST || !outputSGST || !outputIGST) {
+        throw new Error('GST accounts could not be created');
       }
 
       const traceId = randomUUID();

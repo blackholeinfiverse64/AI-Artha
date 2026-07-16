@@ -391,8 +391,18 @@ class ExpenseService {
         inputIGST = inputIGST[0];
       }
       
-      if (!expenseAccount || !cashAccount || !inputCGST || !inputSGST || !inputIGST) {
-        throw new Error('Required accounts not found');
+      if (!expenseAccount) {
+        // Fallback to miscellaneous expense
+        expenseAccount = await ChartOfAccounts.findOne({ code: '6900' }).session(session);
+        if (!expenseAccount) {
+          expenseAccount = (await ChartOfAccounts.create([{
+            code: '6900', name: 'Miscellaneous Expense', type: 'Expense', subtype: 'Operating Expense', normalBalance: 'debit',
+          }], { session }))[0];
+        }
+      }
+
+      if (!cashAccount || !inputCGST || !inputSGST || !inputIGST) {
+        throw new Error('GST accounts could not be created');
       }
 
       const taxableAmount = new Decimal(expense.amount || 0);
