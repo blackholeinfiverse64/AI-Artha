@@ -93,11 +93,16 @@ const ExpenseApproval = () => {
   const handleApprove = async (expense) => {
     setProcessing(true);
     try {
-      await api.post(`/expenses/${expense._id}/approve`);
-      toast.success('Expense approved successfully');
+      const response = await api.post(`/expenses/${expense._id}/approve`);
+      if (response.data.warnings?.length) {
+        toast.warning(`Approved with warning: ${response.data.warnings[0]}`);
+      } else {
+        toast.success('Expense approved successfully');
+      }
       setExpenses((prev) => prev.filter((e) => e._id !== expense._id));
     } catch (error) {
-      toast.error('Failed to approve expense');
+      const msg = error.response?.data?.message || error.message || 'Failed to approve expense';
+      toast.error(msg);
     } finally {
       setProcessing(false);
     }
@@ -168,7 +173,7 @@ const ExpenseApproval = () => {
           <div>
             <p className="text-sm text-muted-foreground">Total Amount</p>
             <p className="text-2xl font-bold text-foreground">
-              {formatCurrency(expenses.reduce((sum, e) => sum + e.amount, 0))}
+              {formatCurrency(expenses.reduce((sum, e) => sum + parseFloat(e.totalAmount || e.amount || 0), 0))}
             </p>
           </div>
         </Card>

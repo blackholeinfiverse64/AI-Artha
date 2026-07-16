@@ -7,6 +7,9 @@ const router = express.Router();
 
 router.use(protect);
 
+// Import history
+router.get('/import/history', tallyController.getImportHistory);
+
 // JSON body import
 router.post('/import/vouchers', tallyController.importVouchers);
 router.post('/import/masters', tallyController.importMasters);

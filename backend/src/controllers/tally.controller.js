@@ -1,4 +1,5 @@
 import tallyCompatibilityService from '../services/tallyCompatibility.service.js';
+import TallyImport from '../models/TallyImport.js';
 import logger from '../config/logger.js';
 import fs from 'fs/promises';
 
@@ -143,6 +144,36 @@ class TallyController {
       res.json({ success: true, data: result });
     } catch (err) {
       res.status(400).json({ success: false, message: err.message });
+    }
+  }
+
+  async getImportHistory(req, res) {
+    try {
+      const page = parseInt(req.query.page) || 1;
+      const limit = parseInt(req.query.limit) || 20;
+      const skip = (page - 1) * limit;
+
+      const query = {};
+      if (req.query.status) query.status = req.query.status;
+      if (req.query.importType) query.importType = req.query.importType;
+
+      const [records, total] = await Promise.all([
+        TallyImport.find(query)
+          .populate('importedBy', 'name email')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit),
+        TallyImport.countDocuments(query),
+      ]);
+
+      res.json({
+        success: true,
+        data: records,
+        pagination: { page, limit, total, pages: Math.ceil(total / limit) },
+      });
+    } catch (err) {
+      logger.error('Get import history error:', err);
+      res.status(500).json({ success: false, message: err.message });
     }
   }
 }

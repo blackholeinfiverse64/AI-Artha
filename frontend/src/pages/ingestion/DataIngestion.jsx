@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   Upload,
   FileText,
@@ -69,6 +69,11 @@ export default function DataIngestion() {
   const [expandedPreview, setExpandedPreview] = useState(false);
   const [previewMode, setPreviewMode] = useState('aggregated');
   const fileInputRef = useRef(null);
+  const [importHistory, setImportHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyTotalPages, setHistoryTotalPages] = useState(1);
+  const [historyFilter, setHistoryFilter] = useState('');
 
   const handleFileSelect = useCallback(async (e) => {
     const file = e.target.files?.[0];
@@ -93,6 +98,28 @@ export default function DataIngestion() {
       setPreviewData(null);
     }
   }, []);
+
+  const fetchImportHistory = useCallback(async (page = 1, status = '') => {
+    setHistoryLoading(true);
+    try {
+      const params = { page, limit: 15 };
+      if (status) params.status = status;
+      const res = await tallyService.getImportHistory(params);
+      setImportHistory(res.data.data || []);
+      setHistoryTotalPages(res.data.pagination?.pages || 1);
+    } catch (err) {
+      toast.error('Failed to load import history');
+      setImportHistory([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'history') {
+      fetchImportHistory(historyPage, historyFilter);
+    }
+  }, [activeTab, historyPage, historyFilter, fetchImportHistory]);
 
   const handleImport = useCallback(async () => {
     if (!selectedFile) return;
@@ -557,22 +584,127 @@ export default function DataIngestion() {
     </div>
   );
 
-  const renderHistoryTab = () => (
-    <Card className="p-6">
-      <div className="flex items-center gap-3 mb-4">
-        <Clock className="w-5 h-5 text-primary" />
-        <h3 className="text-lg font-semibold">Import History</h3>
-      </div>
-      <p className="text-muted-foreground text-sm">
-        Import history is tracked automatically. View import records in the database or through the API.
-      </p>
-      <div className="mt-4 p-8 text-center text-muted-foreground bg-muted/30 rounded-xl">
-        <Layers className="w-10 h-10 mx-auto mb-3 opacity-50" />
-        <p className="text-sm">Import records are stored with full audit trails.</p>
-        <p className="text-xs mt-1">Each import includes validation results, error details, and journal entry references.</p>
-      </div>
-    </Card>
-  );
+  const renderHistoryTab = () => {
+    const statusColors = {
+      completed: 'bg-green-100 text-green-800',
+      partial: 'bg-yellow-100 text-yellow-800',
+      failed: 'bg-red-100 text-red-800',
+      processing: 'bg-blue-100 text-blue-800',
+      pending: 'bg-gray-100 text-gray-800',
+    };
+
+    return (
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <Clock className="w-5 h-5 text-primary" />
+            <h3 className="text-lg font-semibold">Import History</h3>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={historyFilter}
+              onChange={(e) => { setHistoryFilter(e.target.value); setHistoryPage(1); }}
+              className="px-3 py-1.5 text-sm border rounded-lg bg-background"
+            >
+              <option value="">All Status</option>
+              <option value="completed">Completed</option>
+              <option value="partial">Partial</option>
+              <option value="failed">Failed</option>
+              <option value="processing">Processing</option>
+              <option value="pending">Pending</option>
+            </select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => fetchImportHistory(historyPage, historyFilter)}
+              disabled={historyLoading}
+            >
+              <RefreshCw className={`w-4 h-4 ${historyLoading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </div>
+
+        {historyLoading ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : importHistory.length === 0 ? (
+          <div className="p-8 text-center text-muted-foreground bg-muted/30 rounded-xl">
+            <Layers className="w-10 h-10 mx-auto mb-3 opacity-50" />
+            <p className="text-sm">No import records found.</p>
+            <p className="text-xs mt-1">Import data using the Import Data tab to see history here.</p>
+          </div>
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground">
+                    <th className="pb-2 font-medium">Import ID</th>
+                    <th className="pb-2 font-medium">Type</th>
+                    <th className="pb-2 font-medium">Format</th>
+                    <th className="pb-2 font-medium">Status</th>
+                    <th className="pb-2 font-medium text-right">Created</th>
+                    <th className="pb-2 font-medium text-right">Updated</th>
+                    <th className="pb-2 font-medium text-right">Failed</th>
+                    <th className="pb-2 font-medium">Imported By</th>
+                    <th className="pb-2 font-medium">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {importHistory.map((record) => (
+                    <tr key={record._id} className="border-b last:border-0 hover:bg-muted/30">
+                      <td className="py-2.5 font-mono text-xs">{record.importId}</td>
+                      <td className="py-2.5">{record.importType}</td>
+                      <td className="py-2.5 uppercase">{record.format}</td>
+                      <td className="py-2.5">
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[record.status] || 'bg-gray-100'}`}>
+                          {record.status}
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-right">{record.importResults?.created || 0}</td>
+                      <td className="py-2.5 text-right">{record.importResults?.updated || 0}</td>
+                      <td className="py-2.5 text-right text-red-600">{record.importResults?.failed || 0}</td>
+                      <td className="py-2.5">{record.importedBy?.name || record.importedBy?.email || '—'}</td>
+                      <td className="py-2.5 text-xs text-muted-foreground">
+                        {new Date(record.createdAt).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {historyTotalPages > 1 && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                <span className="text-xs text-muted-foreground">
+                  Page {historyPage} of {historyTotalPages}
+                </span>
+                <div className="flex gap-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                    disabled={historyPage <= 1}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setHistoryPage(p => Math.min(historyTotalPages, p + 1))}
+                    disabled={historyPage >= historyTotalPages}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </Card>
+    );
+  };
 
   return (
     <div className="space-y-6">

@@ -166,6 +166,7 @@ export const tallyService = {
   exportOpeningBalances: (data) => api.post('/tally/export/opening-balances', data),
   exportGSTData: (data) => api.post('/tally/export/gst-data', data),
   validateMigration: (data) => api.post('/tally/validate-migration', data),
+  getImportHistory: (params = {}) => api.get('/tally/import/history', { params }),
 };
 
 // Bank Statement Services
