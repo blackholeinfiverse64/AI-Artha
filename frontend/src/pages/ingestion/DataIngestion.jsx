@@ -105,7 +105,14 @@ export default function DataIngestion() {
         importType: 'vouchers',
       });
       setImportResult(res.data.data);
-      toast.success(`Import completed: ${res.data.data.results.created} created`, { id: 'import' });
+      const { results } = res.data.data;
+      if (results.failed > 0) {
+        toast.error(`Import: ${results.created} created, ${results.failed} failed. Check errors below.`, { id: 'import', duration: 6000 });
+      } else if (results.warnings?.length > 0) {
+        toast.success(`Import completed: ${results.created} created (${results.warnings.length} warnings)`, { id: 'import' });
+      } else {
+        toast.success(`Import completed: ${results.created} created, ${results.journalEntriesCreated || 0} journal entries posted`, { id: 'import' });
+      }
     } catch (err) {
       toast.error(err.response?.data?.message || 'Import failed', { id: 'import' });
     } finally {

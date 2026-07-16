@@ -483,14 +483,23 @@ class TallyCompatibilityService {
             tags: ['tally-import', mappedType],
           }, userId);
 
-          const entryDoc = await JournalEntry.findById(journalEntry._id);
-          entryDoc.status = 'VALIDATED';
-          await entryDoc.save();
+          try {
+            await ledgerService.validateJournalEntry(journalEntry._id, userId);
+          } catch (validateErr) {
+            logger.warn(`Tally import: validateJournalEntry failed for ${voucher.number}, using manual VALIDATED status: ${validateErr.message}`);
+            const entryDoc = await JournalEntry.findById(journalEntry._id);
+            entryDoc.status = 'VALIDATED';
+            await entryDoc.save();
+          }
 
           await ledgerService.postJournalEntry(journalEntry._id, userId);
           results.journalEntriesCreated++;
           results.created++;
         } else {
+          if (createJournals && !ledgerService) {
+            results.warnings.push({ voucher: voucher.number || voucher.id, warning: 'Journal entry not created: ledger service unavailable' });
+            logger.error(`Tally import: ledgerService is null — cannot create journal entry for ${voucher.number}`);
+          }
           results.created++;
         }
       } catch (err) {
