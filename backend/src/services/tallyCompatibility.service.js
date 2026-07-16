@@ -473,7 +473,7 @@ class TallyCompatibilityService {
           }
 
           const traceId = `TRC-TALLY-${Date.now()}-${randomUUID().slice(0, 8)}`;
-          const journalEntry = await ledgerService.createJournalEntry({
+          const entryData = {
             date: this.parseTallyDate(voucher.date) || new Date(),
             description: voucher.narration || voucher.party || `Tally import: ${voucher.type} ${voucher.number || ''}`,
             lines: journalLines.lines,
@@ -481,18 +481,10 @@ class TallyCompatibilityService {
             source: 'SYSTEM',
             trace_id: traceId,
             tags: ['tally-import', mappedType],
-          }, userId);
+          };
 
-          try {
-            await ledgerService.validateJournalEntry(journalEntry._id, userId);
-          } catch (validateErr) {
-            logger.warn(`Tally import: validateJournalEntry failed for ${voucher.number}, using manual VALIDATED status: ${validateErr.message}`);
-            const entryDoc = await JournalEntry.findById(journalEntry._id);
-            entryDoc.status = 'VALIDATED';
-            await entryDoc.save();
-          }
+          await ledgerService.importAndPostJournalEntry(entryData, userId);
 
-          await ledgerService.postJournalEntry(journalEntry._id, userId);
           results.journalEntriesCreated++;
           results.created++;
         } else {
@@ -522,6 +514,15 @@ class TallyCompatibilityService {
       warnings: results.warnings,
     };
     await importRecord.save();
+
+    if (results.journalEntriesCreated > 0) {
+      try {
+        const cacheService = (await import('./cache.service.js')).default;
+        await cacheService.invalidateLedgerCaches();
+      } catch (cacheErr) {
+        logger.warn(`Import: cache invalidation failed: ${cacheErr.message}`);
+      }
+    }
 
     return { importRecord, results };
   }

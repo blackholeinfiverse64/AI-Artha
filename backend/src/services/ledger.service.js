@@ -645,6 +645,171 @@ class LedgerService {
     });
   }
 
+  /**
+   * Import a journal entry: create → validate → post in a single transaction.
+   * Used by Tally CSV/JSON import to avoid nested-transaction visibility issues.
+   */
+  async importAndPostJournalEntry(entryData, userId) {
+    return await withTransaction(async (session) => {
+      await this.ensureComplianceAccounts(session);
+
+      const {
+        date,
+        description,
+        lines,
+        reference,
+        reference_entry_id,
+        tags,
+        source,
+        trace_id,
+        gstDetails,
+      } = entryData;
+
+      if (!lines || !Array.isArray(lines) || lines.length < 2) {
+        throw new Error('Journal entry must contain at least 2 lines');
+      }
+
+      // ── Step 1: Create (DRAFT) ──
+      const lastEntry = await JournalEntry.findOne({ status: { $in: POSTED_STATUSES } })
+        .sort({ chainPosition: -1 })
+        .session(session);
+
+      const prevHash = lastEntry?.hash || lastEntry?.immutable_hash || '0';
+      const chainPosition = (lastEntry?.chainPosition ?? -1) + 1;
+
+      const journalEntry = new JournalEntry({
+        date: date || new Date(),
+        description,
+        lines,
+        reference,
+        reference_entry_id,
+        tags,
+        status: JOURNAL_STATUS.DRAFT,
+        source: source || 'MANUAL',
+        trace_id,
+        created_at: new Date(),
+        gstDetails: Array.isArray(gstDetails) && gstDetails.length ? gstDetails : undefined,
+        prevHash,
+        chainPosition,
+        prev_hash: prevHash,
+      });
+
+      const auditRecord = this.buildAuditTraceEntry({
+        action: 'ENTRY_CREATED',
+        entry: journalEntry,
+        beforeState: null,
+        afterState: this.buildAuditSnapshot(journalEntry),
+        userId,
+      });
+      journalEntry.auditTrace = auditRecord;
+      journalEntry.auditTrail = [auditRecord];
+
+      await journalEntry.save({ session });
+
+      await this.recordTraceStage(trace_id, {
+        stage: 'JOURNAL_CREATED',
+        entity_type: 'JournalEntry',
+        entity_id: String(journalEntry._id),
+        status: 'SUCCESS',
+        timestamp: new Date(),
+        metadata: {
+          entry_number: journalEntry.entryNumber,
+          line_count: lines.length,
+          source: source || 'MANUAL',
+        },
+      });
+
+      // ── Step 2: Validate → VALIDATED (same session, same snapshot) ──
+      this.validateLineIntegrity(journalEntry.lines);
+      const journalValidation = this.validateJournal(journalEntry.lines);
+      const accounts = await this.validateAccounts(journalEntry.lines);
+      const accountsById = new Map(accounts.map((account) => [String(account._id), account]));
+      const complianceValidation = this.validateComplianceRules(journalEntry, accountsById);
+
+      journalEntry.status = JOURNAL_STATUS.VALIDATED;
+
+      const validatedAudit = this.buildAuditTraceEntry({
+        action: 'VALIDATED',
+        entry: journalEntry,
+        beforeState: this.buildAuditSnapshot(journalEntry),
+        afterState: {
+          ...this.buildAuditSnapshot(journalEntry),
+          validation: { ...journalValidation, ...complianceValidation },
+        },
+        userId,
+      });
+      journalEntry.auditTrace = validatedAudit;
+      journalEntry.auditTrail.push(validatedAudit);
+
+      await journalEntry.save({ session });
+
+      await this.recordTraceStage(trace_id, {
+        stage: 'JOURNAL_VALIDATED',
+        entity_type: 'JournalEntry',
+        entity_id: String(journalEntry._id),
+        status: 'SUCCESS',
+        timestamp: new Date(),
+        metadata: { entry_number: journalEntry.entryNumber },
+      });
+
+      // ── Step 3: Post → POSTED (same session, same snapshot) ──
+      const ledgerEntries = await this.writeLedgerEntries(journalEntry, session);
+
+      const beforeState = this.buildAuditSnapshot(journalEntry);
+
+      journalEntry.status = JOURNAL_STATUS.POSTED;
+      journalEntry.postedBy = userId;
+      journalEntry.postedAt = new Date();
+
+      const afterState = {
+        ...this.buildAuditSnapshot(journalEntry),
+        posting: {
+          prevHash: journalEntry.prevHash || journalEntry.prev_hash,
+          hash: journalEntry.hash || journalEntry.immutable_hash,
+          ledgerEntriesCreated: ledgerEntries.length,
+        },
+      };
+
+      const postedAudit = this.buildAuditTraceEntry({
+        action: 'POSTED',
+        entry: journalEntry,
+        beforeState,
+        afterState,
+        userId,
+      });
+      journalEntry.auditTrace = postedAudit;
+      journalEntry.auditTrail.push(postedAudit);
+
+      await journalEntry.save({ session });
+
+      await this.updateAccountBalances(journalEntry.lines, session);
+
+      await this.recordTraceStage(trace_id, {
+        stage: 'JOURNAL_POSTED',
+        entity_type: 'JournalEntry',
+        entity_id: String(journalEntry._id),
+        status: 'SUCCESS',
+        timestamp: new Date(),
+        metadata: {
+          entry_number: journalEntry.entryNumber,
+          hash: journalEntry.hash,
+          chain_position: journalEntry.chainPosition,
+          ledger_entries_created: ledgerEntries.length,
+        },
+      });
+
+      logger.info(`Journal entry imported+posted: ${journalEntry.entryNumber}`, {
+        hash: journalEntry.hash,
+        chainPosition: journalEntry.chainPosition,
+        postedBy: userId,
+        ledgerEntries: ledgerEntries.length,
+        transactionMode: session ? 'with-transaction' : 'without-transaction',
+      });
+
+      return journalEntry;
+    });
+  }
+
   async createCreditNote(noteData, userId) {
     const {
       amount,

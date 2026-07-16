@@ -38,7 +38,7 @@ const JournalEntries = () => {
 
   const fetchEntries = async () => {
     try {
-      const response = await api.get('/ledger/entries');
+      const response = await api.get('/ledger/entries', { params: { limit: 500 } });
       const entriesData = response.data.data || [];
       
       // Calculate debit/credit totals from lines
