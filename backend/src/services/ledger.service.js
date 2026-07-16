@@ -1098,7 +1098,17 @@ class LedgerService {
       }
 
       if (!VALIDATED_STATUSES.includes(entry.status)) {
-        throw new Error('Cannot post unvalidated entry');
+        // Auto-validate draft entries before posting
+        if (entry.status === JOURNAL_STATUS.DRAFT) {
+          await this.validateJournalEntry(entryId, userId);
+          // Reload after validation
+          const reloaded = await JournalEntry.findById(entryId).session(session);
+          if (!VALIDATED_STATUSES.includes(reloaded.status)) {
+            throw new Error('Cannot post unvalidated entry');
+          }
+        } else {
+          throw new Error('Cannot post unvalidated entry');
+        }
       }
 
       // Verify hash before posting (tamper detection)
