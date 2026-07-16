@@ -263,7 +263,11 @@ const InvoiceViewInner = () => {
               <p className="text-muted-foreground">{invoice.customerEmail}</p>
             )}
             {invoice.customerAddress && (
-              <p className="text-muted-foreground whitespace-pre-line">{invoice.customerAddress}</p>
+              <p className="text-muted-foreground whitespace-pre-line">
+                {typeof invoice.customerAddress === 'string'
+                  ? invoice.customerAddress
+                  : [invoice.customerAddress.street, invoice.customerAddress.city, invoice.customerAddress.state, invoice.customerAddress.zipCode, invoice.customerAddress.country].filter(Boolean).join(', ')}
+              </p>
             )}
             {invoice.customerGSTIN && (
               <p className="text-muted-foreground mt-2">
