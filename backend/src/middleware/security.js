@@ -91,7 +91,7 @@ export const validate = (req, res, next) => {
 // Sanitize input (remove potential XSS)
 export const sanitizeInput = (req, res, next) => {
   const sanitize = (obj) => {
-    for (let key in obj) {
+    for (const key in obj) {
       if (typeof obj[key] === 'string') {
         obj[key] = obj[key].trim();
         // Remove potential script tags

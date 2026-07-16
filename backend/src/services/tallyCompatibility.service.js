@@ -11,6 +11,8 @@ import Decimal from 'decimal.js';
 import { parse } from 'csv-parse/sync';
 import fs from 'fs/promises';
 
+logger.info('[TALLY-SERVICE] v2.1.0 loaded - MASTERS_MAP fix active');
+
 let ledgerService = null;
 try {
   const mod = await import('./ledger.service.js');
@@ -97,7 +99,7 @@ class TallyCompatibilityService {
       const mastersData = accounts.map(account => ({
         name: account.name,
         code: account.code,
-        group: this.MASTERS_MAP[account.type]?.tallyGroup || account.type,
+        group: TallyCompatibilityService.MASTERS_MAP[account.type]?.tallyGroup || account.type,
         type: account.type,
         openingBalance: '0',
       }));
@@ -627,7 +629,7 @@ class TallyCompatibilityService {
 
   getNormalBalanceForType(type) {
     const normalized = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
-    return this.MASTERS_MAP[normalized]?.normalBalance || 'debit';
+    return TallyCompatibilityService.MASTERS_MAP[normalized]?.normalBalance || 'debit';
   }
 
   getDefaultCode(type) {
@@ -658,12 +660,12 @@ class TallyCompatibilityService {
           continue;
         }
 
-        const accountType = master.type || this.TALLY_GROUP_TO_TYPE[master.group] || 'Asset';
+        const accountType = master.type || TallyCompatibilityService.TALLY_GROUP_TO_TYPE[master.group] || 'Asset';
         const account = new ChartOfAccounts({
           code: master.code,
           name: master.name,
           type: accountType,
-          normalBalance: this.MASTERS_MAP[accountType]?.normalBalance || 'debit',
+          normalBalance: TallyCompatibilityService.MASTERS_MAP[accountType]?.normalBalance || 'debit',
           description: `Imported from Tally - ${master.group || ''}`,
         });
         await account.save();

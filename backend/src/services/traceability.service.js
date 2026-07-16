@@ -207,7 +207,7 @@ class TraceabilityService {
     const actualStages = trace.stages.map(s => s.stage);
 
     let continuityBroken = false;
-    let missingStages = [];
+    const missingStages = [];
 
     for (const expectedStage of expectedStages) {
       if (!actualStages.includes(expectedStage)) {

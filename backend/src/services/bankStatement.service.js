@@ -779,8 +779,8 @@ class BankStatementService {
 
     const dmy = dateStr.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})$/);
     if (dmy) {
-      let p1 = parseInt(dmy[1], 10);
-      let p2 = parseInt(dmy[2], 10);
+      const p1 = parseInt(dmy[1], 10);
+      const p2 = parseInt(dmy[2], 10);
       let year = parseInt(dmy[3], 10);
       if (year < 100) year += 2000;
 

@@ -186,7 +186,7 @@ class DatabaseService {
       // Analyze index usage
       const indexInfo = await this.getIndexInfo();
       let totalIndexes = 0;
-      let unusedIndexes = 0;
+      const unusedIndexes = 0;
 
       Object.values(indexInfo).forEach(indexes => {
         totalIndexes += indexes.length;

@@ -37,7 +37,7 @@ const FALLBACK_CONTRACT_DIRS = [
   join(__dirname, '..', '..', 'contracts', 'capability_contracts'),
 ];
 
-let AUTHORITY_MAP = {};
+const AUTHORITY_MAP = {};
 let ROUTE_CAPABILITY_MAP = [];
 let _contractsLoaded = false;
 let _contractsLoadFailed = false;
