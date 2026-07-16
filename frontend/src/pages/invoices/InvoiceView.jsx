@@ -50,18 +50,16 @@ const InvoiceView = () => {
         _id: id,
         invoiceNumber: 'INV-2026-0001',
         status: 'sent',
-        customer: {
-          name: 'Acme Corporation',
-          email: 'billing@acme.com',
-          address: '123 Business Park, Mumbai, Maharashtra 400001',
-          gstn: '27AABCU9603R1ZM',
-        },
+        customerName: 'Acme Corporation',
+        customerEmail: 'billing@acme.com',
+        customerAddress: '123 Business Park, Mumbai, Maharashtra 400001',
+        customerGSTIN: '27AABCU9603R1ZM',
         invoiceDate: '2026-02-01',
         dueDate: '2026-03-01',
-        lineItems: [
-          { description: 'Web Development Services', quantity: 1, rate: 50000, gstRate: 18, amount: 59000 },
-          { description: 'UI/UX Design', quantity: 1, rate: 25000, gstRate: 18, amount: 29500 },
-          { description: 'Cloud Hosting (Annual)', quantity: 1, rate: 12000, gstRate: 18, amount: 14160 },
+        items: [
+          { description: 'Web Development Services', quantity: 1, unitPrice: 50000, gstRate: 18, amount: 59000 },
+          { description: 'UI/UX Design', quantity: 1, unitPrice: 25000, gstRate: 18, amount: 29500 },
+          { description: 'Cloud Hosting (Annual)', quantity: 1, unitPrice: 12000, gstRate: 18, amount: 14160 },
         ],
         subtotal: 87000,
         taxAmount: 15660,
@@ -232,16 +230,16 @@ const InvoiceView = () => {
         <div className="grid grid-cols-2 gap-8 mb-8">
           <div>
             <h3 className="text-sm font-semibold text-muted-foreground uppercase mb-2">Bill To</h3>
-            <p className="text-lg font-semibold text-foreground">{invoice.customer?.name}</p>
-            {invoice.customer?.email && (
-              <p className="text-muted-foreground">{invoice.customer?.email}</p>
+            <p className="text-lg font-semibold text-foreground">{invoice.customerName}</p>
+            {invoice.customerEmail && (
+              <p className="text-muted-foreground">{invoice.customerEmail}</p>
             )}
-            {invoice.customer?.address && (
-              <p className="text-muted-foreground whitespace-pre-line">{invoice.customer?.address}</p>
+            {invoice.customerAddress && (
+              <p className="text-muted-foreground whitespace-pre-line">{invoice.customerAddress}</p>
             )}
-            {invoice.customer?.gstn && (
+            {invoice.customerGSTIN && (
               <p className="text-muted-foreground mt-2">
-                <span className="font-medium">GSTN:</span> {invoice.customer?.gstn}
+                <span className="font-medium">GSTIN:</span> {invoice.customerGSTIN}
               </p>
             )}
           </div>
@@ -288,14 +286,14 @@ const InvoiceView = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {invoice.lineItems?.map((item, index) => (
+              {(invoice.items || invoice.lines || []).map((item, index) => (
                 <tr key={index}>
                   <td className="px-4 py-4 text-foreground">{item.description}</td>
                   <td className="px-4 py-4 text-center text-muted-foreground">{item.quantity}</td>
                   <td className="px-4 py-4 text-right text-muted-foreground">
-                    {formatCurrency(item.rate)}
+                    {formatCurrency(item.unitPrice || item.rate)}
                   </td>
-                  <td className="px-4 py-4 text-center text-muted-foreground">{item.gstRate}%</td>
+                  <td className="px-4 py-4 text-center text-muted-foreground">{item.gstRate || item.taxRate || 0}%</td>
                   <td className="px-4 py-4 text-right font-medium">
                     {formatCurrency(item.amount || item.quantity * item.rate * (1 + item.gstRate / 100))}
                   </td>
@@ -313,14 +311,34 @@ const InvoiceView = () => {
                 <span>Subtotal</span>
                 <span>{formatCurrency(invoice.subtotal)}</span>
               </div>
-              <div className="flex justify-between text-muted-foreground">
-                <span>CGST</span>
-                <span>{formatCurrency(invoice.taxAmount / 2)}</span>
-              </div>
-              <div className="flex justify-between text-muted-foreground">
-                <span>SGST</span>
-                <span>{formatCurrency(invoice.taxAmount / 2)}</span>
-              </div>
+              {(invoice.gstBreakdown?.cgst > 0 || invoice.taxAmount > 0) && (
+                <>
+                  {invoice.gstBreakdown?.cgst > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>CGST</span>
+                      <span>{formatCurrency(invoice.gstBreakdown?.cgst || 0)}</span>
+                    </div>
+                  )}
+                  {invoice.gstBreakdown?.sgst > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>SGST</span>
+                      <span>{formatCurrency(invoice.gstBreakdown?.sgst || 0)}</span>
+                    </div>
+                  )}
+                  {invoice.gstBreakdown?.igst > 0 && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>IGST</span>
+                      <span>{formatCurrency(invoice.gstBreakdown?.igst || 0)}</span>
+                    </div>
+                  )}
+                  {!invoice.gstBreakdown?.cgst && !invoice.gstBreakdown?.sgst && !invoice.gstBreakdown?.igst && (
+                    <div className="flex justify-between text-muted-foreground">
+                      <span>GST</span>
+                      <span>{formatCurrency(invoice.taxAmount)}</span>
+                    </div>
+                  )}
+                </>
+              )}
               {invoice.amountPaid > 0 && (
                 <div className="flex justify-between text-green-600">
                   <span>Paid</span>

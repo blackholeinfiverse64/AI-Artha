@@ -467,32 +467,8 @@ class InvoiceService {
 
       const totalTax = totalCGST.plus(totalSGST).plus(totalIGST);
       const totalAmount = totalTaxable.plus(totalTax);
-      const tolerance = new Decimal('0.01');
 
-      if (invoice.subtotal && totalTaxable.minus(invoice.subtotal).abs().greaterThan(tolerance)) {
-        throw buildGSTValidationError('Invoice subtotal does not match GST calculation', {
-          invoiceId: String(invoice._id),
-          expected: totalTaxable.toString(),
-          actual: invoice.subtotal,
-        });
-      }
-
-      if (invoice.taxAmount && totalTax.minus(invoice.taxAmount).abs().greaterThan(tolerance)) {
-        throw buildGSTValidationError('Invoice tax amount does not match GST calculation', {
-          invoiceId: String(invoice._id),
-          expected: totalTax.toString(),
-          actual: invoice.taxAmount,
-        });
-      }
-
-      if (invoice.totalAmount && totalAmount.minus(invoice.totalAmount).abs().greaterThan(tolerance)) {
-        throw buildGSTValidationError('Invoice total amount does not match GST calculation', {
-          invoiceId: String(invoice._id),
-          expected: totalAmount.toString(),
-          actual: invoice.totalAmount,
-        });
-      }
-
+      // Overwrite with server-calculated values (authoritative source)
       invoice.subtotal = totalTaxable.toString();
       invoice.taxAmount = totalTax.toString();
       invoice.totalAmount = totalAmount.toString();

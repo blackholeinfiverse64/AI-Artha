@@ -83,16 +83,23 @@ const InvoiceCreate = () => {
     try {
       const response = await api.get(`/invoices/${id}`);
       const invoice = response.data.data;
-      setValue('customerName', invoice.customer?.name || '');
-      setValue('customerEmail', invoice.customer?.email || '');
-      setValue('customerAddress', invoice.customer?.address || '');
-      setValue('customerGSTN', invoice.customer?.gstn || '');
+      setValue('customerName', invoice.customerName || invoice.customer?.name || '');
+      setValue('customerEmail', invoice.customerEmail || invoice.customer?.email || '');
+      setValue('customerAddress', invoice.customerAddress || invoice.customer?.address || '');
+      setValue('customerGSTN', invoice.customerGSTIN || invoice.customer?.gstn || '');
       setValue('invoiceDate', invoice.invoiceDate?.split('T')[0] || '');
       setValue('dueDate', invoice.dueDate?.split('T')[0] || '');
       setValue('notes', invoice.notes || '');
       setValue('terms', invoice.terms || '');
-      if (invoice.lineItems?.length) {
-        setValue('lineItems', invoice.lineItems);
+      const lineItems = invoice.items || invoice.lines || invoice.lineItems || [];
+      if (lineItems.length) {
+        setValue('lineItems', lineItems.map(item => ({
+          description: item.description,
+          quantity: item.quantity,
+          rate: item.unitPrice || item.rate,
+          gstRate: item.taxRate || item.gstRate || 0,
+          amount: item.amount,
+        })));
       }
     } catch (error) {
       toast.error('Failed to fetch invoice');
