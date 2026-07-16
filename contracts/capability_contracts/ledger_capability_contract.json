@@ -14,8 +14,6 @@
     "Reversal and void workflows"
   ],
   "authority_explicitly_not_owned": [
-    "Invoice lifecycle (consumed via InvoiceService)",
-    "Expense approval workflow (consumed via ExpenseService)",
     "GST calculation engine (delegated to gstEngine.service)",
     "User authentication and authorization",
     "Schema definitions for ChartOfAccounts (owned by COA module)"

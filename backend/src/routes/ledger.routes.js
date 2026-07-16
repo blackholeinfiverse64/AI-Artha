@@ -136,7 +136,7 @@ router
     createDebitNote
   );
 
-router.route('/balances').get(cacheMiddleware(600), getBalances);
+router.route('/balances').get(getBalances);
 
 router.route('/summary').get(cacheMiddleware(300), getSummary);
 

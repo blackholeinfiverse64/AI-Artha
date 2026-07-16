@@ -28,7 +28,7 @@ router.use(protect);
 // Routes
 router
   .route('/')
-  .get(cacheMiddleware(600), getAccounts)
+  .get(getAccounts)
   .post(
     authorize('admin', 'accountant'),
     accountValidation,
