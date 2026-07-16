@@ -41,7 +41,7 @@ const tallyImportSchema = new mongoose.Schema({
     totalRecords: { type: Number, default: 0 },
     validRecords: { type: Number, default: 0 },
     invalidRecords: { type: Number, default: 0 },
-    warnings: [{ type: String }],
+    warnings: [{ type: mongoose.Schema.Types.Mixed }],
     validationErrors: [{
       line: Number,
       field: String,
