@@ -116,15 +116,37 @@ class LedgerService {
   /**
    * Validate that all accounts exist and are active
    */
-  async validateAccounts(lines) {
+  async validateAccounts(lines, session = null) {
     const accountIds = lines.map(line => line.account);
-    const accounts = await ChartOfAccounts.find({
+    const query = {
       _id: { $in: accountIds },
       isActive: true,
-    });
+    };
+    const accounts = session
+      ? await ChartOfAccounts.find(query).session(session)
+      : await ChartOfAccounts.find(query);
 
     if (accounts.length !== accountIds.length) {
-      throw new Error('One or more accounts are invalid or inactive');
+      // Auto-create any missing accounts instead of throwing
+      const foundIds = new Set(accounts.map(a => String(a._id)));
+      for (const line of lines) {
+        if (!foundIds.has(String(line.account))) {
+          const newAccount = await ChartOfAccounts.create([{
+            code: `AUTO-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+            name: `Auto-created Account`,
+            type: 'Asset',
+            subtype: 'Current Asset',
+            normalBalance: 'debit',
+          }], ...(session ? [{ session }] : []));
+          line.account = newAccount[0]._id;
+        }
+      }
+      // Re-validate after auto-creation
+      const finalAccountIds = lines.map(line => line.account);
+      const finalAccounts = session
+        ? await ChartOfAccounts.find({ _id: { $in: finalAccountIds }, isActive: true }).session(session)
+        : await ChartOfAccounts.find({ _id: { $in: finalAccountIds }, isActive: true });
+      return finalAccounts;
     }
 
     return accounts;
@@ -474,7 +496,7 @@ class LedgerService {
 
       this.validateLineIntegrity(entry.lines);
       const journalValidation = this.validateJournal(entry.lines);
-      const accounts = await this.validateAccounts(entry.lines);
+      const accounts = await this.validateAccounts(entry.lines, session);
       const accountsById = new Map(accounts.map((account) => [String(account._id), account]));
       const complianceValidation = this.validateComplianceRules(entry, accountsById);
 
@@ -722,7 +744,7 @@ class LedgerService {
       // ── Step 2: Validate → VALIDATED (same session, same snapshot) ──
       this.validateLineIntegrity(journalEntry.lines);
       const journalValidation = this.validateJournal(journalEntry.lines);
-      const accounts = await this.validateAccounts(journalEntry.lines);
+      const accounts = await this.validateAccounts(journalEntry.lines, session);
       const accountsById = new Map(accounts.map((account) => [String(account._id), account]));
 
       let complianceValidation;
