@@ -249,11 +249,14 @@ class BankStatementService {
    * Auto-record a payment on an invoice from a bank credit transaction
    */
   async _autoRecordInvoicePayment(invoice, transaction, userId) {
-    const cashAccount = await ChartOfAccounts.findOne({ code: '1010' });
-    const arAccount = await ChartOfAccounts.findOne({ code: '1100' });
+    let cashAccount = await ChartOfAccounts.findOne({ code: '1010' });
+    let arAccount = await ChartOfAccounts.findOne({ code: '1100' });
 
-    if (!cashAccount || !arAccount) {
-      throw new Error('Required accounts not found for invoice payment');
+    if (!cashAccount) {
+      cashAccount = (await ChartOfAccounts.create([{ code: '1010', name: 'Bank Account', type: 'Asset', subtype: 'Current Asset', normalBalance: 'debit' }]))[0];
+    }
+    if (!arAccount) {
+      arAccount = (await ChartOfAccounts.create([{ code: '1100', name: 'Accounts Receivable', type: 'Asset', subtype: 'Current Asset', normalBalance: 'debit' }]))[0];
     }
 
     const { default: Decimal } = await import('decimal.js');

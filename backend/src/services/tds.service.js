@@ -169,10 +169,16 @@ class TDSService {
         tdsPayableAccount = tdsPayableAccount[0];
       }
       
-      const cashAccount = await ChartOfAccounts.findOne({ code: '1010' }).session(session);
+      let cashAccount = await ChartOfAccounts.findOne({ code: '1010' }).session(session);
       
-      if (!expenseAccount || !cashAccount) {
-        throw new Error('Required accounts not found');
+      if (!cashAccount) {
+        cashAccount = (await ChartOfAccounts.create([{
+          code: '1010', name: 'Bank Account', type: 'Asset', subtype: 'Current Asset', normalBalance: 'debit',
+        }], { session }))[0];
+      }
+
+      if (!expenseAccount) {
+        throw new Error('Expense account not found');
       }
       
       // Create journal entry

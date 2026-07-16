@@ -849,14 +849,26 @@ class LedgerService {
       .plus(gstDetail.igst || 0);
     const totalAmount = taxableAmount.plus(totalTax);
 
-    const arAccount = await ChartOfAccounts.findOne({ code: '1100' });
-    const salesReturnAccount = await ChartOfAccounts.findOne({ code: '4010' });
-    const outputCGST = await ChartOfAccounts.findOne({ code: '2311' });
-    const outputSGST = await ChartOfAccounts.findOne({ code: '2312' });
-    const outputIGST = await ChartOfAccounts.findOne({ code: '2313' });
+    let arAccount = await ChartOfAccounts.findOne({ code: '1100' });
+    let salesReturnAccount = await ChartOfAccounts.findOne({ code: '4010' });
+    let outputCGST = await ChartOfAccounts.findOne({ code: '2311' });
+    let outputSGST = await ChartOfAccounts.findOne({ code: '2312' });
+    let outputIGST = await ChartOfAccounts.findOne({ code: '2313' });
 
-    if (!arAccount || !salesReturnAccount || !outputCGST || !outputSGST || !outputIGST) {
-      throw new Error('Required accounts not found');
+    if (!arAccount) {
+      arAccount = (await ChartOfAccounts.create([{ code: '1100', name: 'Accounts Receivable', type: 'Asset', subtype: 'Current Asset', normalBalance: 'debit' }]))[0];
+    }
+    if (!salesReturnAccount) {
+      salesReturnAccount = (await ChartOfAccounts.create([{ code: '4010', name: 'Sales Returns', type: 'Income', subtype: 'Contra Revenue', normalBalance: 'debit' }]))[0];
+    }
+    if (!outputCGST) {
+      outputCGST = (await ChartOfAccounts.create([{ code: '2311', name: 'Output CGST', type: 'Liability', subtype: 'Current Liability', normalBalance: 'credit' }]))[0];
+    }
+    if (!outputSGST) {
+      outputSGST = (await ChartOfAccounts.create([{ code: '2312', name: 'Output SGST', type: 'Liability', subtype: 'Current Liability', normalBalance: 'credit' }]))[0];
+    }
+    if (!outputIGST) {
+      outputIGST = (await ChartOfAccounts.create([{ code: '2313', name: 'Output IGST', type: 'Liability', subtype: 'Current Liability', normalBalance: 'credit' }]))[0];
     }
 
     const lines = [
@@ -949,10 +961,13 @@ class LedgerService {
       expenseAccount = await ChartOfAccounts.findOne({ code: expenseAccountCode });
     }
 
-    const payableAccount = await ChartOfAccounts.findOne({ code: '2000' });
+    let payableAccount = await ChartOfAccounts.findOne({ code: '2000' });
 
-    if (!expenseAccount || !payableAccount) {
-      throw new Error('Required accounts not found');
+    if (!expenseAccount) {
+      throw new Error('Expense account not found');
+    }
+    if (!payableAccount) {
+      payableAccount = (await ChartOfAccounts.create([{ code: '2000', name: 'Accounts Payable', type: 'Liability', subtype: 'Current Liability', normalBalance: 'credit' }]))[0];
     }
 
     const amountDecimal = new Decimal(amount);

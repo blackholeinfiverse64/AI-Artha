@@ -340,10 +340,17 @@ class ExpenseService {
         expenseAccount = await ChartOfAccounts.findOne({ code: accountCode }).session(session);
       }
       
-      const cashAccount = await ChartOfAccounts.findOne({ code: '1010' }).session(session);
+      let cashAccount = await ChartOfAccounts.findOne({ code: '1010' }).session(session);
       let inputCGST = await ChartOfAccounts.findOne({ code: '2301' }).session(session);
       let inputSGST = await ChartOfAccounts.findOne({ code: '2302' }).session(session);
       let inputIGST = await ChartOfAccounts.findOne({ code: '2303' }).session(session);
+
+      if (!cashAccount) {
+        cashAccount = await ChartOfAccounts.create([{
+          code: '1010', name: 'Bank Account', type: 'Asset', subtype: 'Current Asset', normalBalance: 'debit',
+        }], { session });
+        cashAccount = cashAccount[0];
+      }
 
       if (!inputCGST) {
         inputCGST = await ChartOfAccounts.create([

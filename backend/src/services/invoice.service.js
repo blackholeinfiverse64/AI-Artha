@@ -198,12 +198,21 @@ class InvoiceService {
         throw new Error('Payment amount exceeds amount due');
       }
       
-      // Get accounts
-      const cashAccount = await ChartOfAccounts.findOne({ code: '1010' }).session(session);
-      const arAccount = await ChartOfAccounts.findOne({ code: '1100' }).session(session);
+      // Get accounts — auto-create if missing
+      let cashAccount = await ChartOfAccounts.findOne({ code: '1010' }).session(session);
+      let arAccount = await ChartOfAccounts.findOne({ code: '1100' }).session(session);
       
-      if (!cashAccount || !arAccount) {
-        throw new Error('Required accounts not found');
+      if (!cashAccount) {
+        cashAccount = await ChartOfAccounts.create([{
+          code: '1010', name: 'Bank Account', type: 'Asset', subtype: 'Current Asset', normalBalance: 'debit',
+        }], { session });
+        cashAccount = cashAccount[0];
+      }
+      if (!arAccount) {
+        arAccount = await ChartOfAccounts.create([{
+          code: '1100', name: 'Accounts Receivable', type: 'Asset', subtype: 'Current Asset', normalBalance: 'debit',
+        }], { session });
+        arAccount = arAccount[0];
       }
       
       // Create journal entry for payment
