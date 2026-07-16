@@ -483,6 +483,43 @@ class TallyCompatibilityService {
             tags: ['tally-import', mappedType],
           };
 
+          const gstLines = journalLines.lines.filter(l => {
+            const name = String(l.account).toLowerCase();
+            return name.includes('output cgst') || name.includes('output sgst') || name.includes('output igst')
+              || name.includes('input cgst') || name.includes('input sgst') || name.includes('input igst');
+          });
+
+          if (gstLines.length > 0) {
+            const isSale = gstLines.some(l => String(l.account).toLowerCase().includes('output'));
+            const gstAmounts = gstLines.map(l => Math.abs(parseFloat(l.debit || 0) + parseFloat(l.credit || 0)));
+            const totalGST = gstAmounts.reduce((s, a) => s + a, 0);
+            const nonGSTLines = journalLines.lines.filter(l => {
+              const name = String(l.account).toLowerCase();
+              return !name.includes('output cgst') && !name.includes('output sgst') && !name.includes('output igst')
+                && !name.includes('input cgst') && !name.includes('input sgst') && !name.includes('input igst');
+            });
+            const taxableAmount = nonGSTLines.reduce((s, l) => s + Math.abs(parseFloat(l.debit || 0) - parseFloat(l.credit || 0)), 0) / 2;
+            const gstRate = taxableAmount > 0 ? Math.round((totalGST / taxableAmount) * 100) : 18;
+
+            const hasCGST = gstLines.some(l => String(l.account).toLowerCase().includes('cgst'));
+            const hasSGST = gstLines.some(l => String(l.account).toLowerCase().includes('sgst'));
+            const hasIGST = gstLines.some(l => String(l.account).toLowerCase().includes('igst'));
+            const isInterState = hasIGST;
+            const perComponent = isInterState ? totalGST : totalGST / 2;
+
+            entryData.gstDetails = [{
+              transaction_type: isSale ? 'sale' : 'purchase',
+              amount: taxableAmount.toString(),
+              taxable_value: taxableAmount.toString(),
+              gst_rate: gstRate,
+              supplier_state: isSale ? 'MH' : 'MH',
+              company_state: 'MH',
+              cgst: hasCGST ? perComponent.toString() : '0',
+              sgst: hasSGST ? perComponent.toString() : '0',
+              igst: hasIGST ? totalGST.toString() : '0',
+            }];
+          }
+
           await ledgerService.importAndPostJournalEntry(entryData, userId);
 
           results.journalEntriesCreated++;
