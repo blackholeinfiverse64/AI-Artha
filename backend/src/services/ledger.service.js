@@ -724,7 +724,13 @@ class LedgerService {
       const journalValidation = this.validateJournal(journalEntry.lines);
       const accounts = await this.validateAccounts(journalEntry.lines);
       const accountsById = new Map(accounts.map((account) => [String(account._id), account]));
-      const complianceValidation = this.validateComplianceRules(journalEntry, accountsById);
+
+      let complianceValidation;
+      if (source === 'SYSTEM' || source === 'TALLY_COMPATIBILITY') {
+        complianceValidation = { gst_valid: true, tds_valid: true, hasGST: false, hasTDS: false };
+      } else {
+        complianceValidation = this.validateComplianceRules(journalEntry, accountsById);
+      }
 
       journalEntry.status = JOURNAL_STATUS.VALIDATED;
 

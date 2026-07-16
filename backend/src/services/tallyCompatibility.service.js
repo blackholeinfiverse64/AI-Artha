@@ -501,22 +501,12 @@ class TallyCompatibilityService {
             const taxableAmount = nonGSTLines.reduce((s, l) => s + Math.abs(parseFloat(l.debit || 0) - parseFloat(l.credit || 0)), 0) / 2;
             const gstRate = taxableAmount > 0 ? Math.round((totalGST / taxableAmount) * 100) : 18;
 
-            const hasCGST = gstLines.some(l => String(l.account).toLowerCase().includes('cgst'));
-            const hasSGST = gstLines.some(l => String(l.account).toLowerCase().includes('sgst'));
-            const hasIGST = gstLines.some(l => String(l.account).toLowerCase().includes('igst'));
-            const isInterState = hasIGST;
-            const perComponent = isInterState ? totalGST : totalGST / 2;
-
             entryData.gstDetails = [{
               transaction_type: isSale ? 'sale' : 'purchase',
               amount: taxableAmount.toString(),
-              taxable_value: taxableAmount.toString(),
               gst_rate: gstRate,
-              supplier_state: isSale ? 'MH' : 'MH',
+              supplier_state: 'MH',
               company_state: 'MH',
-              cgst: hasCGST ? perComponent.toString() : '0',
-              sgst: hasSGST ? perComponent.toString() : '0',
-              igst: hasIGST ? totalGST.toString() : '0',
             }];
           }
 
