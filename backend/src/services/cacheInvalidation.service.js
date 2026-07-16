@@ -94,22 +94,39 @@ class CacheInvalidationService {
   }
 
   /**
-   * Delete cache keys by patterns
-   * Simplified implementation - in production use Redis SCAN
+   * Delete cache keys matching glob patterns using Redis SCAN.
+   * The cache middleware stores keys as "cache:user:{userId}:{url}",
+   * so we scan for "cache:user:*:{path}*" to match all users.
    */
   async deleteKeys(patterns) {
     try {
       const redisClient = getRedisClient();
       if (!redisClient) return;
 
-      // This is a simplified approach
-      // In production, implement proper pattern matching with SCAN
       for (const pattern of patterns) {
         try {
-          // For exact matches, we can delete directly
-          await redisClient.del(pattern);
+          // Extract the URL path from the pattern (strip "cache:" prefix)
+          const urlPath = pattern.replace(/^cache:/, '');
+
+          // Build SCAN patterns to match both user-specific and global cache keys
+          const scanPatterns = [
+            `cache:user:*:${urlPath}`,
+            `cache:global:${urlPath}`,
+          ];
+
+          for (const scanPattern of scanPatterns) {
+            let cursor = 0;
+            do {
+              const result = await redisClient.scan(cursor, { MATCH: scanPattern, COUNT: 100 });
+              cursor = result.cursor;
+              if (result.keys.length > 0) {
+                await redisClient.del(result.keys);
+                logger.debug(`Deleted ${result.keys.length} cache keys matching ${scanPattern}`);
+              }
+            } while (cursor !== 0);
+          }
         } catch (error) {
-          logger.debug(`Failed to delete cache key ${pattern}:`, error.message);
+          logger.debug(`Failed to scan/delete cache keys for pattern ${pattern}:`, error.message);
         }
       }
     } catch (error) {

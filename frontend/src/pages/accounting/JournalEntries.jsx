@@ -58,12 +58,13 @@ const JournalEntries = () => {
   };
 
   const getStatusBadge = (status) => {
+    const normalized = (status || '').toLowerCase();
     const config = {
       draft: { variant: 'default', icon: Clock, label: 'Draft' },
       posted: { variant: 'success', icon: CheckCircle, label: 'Posted' },
       voided: { variant: 'danger', icon: XCircle, label: 'Voided' },
     };
-    const { variant, icon: Icon, label } = config[status] || config.draft;
+    const { variant, icon: Icon, label } = config[normalized] || config.draft;
     return (
       <Badge variant={variant} className="flex items-center gap-1">
         <Icon className="w-3 h-3" />
@@ -76,7 +77,8 @@ const JournalEntries = () => {
     const matchesSearch =
       entry.entryNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       entry.description?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = !statusFilter || entry.status === statusFilter;
+    const normalizedStatus = (entry.status || '').toLowerCase();
+    const matchesStatus = !statusFilter || normalizedStatus === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
@@ -179,7 +181,7 @@ const JournalEntries = () => {
                   </Table.Cell>
                   <Table.Cell>{getStatusBadge(entry.status)}</Table.Cell>
                   <Table.Cell className="text-muted-foreground">
-                    {entry.createdBy?.name || 'System'}
+                    {entry.postedBy?.name || 'System'}
                   </Table.Cell>
                 </Table.Row>
               ))}
@@ -197,13 +199,13 @@ const JournalEntries = () => {
         <Card className="p-4 text-center">
           <p className="text-sm text-muted-foreground">Posted</p>
           <p className="text-2xl font-bold text-green-600">
-            {entries.filter((e) => e.status === 'posted').length}
+            {entries.filter((e) => (e.status || '').toLowerCase() === 'posted').length}
           </p>
         </Card>
         <Card className="p-4 text-center">
           <p className="text-sm text-muted-foreground">Pending</p>
           <p className="text-2xl font-bold text-yellow-600">
-            {entries.filter((e) => e.status === 'draft').length}
+            {entries.filter((e) => (e.status || '').toLowerCase() === 'draft').length}
           </p>
         </Card>
       </div>
