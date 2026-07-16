@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Component } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   Send,
@@ -27,7 +27,35 @@ import {
 import api from '../../services/api';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
-const InvoiceView = () => {
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="space-y-6">
+          <PageHeader title="Invoice" backUrl="/invoices" />
+          <Card className="p-8">
+            <div className="text-center">
+              <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+              <h2 className="text-lg font-semibold mb-2">Failed to load invoice</h2>
+              <p className="text-muted-foreground mb-4">{this.state.error?.message || 'An error occurred'}</p>
+              <Button onClick={() => window.location.reload()}>Retry</Button>
+            </div>
+          </Card>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const InvoiceViewInner = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const [invoice, setInvoice] = useState(null);
@@ -411,5 +439,11 @@ const InvoiceView = () => {
     </div>
   );
 };
+
+const InvoiceView = () => (
+  <ErrorBoundary>
+    <InvoiceViewInner />
+  </ErrorBoundary>
+);
 
 export default InvoiceView;

@@ -29,11 +29,7 @@ const invoiceSchema = new mongoose.Schema({
     required: true,
   },
   customerAddress: {
-    street: String,
-    city: String,
-    state: String,
-    zipCode: String,
-    country: String,
+    type: mongoose.Schema.Types.Mixed,
   },
   customerState: {
     type: String,
