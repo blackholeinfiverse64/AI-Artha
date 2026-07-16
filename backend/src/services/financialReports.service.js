@@ -392,6 +392,7 @@ class FinancialReportsService {
 
       entries.forEach(entry => {
         entry.lines.forEach(line => {
+          if (!line.account) return;
           const accountId = line.account._id.toString();
           const account = accountMap[accountId];
 
@@ -560,6 +561,7 @@ class FinancialReportsService {
         let otherAccount = null;
 
         entry.lines.forEach(line => {
+          if (!line.account) return;
           const accountId = line.account._id.toString();
 
           if (cashAccountIds.includes(accountId)) {
@@ -665,6 +667,7 @@ class FinancialReportsService {
 
       entries.forEach(entry => {
         entry.lines.forEach(line => {
+          if (!line.account) return;
           const accountId = line.account._id.toString();
           const account = accountMap[accountId];
 

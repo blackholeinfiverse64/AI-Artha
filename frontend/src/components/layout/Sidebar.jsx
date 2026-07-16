@@ -33,11 +33,6 @@ const menuItems = [
     path: '/dashboard',
   },
   {
-    title: 'Smart Upload',
-    icon: Zap,
-    path: '/upload',
-  },
-  {
     title: 'Data Ingestion',
     icon: Database,
     path: '/ingestion',

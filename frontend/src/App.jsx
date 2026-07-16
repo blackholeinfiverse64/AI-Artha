@@ -46,9 +46,6 @@ import StatementsList from './pages/statements/StatementsList';
 import StatementsUpload from './pages/statements/StatementsUpload';
 import StatementDetail from './pages/statements/StatementDetail';
 
-// Smart Upload
-import SmartUpload from './pages/upload/SmartUpload';
-
 // Data Ingestion
 import DataIngestion from './pages/ingestion/DataIngestion';
 
@@ -176,7 +173,6 @@ function App() {
         <Route path="/tds" element={<TDSManagement />} />
         <Route path="/signals" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><SignalDashboard /></RoleProtectedRoute>} />
 
-        <Route path="/upload" element={<SmartUpload />} />
         <Route path="/ingestion" element={<RoleProtectedRoute allowedRoles={['admin', 'accountant']}><DataIngestion /></RoleProtectedRoute>} />
 
         <Route path="/statements" element={<StatementsList />} />
