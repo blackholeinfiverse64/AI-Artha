@@ -32,16 +32,21 @@ import {
 } from './middleware/monitoring.js';
 
 import { memoryMonitor } from './middleware/performance.js';
-import { authorityEnforcement, capabilityGuard } from './middleware/authorityBoundary.js';
+import { authorityEnforcement } from './middleware/authorityBoundary.js';
+import { tracePropagation } from './middleware/tracePropagation.js';
 
 // ─── BHIV Ecosystem Integration Services ────────────────────────────────
 import capabilityRegistry from './services/capabilityRegistry.service.js';
 import provenanceChain from './services/provenanceChain.service.js';
 import deterministicReplay from './services/deterministicReplay.service.js';
 import circuitBreaker from './services/circuitBreaker.service.js';
-import independentVerifier from './services/independentVerifier.service.js';
 import deploymentEvidence from './services/deploymentEvidence.service.js';
 import { policyEnforcement } from './middleware/policyEngine.js';
+
+// ─── BHIV Runtime Bridge Services ──────────────────────────────────────
+import bhivRuntimeBridge from './services/bhivRuntimeBridge.service.js';
+import runtimeRegistration from './services/runtimeRegistration.service.js';
+import insightFlow from './services/insightflow.service.js';
 
 import ledgerRoutes from './routes/ledger.routes.js';
 import accountsRoutes from './routes/accounts.routes.js';
@@ -115,7 +120,15 @@ connectDB();
     setuDispatch.initialize();
     tantraExecutionChain.initialize();
 
-    logger.info('All services initialized (including BHIV ecosystem services)');
+    // Initialize BHIV Runtime Bridge services
+    insightFlow.initialize();
+    await bhivRuntimeBridge.initialize();
+    await runtimeRegistration.register({
+      appId: process.env.APP_ID || process.env.BHIV_APP_ID || 'ARTHA',
+      version: '0.1.0',
+    });
+
+    logger.info('All services initialized (including BHIV Runtime Bridge)');
   } catch (err) {
     logger.warn('Some services failed to initialize:', err.message);
   }
@@ -166,6 +179,12 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 app.use(sanitizeInput);
+
+// ─── TRACE PROPAGATION ────────────────────────────────────────────────
+// Ensures trace_id flows through the entire BHIV execution chain.
+// Must run AFTER body parsing (needs headers) but BEFORE authority enforcement.
+app.use(tracePropagation);
+// ────────────────────────────────────────────────────────────────────────
 
 app.use('/uploads', express.static('uploads'));
 
@@ -405,5 +424,23 @@ if (process.env.NODE_ENV !== 'test') {
     }).catch(() => {});
   });
 }
+
+// ─── Graceful Shutdown ─────────────────────────────────────────────────
+// Deregister from BHIV Core and flush telemetry on shutdown
+const gracefulShutdown = async (signal) => {
+  logger.info(`[SHUTDOWN] ${signal} received, starting graceful shutdown...`);
+
+  try {
+    await runtimeRegistration.deregister();
+    logger.info('[SHUTDOWN] Deregistered from BHIV Core');
+  } catch (err) {
+    logger.warn(`[SHUTDOWN] Deregistration failed: ${err.message}`);
+  }
+
+  process.exit(0);
+};
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 export default app;
